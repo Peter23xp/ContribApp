@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>ContribApp - Financial Reports &amp; History</title>
+<!-- Fonts & Icons -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&amp;family=Public+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                "surface-dim": "#c7dde9",
+                "on-primary": "#ffffff",
+                "surface-variant": "#cfe6f2",
+                "tertiary": "#002d5e",
+                "secondary-fixed": "#a3f69c",
+                "surface-bright": "#f3faff",
+                "on-tertiary": "#ffffff",
+                "on-primary-container": "#6ebfaf",
+                "background": "#f3faff",
+                "surface": "#f3faff",
+                "surface-container-lowest": "#ffffff",
+                "on-secondary-container": "#217128",
+                "on-tertiary-fixed-variant": "#00468c",
+                "inverse-on-surface": "#dff4ff",
+                "on-primary-fixed": "#00201b",
+                "inverse-primary": "#84d5c5",
+                "secondary-container": "#a0f399",
+                "secondary": "#1b6d24",
+                "on-error-container": "#93000a",
+                "on-tertiary-container": "#84b2ff",
+                "outline": "#707975",
+                "tertiary-fixed": "#d6e3ff",
+                "on-secondary-fixed": "#002204",
+                "on-secondary": "#ffffff",
+                "on-error": "#ffffff",
+                "on-primary-fixed-variant": "#005046",
+                "outline-variant": "#bfc9c4",
+                "error-container": "#ffdad6",
+                "on-surface": "#071e27",
+                "tertiary-fixed-dim": "#a9c7ff",
+                "surface-container-low": "#e6f6ff",
+                "on-secondary-fixed-variant": "#005312",
+                "surface-tint": "#046b5e",
+                "on-tertiary-fixed": "#001b3d",
+                "inverse-surface": "#1e333c",
+                "on-background": "#071e27",
+                "primary-fixed-dim": "#84d5c5",
+                "surface-container-high": "#d5ecf8",
+                "primary-container": "#004d43",
+                "on-surface-variant": "#3f4945",
+                "surface-container": "#dbf1fe",
+                "primary-fixed": "#a0f2e1",
+                "primary": "#00342d",
+                "surface-container-highest": "#cfe6f2",
+                "secondary-fixed-dim": "#88d982",
+                "tertiary-container": "#004387",
+                "error": "#ba1a1a"
+            },
+            "borderRadius": {
+                "DEFAULT": "0.125rem",
+                "lg": "0.5rem",
+                "xl": "0.75rem",
+                "full": "9999px"
+            },
+            "fontFamily": {
+                "headline": ["Manrope", "sans-serif"],
+                "body": ["Public Sans", "sans-serif"],
+                "label": ["Public Sans", "sans-serif"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .filled-icon {
+            font-variation-settings: 'FILL' 1;
+        }
+        body { font-family: 'Public Sans', sans-serif; }
+        h1, h2, h3, .headline { font-family: 'Manrope', sans-serif; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface min-h-screen pb-32">
+<!-- TopAppBar -->
+<header class="bg-[#f3faff] dark:bg-[#071e27] shadow-sm shadow-[#071e27]/5 fixed top-0 w-full z-50">
+<div class="flex justify-between items-center w-full px-6 py-4">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-[#004d40] dark:text-[#84d5c5]">account_balance_wallet</span>
+<h1 class="text-xl font-extrabold text-[#004d40] dark:text-[#84d5c5] font-['Manrope'] tracking-tight">ContribApp</h1>
+</div>
+<div class="flex items-center gap-4">
+<button class="transition-all duration-300 ease-in-out active:scale-95 hover:bg-[#dbf1fe]/50 p-2 rounded-full">
+<span class="material-symbols-outlined text-[#004d40] dark:text-[#84d5c5]">notifications</span>
+</button>
+</div>
+</div>
+</header>
+<main class="pt-24 px-6 max-w-5xl mx-auto space-y-8">
+<!-- Header Section -->
+<section class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+<div>
+<p class="text-sm font-semibold uppercase tracking-widest text-on-surface-variant opacity-70 mb-1">Financial Overview</p>
+<h2 class="text-4xl font-extrabold tracking-tight">Reports &amp; History</h2>
+</div>
+<div class="flex gap-3">
+<button class="flex items-center gap-2 bg-surface-container-lowest text-primary font-bold px-6 py-3 rounded-xl shadow-sm border border-outline-variant/15 transition-transform active:scale-95">
+<span class="material-symbols-outlined">file_download</span>
+<span>Export PDF</span>
+</button>
+<button class="flex items-center gap-2 bg-primary text-on-primary font-bold px-6 py-3 rounded-xl shadow-lg transition-transform active:scale-95 bg-gradient-to-br from-primary to-primary-container">
+<span class="material-symbols-outlined">table_chart</span>
+<span>Excel</span>
+</button>
+</div>
+</section>
+<!-- Bento Grid Insights -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<!-- 6 Month Trend Chart -->
+<div class="md:col-span-2 bg-surface-container-lowest rounded-3xl p-8 border border-outline-variant/15 shadow-sm">
+<div class="flex justify-between items-start mb-8">
+<div>
+<h3 class="text-xl font-bold">Contribution Trends</h3>
+<p class="text-sm text-on-surface-variant">Last 6 months performance</p>
+</div>
+<div class="flex items-center gap-2 text-secondary font-bold bg-secondary-container/30 px-3 py-1 rounded-full text-sm">
+<span class="material-symbols-outlined text-sm">trending_up</span>
+                        +12.4%
+                    </div>
+</div>
+<!-- Simple Asymmetric Bar Chart -->
+<div class="flex items-end justify-between gap-2 h-48 w-full px-2">
+<div class="flex flex-col items-center gap-2 w-full group">
+<div class="w-full bg-surface-container-highest rounded-t-xl transition-all duration-500 group-hover:bg-primary-fixed" style="height: 40%"></div>
+<span class="text-[10px] font-bold text-on-surface-variant">JAN</span>
+</div>
+<div class="flex flex-col items-center gap-2 w-full group">
+<div class="w-full bg-surface-container-highest rounded-t-xl transition-all duration-500 group-hover:bg-primary-fixed" style="height: 65%"></div>
+<span class="text-[10px] font-bold text-on-surface-variant">FEB</span>
+</div>
+<div class="flex flex-col items-center gap-2 w-full group">
+<div class="w-full bg-surface-container-highest rounded-t-xl transition-all duration-500 group-hover:bg-primary-fixed" style="height: 55%"></div>
+<span class="text-[10px] font-bold text-on-surface-variant">MAR</span>
+</div>
+<div class="flex flex-col items-center gap-2 w-full group">
+<div class="w-full bg-surface-container-highest rounded-t-xl transition-all duration-500 group-hover:bg-primary-fixed" style="height: 85%"></div>
+<span class="text-[10px] font-bold text-on-surface-variant">APR</span>
+</div>
+<div class="flex flex-col items-center gap-2 w-full group">
+<div class="w-full bg-surface-container-highest rounded-t-xl transition-all duration-500 group-hover:bg-primary-fixed" style="height: 70%"></div>
+<span class="text-[10px] font-bold text-on-surface-variant">MAY</span>
+</div>
+<div class="flex flex-col items-center gap-2 w-full group">
+<div class="w-full bg-primary rounded-t-xl transition-all duration-500 shadow-[0_0_20px_rgba(0,52,45,0.2)]" style="height: 95%"></div>
+<span class="text-[10px] font-bold text-primary">JUN</span>
+</div>
+</div>
+</div>
+<!-- Quick Stats Card -->
+<div class="bg-primary text-on-primary rounded-3xl p-8 flex flex-col justify-between relative overflow-hidden bg-gradient-to-br from-primary to-primary-container shadow-xl">
+<div class="relative z-10">
+<span class="material-symbols-outlined text-4xl mb-4 opacity-50">account_balance</span>
+<h3 class="text-lg font-medium opacity-80">Total Collected</h3>
+<div class="text-3xl font-extrabold tracking-tight mt-1">CDF 4,250,000</div>
+<p class="text-xs mt-2 text-primary-fixed-dim">From 42 active members this month</p>
+</div>
+<div class="absolute -bottom-10 -right-10 w-40 h-40 bg-white/5 rounded-full blur-3xl"></div>
+</div>
+</div>
+<!-- Filters & Search -->
+<section class="flex flex-col md:flex-row gap-4 items-center justify-between">
+<div class="relative w-full md:w-96">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+<input class="w-full pl-12 pr-4 py-3 bg-surface-container-low rounded-2xl border-none focus:ring-2 focus:ring-primary/20 text-on-surface placeholder:text-on-surface-variant/50" placeholder="Search member or transaction..." type="text"/>
+</div>
+<div class="flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0">
+<button class="whitespace-nowrap px-6 py-2 rounded-full bg-primary text-on-primary font-bold text-sm">All Time</button>
+<button class="whitespace-nowrap px-6 py-2 rounded-full bg-surface-container-high text-on-surface-variant font-bold text-sm hover:bg-surface-variant transition-colors">June 2024</button>
+<button class="whitespace-nowrap px-6 py-2 rounded-full bg-surface-container-high text-on-surface-variant font-bold text-sm hover:bg-surface-variant transition-colors">May 2024</button>
+<button class="whitespace-nowrap px-6 py-2 rounded-full bg-surface-container-high text-on-surface-variant font-bold text-sm hover:bg-surface-variant transition-colors">
+<span class="material-symbols-outlined text-sm leading-none align-middle">calendar_month</span>
+</button>
+</div>
+</section>
+<!-- Transaction History -->
+<section class="bg-surface-container-low/50 rounded-[2.5rem] p-4">
+<div class="bg-surface-container-lowest rounded-[2rem] overflow-hidden shadow-sm border border-outline-variant/10">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-high/50">
+<th class="px-8 py-5 text-xs font-bold uppercase tracking-widest text-on-surface-variant">Member Name</th>
+<th class="px-8 py-5 text-xs font-bold uppercase tracking-widest text-on-surface-variant">Date</th>
+<th class="px-8 py-5 text-xs font-bold uppercase tracking-widest text-on-surface-variant">Status</th>
+<th class="px-8 py-5 text-xs font-bold uppercase tracking-widest text-on-surface-variant text-right">Amount</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-surface-container">
+<tr class="hover:bg-surface-container-low/30 transition-colors">
+<td class="px-8 py-6">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-surface-variant flex items-center justify-center font-bold text-primary">JM</div>
+<span class="font-bold text-on-surface">Jean-Luc Mukuna</span>
+</div>
+</td>
+<td class="px-8 py-6 text-on-surface-variant">12 Jun 2024</td>
+<td class="px-8 py-6">
+<span class="bg-secondary/10 text-secondary px-3 py-1 rounded-full text-xs font-bold">Confirmed</span>
+</td>
+<td class="px-8 py-6 text-right font-bold text-primary">150,000 CDF</td>
+</tr>
+<tr class="hover:bg-surface-container-low/30 transition-colors">
+<td class="px-8 py-6">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-tertiary-fixed flex items-center justify-center font-bold text-tertiary">AB</div>
+<span class="font-bold text-on-surface">Alice Bilonda</span>
+</div>
+</td>
+<td class="px-8 py-6 text-on-surface-variant">10 Jun 2024</td>
+<td class="px-8 py-6">
+<span class="bg-secondary/10 text-secondary px-3 py-1 rounded-full text-xs font-bold">Confirmed</span>
+</td>
+<td class="px-8 py-6 text-right font-bold text-primary">200,000 CDF</td>
+</tr>
+<tr class="hover:bg-surface-container-low/30 transition-colors">
+<td class="px-8 py-6">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-surface-variant flex items-center justify-center font-bold text-primary">PK</div>
+<span class="font-bold text-on-surface">Pierre Kabamba</span>
+</div>
+</td>
+<td class="px-8 py-6 text-on-surface-variant">08 Jun 2024</td>
+<td class="px-8 py-6">
+<span class="bg-tertiary/10 text-tertiary px-3 py-1 rounded-full text-xs font-bold">Processing</span>
+</td>
+<td class="px-8 py-6 text-right font-bold text-primary">150,000 CDF</td>
+</tr>
+<tr class="hover:bg-surface-container-low/30 transition-colors">
+<td class="px-8 py-6">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-error-container flex items-center justify-center font-bold text-error">MT</div>
+<span class="font-bold text-on-surface">Marie Tumba</span>
+</div>
+</td>
+<td class="px-8 py-6 text-on-surface-variant">05 Jun 2024</td>
+<td class="px-8 py-6">
+<span class="bg-secondary/10 text-secondary px-3 py-1 rounded-full text-xs font-bold">Confirmed</span>
+</td>
+<td class="px-8 py-6 text-right font-bold text-primary">300,000 CDF</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="flex justify-center p-6">
+<button class="text-primary font-bold hover:underline">View More Transactions</button>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-3 bg-[#f3faff]/80 dark:bg-[#071e27]/80 backdrop-blur-lg shadow-[0_-8px_30px_rgb(7,30,39,0.06)] rounded-t-[2rem]">
+<a class="flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 px-5 py-2 transition-transform duration-200 active:scale-90 hover:text-[#004d40]" href="#">
+<span class="material-symbols-outlined mb-1">grid_view</span>
+<span class="font-['Public_Sans'] text-[11px] font-semibold">Dashboard</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 px-5 py-2 transition-transform duration-200 active:scale-90 hover:text-[#004d40]" href="#">
+<span class="material-symbols-outlined mb-1">payments</span>
+<span class="font-['Public_Sans'] text-[11px] font-semibold">Contributions</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 px-5 py-2 transition-transform duration-200 active:scale-90 hover:text-[#004d40]" href="#">
+<span class="material-symbols-outlined mb-1">group</span>
+<span class="font-['Public_Sans'] text-[11px] font-semibold">Members</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-[#dbf1fe] dark:bg-[#004d43] text-[#00342d] dark:text-[#84d5c5] rounded-2xl px-5 py-2 transition-transform duration-200 active:scale-90" href="#">
+<span class="material-symbols-outlined mb-1 filled-icon" style="font-variation-settings: 'FILL' 1;">analytics</span>
+<span class="font-['Public_Sans'] text-[11px] font-semibold">Reports</span>
+</a>
+</nav>
+</body></html>

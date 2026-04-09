@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&amp;family=Public_Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-dim": "#c7dde9",
+                        "on-primary": "#ffffff",
+                        "surface-variant": "#cfe6f2",
+                        "tertiary": "#002d5e",
+                        "secondary-fixed": "#a3f69c",
+                        "surface-bright": "#f3faff",
+                        "on-tertiary": "#ffffff",
+                        "on-primary-container": "#6ebfaf",
+                        "background": "#f3faff",
+                        "surface": "#f3faff",
+                        "surface-container-lowest": "#ffffff",
+                        "on-secondary-container": "#217128",
+                        "on-tertiary-fixed-variant": "#00468c",
+                        "inverse-on-surface": "#dff4ff",
+                        "on-primary-fixed": "#00201b",
+                        "inverse-primary": "#84d5c5",
+                        "secondary-container": "#a0f399",
+                        "secondary": "#1b6d24",
+                        "on-error-container": "#93000a",
+                        "on-tertiary-container": "#84b2ff",
+                        "outline": "#707975",
+                        "tertiary-fixed": "#d6e3ff",
+                        "on-secondary-fixed": "#002204",
+                        "on-secondary": "#ffffff",
+                        "on-error": "#ffffff",
+                        "on-primary-fixed-variant": "#005046",
+                        "outline-variant": "#bfc9c4",
+                        "error-container": "#ffdad6",
+                        "on-surface": "#071e27",
+                        "tertiary-fixed-dim": "#a9c7ff",
+                        "surface-container-low": "#e6f6ff",
+                        "on-secondary-fixed-variant": "#005312",
+                        "surface-tint": "#046b5e",
+                        "on-tertiary-fixed": "#001b3d",
+                        "inverse-surface": "#1e333c",
+                        "on-background": "#071e27",
+                        "primary-fixed-dim": "#84d5c5",
+                        "surface-container-high": "#d5ecf8",
+                        "primary-container": "#004d43",
+                        "on-surface-variant": "#3f4945",
+                        "surface-container": "#dbf1fe",
+                        "primary-fixed": "#a0f2e1",
+                        "primary": "#00342d",
+                        "surface-container-highest": "#cfe6f2",
+                        "secondary-fixed-dim": "#88d982",
+                        "tertiary-container": "#004387",
+                        "error": "#ba1a1a"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Manrope"],
+                        "body": ["Public Sans"],
+                        "label": ["Public Sans"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            font-family: 'Public Sans', sans-serif;
+            background-color: #f3faff;
+        }
+        h1, h2, h3 {
+            font-family: 'Manrope', sans-serif;
+        }
+        .step-active {
+            width: 2rem;
+            background-color: #00342d;
+        }
+        .primary-gradient {
+            background: linear-gradient(135deg, #00342d 0%, #004d43 100%);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="text-on-background min-h-screen pb-32">
+<!-- Top Navigation Anchor (Suppressed in transactional, using a custom Close/Back) -->
+<header class="bg-[#f3faff] text-[#004d40] font-['Manrope'] font-bold tracking-tight shadow-sm shadow-[#071e27]/5 flex justify-between items-center w-full px-6 py-4 sticky top-0 z-50">
+<div class="flex items-center gap-3">
+<button class="transition-all duration-300 ease-in-out active:scale-95 text-slate-500">
+<span class="material-symbols-outlined">arrow_back</span>
+</button>
+<span class="text-xl font-extrabold text-[#004d40]">ContribApp</span>
+</div>
+<div class="flex items-center gap-2 text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px]">verified_user</span>
+<span class="text-[11px] font-semibold font-['Public_Sans'] uppercase tracking-widest">Secure Entry</span>
+</div>
+</header>
+<main class="max-w-md mx-auto px-6 pt-8">
+<!-- Progress Stepper -->
+<div class="flex gap-2 mb-10 items-center justify-center">
+<div class="h-1.5 step-active rounded-full transition-all duration-500"></div>
+<div class="h-1.5 w-8 bg-surface-variant rounded-full"></div>
+<div class="h-1.5 w-8 bg-surface-variant rounded-full"></div>
+</div>
+<div class="space-y-8">
+<!-- Header Section -->
+<section>
+<h1 class="text-3xl font-extrabold tracking-tight text-primary leading-tight">Make a Contribution</h1>
+<p class="text-on-surface-variant mt-2 font-medium">Support your community fund with a secure mobile payment.</p>
+</section>
+<!-- Step 1: Amount Selection -->
+<section class="space-y-6">
+<div class="flex items-center justify-between">
+<h2 class="text-sm font-bold uppercase tracking-widest text-on-surface-variant">Select Amount</h2>
+<span class="text-xs font-semibold text-primary px-2 py-1 bg-primary-fixed rounded-md">CDF</span>
+</div>
+<!-- Bento-style amount grid -->
+<div class="grid grid-cols-2 gap-4">
+<button class="bg-surface-container-lowest p-6 rounded-xl text-left transition-all active:scale-95 border-2 border-transparent hover:border-primary/20 group">
+<span class="block text-label-sm font-bold text-on-surface-variant mb-1 group-hover:text-primary">Starter</span>
+<span class="text-2xl font-extrabold text-primary">5,000</span>
+</button>
+<button class="bg-primary primary-gradient p-6 rounded-xl text-left transition-all active:scale-95 shadow-xl shadow-primary/10">
+<span class="block text-label-sm font-bold text-primary-fixed-dim mb-1">Standard</span>
+<span class="text-2xl font-extrabold text-on-primary">15,000</span>
+</button>
+<button class="bg-surface-container-lowest p-6 rounded-xl text-left transition-all active:scale-95 border-2 border-transparent hover:border-primary/20 group">
+<span class="block text-label-sm font-bold text-on-surface-variant mb-1 group-hover:text-primary">Silver</span>
+<span class="text-2xl font-extrabold text-primary">50,000</span>
+</button>
+<button class="bg-surface-container-lowest p-6 rounded-xl text-left transition-all active:scale-95 border-2 border-transparent hover:border-primary/20 group">
+<span class="block text-label-sm font-bold text-on-surface-variant mb-1 group-hover:text-primary">Gold</span>
+<span class="text-2xl font-extrabold text-primary">100k</span>
+</button>
+</div>
+<!-- Manual Input -->
+<div class="relative mt-4">
+<div class="absolute inset-y-0 left-4 flex items-center pointer-events-none text-primary/50">
+<span class="font-bold">CDF</span>
+</div>
+<input class="w-full bg-surface-variant/50 border-none rounded-xl py-5 pl-16 pr-4 font-headline font-bold text-xl text-primary focus:ring-2 focus:ring-primary/20 placeholder:text-on-surface-variant/40 transition-all" placeholder="Enter custom amount" type="number"/>
+</div>
+</section>
+<!-- Step 2: Operator Choice -->
+<section class="space-y-6 pt-4">
+<h2 class="text-sm font-bold uppercase tracking-widest text-on-surface-variant">Payment Method</h2>
+<div class="space-y-3">
+<!-- Operator: M-Pesa -->
+<label class="flex items-center justify-between p-4 bg-surface-container-lowest rounded-xl cursor-pointer hover:bg-surface-container-low transition-colors group">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-full overflow-hidden bg-red-600 flex items-center justify-center p-2">
+<img alt="M-Pesa" class="w-full invert" data-alt="Vodafone M-Pesa logo icon in white on a red circular background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC_7e4t9nfWLrB0vQesQxIs7I8Fn8KRAlnsfo9tncxd_XkXu83uazu63QUik6Jt4P7PdlTlz2S68yhrMx-8kECkkuOQtFEDxJHKv1KHkcvu0icnChmnPFK9BMXb2cKoe_9r3q-VcLLaVmfTYW1hsHKjv_ZbmPNyHe9iZj_Y5bGwQPJXhWnSEnIGFFe3qsTpiIhyi-5exOT6oP2H05zvFdKZ86InP4Q-68HX8gDw8pxRwOB2_GdG3mSBkGKYCdEC9iAgZrnEObsn2WlQ"/>
+</div>
+<div>
+<p class="font-bold text-on-surface">M-Pesa</p>
+<p class="text-xs text-on-surface-variant">Vodacom DRC</p>
+</div>
+</div>
+<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary rounded-full" name="operator" type="radio"/>
+</label>
+<!-- Operator: Airtel -->
+<label class="flex items-center justify-between p-4 bg-surface-container-lowest rounded-xl cursor-pointer hover:bg-surface-container-low transition-colors group">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-full overflow-hidden bg-white border border-outline-variant/20 flex items-center justify-center p-1">
+<img alt="Airtel" class="w-full h-full object-contain" data-alt="minimalist Airtel brand logo with clean red typography on white circular background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBHPvq9JywOx0scsKCEl4whsxnBtXuotGgidKTWihwKcqbrJUUS0ZaV8m9gVYXaS0NL5cjjiQjyxHS1IPD24tQLRrfo3_Vu1tq_uuxRsm5SqWVFEBkgS1ayYCk3bsdYlIDOArn_MDP08LPFTy_2iC9zZ3KJVyE7GgaIfLDEoWm2Zm66wS8TwgI1DOY6zUEiqB4QIZ7t3SscgSj7aFVaU36fEPZlkhNvfaRoEWSkI-1cGco_SNtGnDIYRS9TMYOG77RDOJ3R3iCooT14"/>
+</div>
+<div>
+<p class="font-bold text-on-surface">Airtel Money</p>
+<p class="text-xs text-on-surface-variant">Fast &amp; Reliable</p>
+</div>
+</div>
+<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary rounded-full" name="operator" type="radio"/>
+</label>
+<!-- Operator: Orange -->
+<label class="flex items-center justify-between p-4 bg-surface-container-lowest rounded-xl cursor-pointer hover:bg-surface-container-low transition-colors group">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-full overflow-hidden bg-[#FF7900] flex items-center justify-center p-2">
+<img alt="Orange" class="w-full invert" data-alt="Orange telecom brand logo icon in white on an orange circular background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC6ZrE7OYrvQQ1jAdMqHU5WekTZOHOQGLqBFDD6JdNA8F5Os8PFFndpjrfSiFghptTV1upe8Jqh23WcXY0hqoK6EqnEdFtF8r3dc_Nhp8mFeZlrQ_IzVNAIFI6tgzAzp1580kYGU1yzNPdZe9tO1i-hFqcidIjXBKOZ5e-QVsH_X20rLO1Kqrcp-tJ-WBb5UHtkyRMfLdVTx9UNkExoQbmXBsWSczFJ6Z3mt_Y7akEHLKQt1SkhdJMsCIi1koWmYYshvFuc7CsexTn1"/>
+</div>
+<div>
+<p class="font-bold text-on-surface">Orange Money</p>
+<p class="text-xs text-on-surface-variant">Everywhere in RDC</p>
+</div>
+</div>
+<input class="w-5 h-5 text-primary border-outline-variant focus:ring-primary rounded-full" name="operator" type="radio"/>
+</label>
+</div>
+</section>
+</div>
+</main>
+<!-- Fixed Bottom Action Area -->
+<div class="fixed bottom-0 left-0 w-full bg-surface-container-lowest/80 backdrop-blur-xl p-6 pb-10 flex flex-col gap-4 shadow-[0_-8px_30px_rgb(7,30,39,0.06)] z-50">
+<!-- Security Badge -->
+<div class="flex items-center justify-center gap-2 text-on-secondary-container bg-secondary-container/30 py-2 px-4 rounded-full self-center">
+<span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">lock</span>
+<span class="text-[10px] font-bold uppercase tracking-wider">End-to-End Encrypted Transaction</span>
+</div>
+<button class="primary-gradient text-on-primary w-full h-[56px] rounded-xl font-bold text-lg flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-primary/20">
+            Continue to Payment
+            <span class="material-symbols-outlined">arrow_forward</span>
+</button>
+<p class="text-center text-[11px] text-on-surface-variant font-medium px-8">
+            By continuing, you agree to the <a class="text-primary underline" href="#">Terms of Service</a> and the local financial regulations of the DRC.
+        </p>
+</div>
+</body></html>
