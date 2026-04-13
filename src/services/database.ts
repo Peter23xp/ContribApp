@@ -89,6 +89,15 @@ export const initDatabase = async (): Promise<void> => {
     db.execSync(`ALTER TABLE contributions ADD COLUMN due_date TEXT`);
   } catch (_) { /* déjà présente */ }
 
+  // ── Migration : Module 04 GroupConfig Columns ────────────────────────────
+  try { db.execSync(`ALTER TABLE groups ADD COLUMN currency TEXT DEFAULT 'CDF'`); } catch (_) {}
+  try { db.execSync(`ALTER TABLE groups ADD COLUMN penalty_enabled INTEGER DEFAULT 0`); } catch (_) {}
+  try { db.execSync(`ALTER TABLE groups ADD COLUMN penalty_type TEXT DEFAULT 'fixed'`); } catch (_) {}
+  try { db.execSync(`ALTER TABLE groups ADD COLUMN penalty_amount REAL DEFAULT 0`); } catch (_) {}
+  try { db.execSync(`ALTER TABLE groups ADD COLUMN require_approval INTEGER DEFAULT 0`); } catch (_) {}
+  try { db.execSync(`ALTER TABLE groups ADD COLUMN payments_visible INTEGER DEFAULT 1`); } catch (_) {}
+  try { db.execSync(`ALTER TABLE groups ADD COLUMN photo_url TEXT`); } catch (_) {}
+
   // ── Seed : groupe par défaut ────────────────────────────────────────────
   const DEFAULT_GROUP_ID = 'grp_meilleure_promo_001';
   const existingGroup = getDB().getFirstSync<any>(

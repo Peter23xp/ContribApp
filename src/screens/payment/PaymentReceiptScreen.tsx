@@ -110,7 +110,7 @@ export default function PaymentReceiptScreen({ navigation, route }: any) {
     try {
       const url      = await getPdfUrl(txId);
       const filename = receipt ? safeFilename(receipt.receiptNumber) : 'recu.pdf';
-      tmpPath        = `${FileSystem.cacheDirectory}${filename}`;
+      tmpPath = ((FileSystem as any).cacheDirectory ?? '') + filename;
 
       await FileSystem.downloadAsync(url, tmpPath);
       await Sharing.shareAsync(tmpPath, {
@@ -139,7 +139,7 @@ export default function PaymentReceiptScreen({ navigation, route }: any) {
     try {
       const url      = await getPdfUrl(txId);
       const filename = receipt ? safeFilename(receipt.receiptNumber) : 'recu.pdf';
-      const destPath = `${FileSystem.documentDirectory}${filename}`;
+      const destPath = ((FileSystem as any).documentDirectory ?? '') + filename;
 
       await FileSystem.downloadAsync(url, destPath);
 

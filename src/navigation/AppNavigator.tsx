@@ -32,17 +32,29 @@ import AppTabNavigator     from './AppTabNavigator';
 import PaymentConfirmationScreen from '../screens/payment/PaymentConfirmationScreen';
 import PaymentReceiptScreen      from '../screens/payment/PaymentReceiptScreen';
 
+// ── Écrans Groupe (Module 04) ──
+import GroupConfigScreen      from '../screens/group/GroupConfigScreen';
+import MemberManagementScreen from '../screens/group/MemberManagementScreen';
+import InviteMembersScreen    from '../screens/group/InviteMembersScreen';
+import GroupDetailsScreen     from '../screens/group/GroupDetailsScreen';
+
 // ── Stubs écrans futurs (évitent une erreur de navigation) ──
 const FutureScreen = () => <View style={{ flex: 1, backgroundColor: Colors.surface }} />;
 
 // ─── Types du stack racine ────────────────────────────────────
 
 export type RootStackParamList = {
-  Main:           undefined;
-  PaymentConfirm: { txId: string };
-  Receipt:        { txId: string; receiptData?: any };
-  MemberProfile:  { memberId: string };
-  Historique:     undefined;
+  Main:             undefined;
+  PaymentConfirm:   { txId: string };
+  Receipt:          { txId: string; receiptData?: any };
+  // Module 04
+  GroupConfig:      { groupId?: string };
+  MemberManagement: undefined;
+  Invitations:      undefined;
+  GroupDetails:     undefined;
+  // Stubs futurs
+  MemberProfile:    { memberId: string };
+  Historique:       undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -105,7 +117,29 @@ export default function AppNavigator() {
             options={{ animation: 'slide_from_right' }}
           />
 
-          {/* Écrans futurs (stubs pour éviter les erreurs de navigation) */}
+          {/* ─── Module 04 : Gestion du Groupe ─── */}
+          <Stack.Screen
+            name="GroupConfig"
+            component={GroupConfigScreen}
+            options={{ animation: 'slide_from_right' }}
+          />
+          <Stack.Screen
+            name="MemberManagement"
+            component={MemberManagementScreen}
+            options={{ animation: 'slide_from_right' }}
+          />
+          <Stack.Screen
+            name="Invitations"
+            component={InviteMembersScreen}
+            options={{ animation: 'slide_from_right' }}
+          />
+          <Stack.Screen
+            name="GroupDetails"
+            component={GroupDetailsScreen}
+            options={{ animation: 'slide_from_right' }}
+          />
+
+          {/* Stubs futurs */}
           <Stack.Screen name="MemberProfile" component={FutureScreen} />
           <Stack.Screen name="Historique"    component={FutureScreen} />
         </Stack.Navigator>

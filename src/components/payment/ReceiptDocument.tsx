@@ -113,7 +113,7 @@ export function ReceiptDocument({ receiptData }: Props) {
           <View style={styles.receiptIdBlock}>
             <Text style={styles.fieldLabel}>N° REÇU</Text>
             <Text style={styles.receiptNumber}>{receiptNumber}</Text>
-            <Text style={styles.fieldLabel} style={{ marginTop: 6 }}>RÉFÉRENCE TX</Text>
+            <Text style={[styles.fieldLabel, { marginTop: 6 }]}>RÉFÉRENCE TX</Text>
             <Text style={styles.txIdText}>{txId}</Text>
           </View>
           <View style={styles.qrBlock}>
