@@ -1,6 +1,6 @@
 /**
  * groupService.ts — Module 04 : Gestion du Groupe
- * Service réécrit pour utiliser directement SQLite en local
+ * Service 100% local avec SQLite, sans API externe
  */
 import { getDB } from './database';
 
@@ -149,7 +149,8 @@ export async function updateMemberStatus(groupId: string, userId: string, status
 }
 
 export async function remindMember(userId: string): Promise<void> {
-  console.log(`[SQLite] Rappel de paiement envoyé au membre ${userId}`);
+  // TODO: Implémenter l'envoi de notification de rappel
+  console.log(`[TODO] Rappel de paiement à envoyer au membre ${userId}`);
 }
 
 // ─── API Invitations (SQLite) ─────────────────────────────────
@@ -157,25 +158,36 @@ export async function remindMember(userId: string): Promise<void> {
 export async function fetchInviteCode(groupId: string): Promise<InviteCode> {
   const db = getDB();
   const row = db.getFirstSync<any>(`SELECT invite_code FROM groups WHERE id = ?`, [groupId]);
-  const code = row?.invite_code || 'PROMO2026';
-  return { code, link: `https://contrib.app/j/${code}`, expiresAt: '2026-12-31T23:59:59Z' };
+  if (!row?.invite_code) {
+    throw new Error('No invite code found for this group');
+  }
+  const code = row.invite_code;
+  // TODO: La date d'expiration devrait être gérée par le backend
+  return { code, link: `https://contrib.app/j/${code}`, expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() };
 }
 
 export async function regenerateInviteCode(groupId: string): Promise<InviteCode> {
   const db = getDB();
-  const newCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+  // Générer un code aléatoire de 8 caractères
+  const newCode = Math.random().toString(36).substring(2, 10).toUpperCase();
   db.runSync(`UPDATE groups SET invite_code = ? WHERE id = ?`, [newCode, groupId]);
-  return { code: newCode, link: `https://contrib.app/j/${newCode}`, expiresAt: '2026-12-31T23:59:59Z' };
+  // TODO: La date d'expiration devrait être gérée par le backend
+  return { code: newCode, link: `https://contrib.app/j/${newCode}`, expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() };
 }
 
 export async function sendSmsInvite(groupId: string, phone: string): Promise<void> {
-  console.log(`[SQLite] Invitation SMS ajoutée/envoyée pour ${phone}`);
+  // TODO: Implémenter l'envoi de SMS via un service externe (Twilio, etc.)
+  console.log(`[TODO] Invitation SMS à envoyer pour ${phone} au groupe ${groupId}`);
 }
 
 export async function fetchPendingInvitations(groupId: string): Promise<PendingInvitation[]> {
-  return []; // Liste statique pour l'instant
+  const db = getDB();
+  // TODO: Implémenter la récupération des invitations en attente depuis la base de données
+  return [];
 }
 
 export async function cancelInvitation(groupId: string, invitationId: string): Promise<void> {
-  // Mock SQLite
+  const db = getDB();
+  // TODO: Implémenter l'annulation d'invitation
+  throw new Error('Not implemented');
 }

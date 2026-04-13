@@ -1,14 +1,21 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, RefreshControl,
-  TouchableOpacity, Platform, StatusBar, Animated,
-} from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Colors, Fonts, Radius, Shadow } from '../../constants/colors';
-import { ProgressBar } from '../../components/common/ProgressBar';
-import { useAuthStore } from '../../stores/authStore';
-import * as db from '../../services/database';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+    Animated,
+    Platform,
+    RefreshControl,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 import Toast from 'react-native-toast-message';
+import { ProgressBar } from '../../components/common/ProgressBar';
+import { Colors, Fonts, Radius, Shadow } from '../../constants/colors';
+import * as db from '../../services/database';
+import { useAuthStore } from '../../stores/authStore';
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
 function Avatar({ name, size = 40, bg }: { name: string; size?: number; bg?: string }) {
@@ -149,6 +156,7 @@ export default function MemberDashboardScreen({ navigation }: any) {
   const [contribution, setContribution] = useState<any>(null);
   const [groupProgress, setGroupProgress] = useState({ paid: 0, total: 0 });
   const [recentPayments, setRecentPayments] = useState<any[]>([]);
+  const [topMembers, setTopMembers] = useState<any[]>([]);
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [inviteCode, setInviteCode] = useState('');
   const [joining, setJoining] = useState(false);
@@ -165,6 +173,26 @@ export default function MemberDashboardScreen({ navigation }: any) {
       const allC = db.getContributionsForMonth(g.id);
       setGroupProgress({ paid: allC.filter((x: any) => x.status === 'PAYE').length, total: allC.length });
       setRecentPayments(db.getRecentPaymentsForMember(user.id, 3));
+      const members = db.getMembersOfGroup(g.id);
+      const ranking = members
+        .map((m: any) => {
+          const paid = allC.filter((x: any) => x.user_id === m.id && x.status === 'PAYE');
+          const totalPaid = paid.reduce((sum: number, row: any) => sum + Number(row.amount ?? 0), 0);
+          return {
+            id: m.id,
+            full_name: m.full_name,
+            totalPaid,
+            paidCount: paid.length,
+            isCurrentUser: m.id === user.id,
+          };
+        })
+        .sort((a: any, b: any) => {
+          if (b.totalPaid !== a.totalPaid) return b.totalPaid - a.totalPaid;
+          if (b.paidCount !== a.paidCount) return b.paidCount - a.paidCount;
+          return String(a.full_name).localeCompare(String(b.full_name), 'fr');
+        })
+        .slice(0, 5);
+      setTopMembers(ranking);
     }
     setIsLoading(false);
   }, [user]);
@@ -358,15 +386,31 @@ export default function MemberDashboardScreen({ navigation }: any) {
         <View style={{ marginBottom: 24 }}>
           <Text style={[s.sectionTitle, { marginBottom: 16 }]}>Top Members</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20 }} contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}>
-            <View style={s.memberCard}>
-              <View style={[s.memberAvatarWrap, { backgroundColor: Colors.primaryFixed + '60' }]}>
-                <MaterialCommunityIcons name="medal" size={30} color={Colors.primary} />
+            {topMembers.length === 0 ? (
+              <View style={s.memberCard}>
+                <Text style={s.memberName}>Aucune donnée</Text>
               </View>
-              <Text style={s.memberName}>Vous</Text>
-              <View style={[s.memberBadge, { backgroundColor: Colors.secondary + '18' }]}>
-                <Text style={[s.memberBadgeText, { color: Colors.secondary }]}>Top 5</Text>
-              </View>
-            </View>
+            ) : (
+              topMembers.map((member: any, index: number) => (
+                <View key={member.id ?? index} style={s.memberCard}>
+                  <View style={[s.memberAvatarWrap, { backgroundColor: member.isCurrentUser ? Colors.primaryFixed + '60' : Colors.surfaceContainerHigh }]}>
+                    {index === 0 ? (
+                      <MaterialCommunityIcons name="medal" size={30} color={Colors.primary} />
+                    ) : (
+                      <Avatar name={member.full_name ?? '?'} size={42} bg={Colors.surfaceContainer} />
+                    )}
+                  </View>
+                  <Text style={s.memberName} numberOfLines={1}>
+                    {member.isCurrentUser ? 'Vous' : member.full_name}
+                  </Text>
+                  <View style={[s.memberBadge, { backgroundColor: Colors.secondary + '18' }]}>
+                    <Text style={[s.memberBadgeText, { color: Colors.secondary }]}>
+                      #{index + 1} • {Math.round(member.totalPaid).toLocaleString('fr-FR')} CDF
+                    </Text>
+                  </View>
+                </View>
+              ))
+            )}
           </ScrollView>
         </View>
 
@@ -420,7 +464,7 @@ function JoinModalContent({ code, error, joining, onChangeCode, onCancel, onConf
       <MaterialCommunityIcons name="ticket-percent-outline" size={44} color={Colors.primary} style={{ marginBottom: 12 }} />
       <Text style={s.modalTitle}>Code d'invitation</Text>
       <Text style={s.modalSub}>Entrez le code fourni par l'administrateur du groupe.</Text>
-      <Text style={s.hintCode}>Ex : PROMO2026</Text>
+      <Text style={s.hintCode}>Ex : ABC123</Text>
       <TextInput
         style={s.codeInput}
         value={code}

@@ -98,26 +98,13 @@ export const initDatabase = async (): Promise<void> => {
   try { db.execSync(`ALTER TABLE groups ADD COLUMN payments_visible INTEGER DEFAULT 1`); } catch (_) {}
   try { db.execSync(`ALTER TABLE groups ADD COLUMN photo_url TEXT`); } catch (_) {}
 
-  // ── Seed : groupe par défaut ────────────────────────────────────────────
-  const DEFAULT_GROUP_ID = 'grp_meilleure_promo_001';
-  const existingGroup = getDB().getFirstSync<any>(
-    'SELECT id FROM groups WHERE id = ?', [DEFAULT_GROUP_ID]
-  );
-  if (!existingGroup) {
-    db.runSync(
-      `INSERT INTO groups (id, name, description, monthly_amount, admin_id, due_day, invite_code)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [
-        DEFAULT_GROUP_ID,
-        'Meilleure Promotion',
-        'Groupe de tontine solidaire pour la meilleure promotion !',
-        12500,
-        'system',
-        25,
-        'PROMO2026',
-      ]
-    );
-    console.log('[DB] ✅ Groupe par défaut "Meilleure Promotion" créé (code: PROMO2026)');
+  // Seed automatique en développement
+  // Créer des données de test au premier lancement
+  try {
+    const { seedDevelopmentData } = await import('./seedData');
+    await seedDevelopmentData();
+  } catch (error) {
+    console.log('[DB] ℹ️  Seed ignoré ou déjà effectué');
   }
 
   console.log('[DB] ✅ Base de données SQLite initialisée');
@@ -190,7 +177,7 @@ export const isAlreadyMember = (userId: string, groupId: string): boolean => {
 
 export const joinGroup = (userId: string, groupId: string): void => {
   const db = getDB();
-  const memberId = 'gm_' + Math.random().toString(36).slice(2, 11);
+  const memberId = 'gm_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
   db.runSync(
     `INSERT INTO group_members (id, group_id, user_id, role) VALUES (?, ?, ?, 'member')`,
     [memberId, groupId, userId]
@@ -203,11 +190,11 @@ export const joinGroup = (userId: string, groupId: string): void => {
   );
   if (!existing) {
     const group = db.getFirstSync<any>('SELECT * FROM groups WHERE id = ?', [groupId]);
-    const contribId = 'ctb_' + Math.random().toString(36).slice(2, 11);
+    const contribId = 'ctb_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
     db.runSync(
       `INSERT INTO contributions (id, group_id, user_id, month, amount, status)
        VALUES (?, ?, ?, ?, ?, 'EN_ATTENTE')`,
-      [contribId, groupId, userId, month, group?.monthly_amount ?? 12500]
+      [contribId, groupId, userId, month, group?.monthly_amount ?? 0]
     );
     console.log(`[DB] ✅ Contribution EN_ATTENTE créée pour ${userId} dans ${groupId} (${month})`);
   }
@@ -253,8 +240,11 @@ export const getRecentPaymentsForGroup = (groupId: string, limit = 5): any[] => 
 };
 
 // ─── OTP ──────────────────────────────────────────────────────────────────────
-export const generateOTP = (): string =>
-  Math.floor(100000 + Math.random() * 900000).toString();
+export const generateOTP = (): string => {
+  // TODO: La génération d'OTP devrait être gérée par le backend
+  // Cette implémentation locale est temporaire pour le développement
+  return Math.floor(100000 + Math.random() * 900000).toString();
+};
 
 export const saveOTP = (phone: string, code: string, context: string): void => {
   const db = getDB();
@@ -264,6 +254,7 @@ export const saveOTP = (phone: string, code: string, context: string): void => {
     `INSERT INTO otp_codes (phone, code, context, expires_at) VALUES (?, ?, ?, ?)`,
     [phone, code, context, expiresAt]
   );
+  // En production, l'OTP serait envoyé par SMS via un service externe
   console.log('\n╔════════════════════════════════════╗');
   console.log(`║  📱 OTP POUR ${phone}`);
   console.log(`║  🔑 CODE : ${code}`);

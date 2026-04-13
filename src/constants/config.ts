@@ -1,5 +1,8 @@
+// Configuration de l'application
+// Les valeurs doivent être définies via des variables d'environnement
+
 export const CONFIG = {
-  API_BASE_URL: 'https://api.contributapp-rdc.com/v1',
+  API_BASE_URL: process.env.EXPO_PUBLIC_API_URL || '',
   TIMEOUTS: {
     DEFAULT: 15000,
   },

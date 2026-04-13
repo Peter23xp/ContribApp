@@ -5,32 +5,39 @@
  * Rôle : Membre uniquement
  * 3 étapes : Opérateur → Confirmation → Validation opérateur
  */
-import React, {
-  useState, useCallback, useEffect, useRef,
-} from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  KeyboardAvoidingView, Platform, StatusBar, ActivityIndicator, Animated, Alert,
-} from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import NetInfo from '@react-native-community/netinfo';
+import React, {
+    useCallback, useEffect, useRef,
+    useState,
+} from 'react';
+import {
+    ActivityIndicator,
+    KeyboardAvoidingView, Platform,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
+} from 'react-native';
 import Toast from 'react-native-toast-message';
 
-import { Colors, Fonts, Radius, Shadow } from '../../constants/colors';
-import { AppInput }              from '../../components/common/AppInput';
-import { OperatorSelector }      from '../../components/common/OperatorSelector';
-import { PaymentStepIndicator }  from '../../components/payment/PaymentStepIndicator';
+import { AppInput } from '../../components/common/AppInput';
+import { OperatorSelector } from '../../components/common/OperatorSelector';
 import { OperatorInstructionBlock } from '../../components/payment/OperatorInstructionBlock';
-import { OPERATORS }             from '../../constants/operators';
+import { PaymentStepIndicator } from '../../components/payment/PaymentStepIndicator';
+import { Colors, Fonts, Radius, Shadow } from '../../constants/colors';
+import { OPERATORS } from '../../constants/operators';
 import {
-  checkCurrentMonthStatus,
-  initiatePayment,
-  pollTransactionStatus,
-  type TxStatus,
-  type CurrentMonthStatus,
+    checkCurrentMonthStatus,
+    initiatePayment,
+    pollTransactionStatus,
+    type CurrentMonthStatus,
+    type TxStatus,
 } from '../../services/contributionService';
-import { useAuthStore } from '../../stores/authStore';
 import * as db from '../../services/database';
+import { useAuthStore } from '../../stores/authStore';
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -349,9 +356,9 @@ export default function PayContributionScreen({ navigation, route }: Props) {
   const group  = db.getGroupForMember(user?.id ?? '');
 
   // Paramètres optionnels de navigation
-  const navAmount        = route?.params?.amount ?? group?.monthly_amount ?? 25000;
+  const navAmount        = route?.params?.amount ?? group?.monthly_amount ?? 0;
   const navIncludePenalty = route?.params?.includePenalty ?? false;
-  const penaltyAmount    = navIncludePenalty ? (group?.penalty_amount ?? 2500) : 0;
+  const penaltyAmount    = navIncludePenalty ? (group?.penalty_amount ?? 0) : 0;
   const totalAmount      = navAmount + penaltyAmount;
 
   // ── États ──

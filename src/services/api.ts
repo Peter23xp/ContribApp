@@ -1,11 +1,10 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
-
-const API_BASE_URL = 'https://api.contributapp-rdc.com/v1'; // remplacer par l'URL réelle
+import { CONFIG } from '../constants/config';
 
 export const api = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 15000,
+  baseURL: CONFIG.API_BASE_URL,
+  timeout: CONFIG.TIMEOUTS.DEFAULT,
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -23,7 +22,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       try {
         const refreshToken = await SecureStore.getItemAsync('refresh_token');
-        const { data } = await axios.post(`${API_BASE_URL}/auth/refresh`, { refresh_token: refreshToken });
+        const { data } = await axios.post(`${CONFIG.API_BASE_URL}/auth/refresh`, { refresh_token: refreshToken });
         await SecureStore.setItemAsync('access_token', data.access_token);
         error.config.headers.Authorization = `Bearer ${data.access_token}`;
         return api.request(error.config);

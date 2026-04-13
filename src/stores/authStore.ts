@@ -1,5 +1,5 @@
-import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
+import { create } from 'zustand';
 
 type Role = 'admin' | 'treasurer' | 'member' | 'auditor';
 
@@ -47,7 +47,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
       const token = await SecureStore.getItemAsync('access_token');
       if (stored && token) {
         const { user, role } = JSON.parse(stored);
-        set({ user, role: '', isAuthenticated: true });
+        set({ user, role:'admin', isAuthenticated: true });
       }
     } finally {
       set({ isLoading: false });

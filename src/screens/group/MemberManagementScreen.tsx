@@ -2,29 +2,37 @@
  * SCR-014 — Gestion des Membres
  * MemberManagementScreen.tsx
  */
-import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity,
-  TextInput, RefreshControl, StatusBar, Platform,
-  Animated,
-} from 'react-native';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import NetInfo from '@react-native-community/netinfo';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+    Animated,
+    FlatList,
+    Platform,
+    RefreshControl, StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Toast from 'react-native-toast-message';
 
-import { Colors, Fonts, Radius, Shadow } from '../../constants/colors';
-import { MemberCard, type MemberCardData, type MemberRole } from '../../components/common/MemberCard';
-import { InvitationRow, type InvitationData } from '../../components/common/InvitationRow';
-import { ConfirmModal } from '../../components/common/ConfirmModal';
-import { OfflineBanner } from '../../components/common/OfflineBanner';
 import { AppButton } from '../../components/common/AppButton';
+import { ConfirmModal } from '../../components/common/ConfirmModal';
+import { InvitationRow, type InvitationData } from '../../components/common/InvitationRow';
+import { MemberCard, type MemberCardData, type MemberRole } from '../../components/common/MemberCard';
+import { OfflineBanner } from '../../components/common/OfflineBanner';
+import { Colors, Fonts, Radius, Shadow } from '../../constants/colors';
 import {
-  fetchGroupMembers, updateMemberRole, updateMemberStatus, remindMember,
-  fetchPendingInvitations, cancelInvitation,
-  type GroupMember, type PendingInvitation,
+    cancelInvitation,
+    fetchGroupMembers,
+    fetchPendingInvitations,
+    remindMember,
+    updateMemberRole, updateMemberStatus,
+    type GroupMember, type PendingInvitation,
 } from '../../services/groupService';
-import { useAuthStore } from '../../stores/authStore';
 
 type FilterKey = 'all' | 'active' | 'late' | 'invited';
 
@@ -220,7 +228,8 @@ export default function MemberManagementScreen({ navigation, route }: any) {
     setMemberTarget(null);
     try {
       if (status === 'active') {
-        await updateMemberStatus(groupId, target.id, 'active' as any /* hack API diff */); // TODO true endpoint
+        // TODO: Implémenter la réactivation de membre côté backend
+        await updateMemberStatus(groupId, target.id, 'active' as any);
         Toast.show({ type: 'success', text1: 'Membre réactivé' });
       } else {
         await updateMemberStatus(groupId, target.id, status);

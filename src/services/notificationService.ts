@@ -1,2 +1,1 @@
-// TODO: implémenter service
-export const dummyService = async () => {};
+// Service de notifications - à implémenter selon les besoins

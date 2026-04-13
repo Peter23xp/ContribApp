@@ -31,11 +31,6 @@ export interface AuthResponse {
   role: UserRole;
 }
 
-// ─── Outils internes ─────────────────────────────────────────────────────────
-
-const generateId = () => 'usr_' + Math.random().toString(36).slice(2, 11);
-const generateToken = (prefix: string) => `${prefix}_${Math.random().toString(36).slice(2)}_${Date.now()}`;
-
 // ─── REGISTER ─────────────────────────────────────────────────────────────────
 
 export const register = async (payload: RegisterPayload): Promise<{ success: boolean }> => {
@@ -43,10 +38,11 @@ export const register = async (payload: RegisterPayload): Promise<{ success: boo
   const existing = db.findUserByPhone(payload.phone);
   if (existing) throw new Error('PHONE_ALREADY_EXISTS');
 
-  const id = generateId();
+  // Générer un ID unique
+  const id = 'usr_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
   db.createUser({ id, ...payload });
 
-  // Générer et sauvegarder un OTP → affiché dans le terminal
+  // Générer et sauvegarder un OTP
   const code = db.generateOTP();
   db.saveOTP(payload.phone, code, 'register');
 
@@ -68,8 +64,9 @@ export const verifyOTP = async (phone: string, otp_code: string): Promise<AuthRe
   const user = db.findUserByPhone(phone);
   if (!user) throw new Error('USER_NOT_FOUND');
 
-  const access_token = generateToken('access');
-  const refresh_token = generateToken('refresh');
+  // Générer des tokens locaux
+  const access_token = 'access_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+  const refresh_token = 'refresh_' + Date.now() + '_' + Math.random().toString(36).slice(2);
 
   // Persistance des tokens
   await SecureStore.setItemAsync('access_token', access_token);
@@ -110,8 +107,9 @@ export const login = async (payload: LoginPayload): Promise<AuthResponse> => {
   if (user.pin_hash !== payload.pin_hash) throw new Error('INVALID_CREDENTIALS');
   if (!user.is_verified) throw new Error('NOT_VERIFIED');
 
-  const access_token = generateToken('access');
-  const refresh_token = generateToken('refresh');
+  // Générer des tokens locaux
+  const access_token = 'access_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+  const refresh_token = 'refresh_' + Date.now() + '_' + Math.random().toString(36).slice(2);
 
   await SecureStore.setItemAsync('access_token', access_token);
   await SecureStore.setItemAsync('refresh_token', refresh_token);
@@ -136,8 +134,9 @@ export const loginWithBiometric = async (phone: string, _biometric_token: string
   const user = db.findUserByPhone(phone);
   if (!user) throw new Error('INVALID_CREDENTIALS');
 
-  const access_token = generateToken('access');
-  const refresh_token = generateToken('refresh');
+  // Générer des tokens locaux
+  const access_token = 'access_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+  const refresh_token = 'refresh_' + Date.now() + '_' + Math.random().toString(36).slice(2);
 
   await SecureStore.setItemAsync('access_token', access_token);
   await SecureStore.setItemAsync('refresh_token', refresh_token);
