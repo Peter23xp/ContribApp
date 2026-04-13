@@ -282,3 +282,250 @@ export const verifyOTPCode = (phone: string, code: string): { valid: boolean; re
   db.runSync('UPDATE otp_codes SET used = 1 WHERE id = ?', [otp.id]);
   return { valid: true };
 };
+
+// ─── User Profile & Preferences ───────────────────────────────────────────────
+
+export const getCurrentUser = (): any | null => {
+  // Récupérer l'utilisateur actuellement connecté
+  // En mode local, on prend le dernier utilisateur vérifié
+  return getDB().getFirstSync<any>(
+    'SELECT * FROM users WHERE is_verified = 1 ORDER BY created_at DESC LIMIT 1'
+  ) ?? null;
+};
+
+export const updateUser = (userId: string, updates: Partial<{
+  full_name: string;
+  phone: string;
+  operator: string;
+  profile_photo_url: string | null;
+  pin_hash: string;
+  biometric_enabled: boolean;
+  last_login: string;
+}>): void => {
+  const db = getDB();
+  const fields: string[] = [];
+  const values: any[] = [];
+
+  if (updates.full_name !== undefined) {
+    fields.push('full_name = ?');
+    values.push(updates.full_name);
+  }
+  if (updates.phone !== undefined) {
+    fields.push('phone = ?');
+    values.push(updates.phone);
+  }
+  if (updates.operator !== undefined) {
+    fields.push('operator = ?');
+    values.push(updates.operator);
+  }
+  if (updates.profile_photo_url !== undefined) {
+    fields.push('profile_photo_url = ?');
+    values.push(updates.profile_photo_url);
+  }
+  if (updates.pin_hash !== undefined) {
+    fields.push('pin_hash = ?');
+    values.push(updates.pin_hash);
+  }
+  if (updates.biometric_enabled !== undefined) {
+    // Ajouter la colonne si elle n'existe pas
+    try {
+      db.execSync('ALTER TABLE users ADD COLUMN biometric_enabled INTEGER DEFAULT 0');
+    } catch (_) { /* déjà présente */ }
+    fields.push('biometric_enabled = ?');
+    values.push(updates.biometric_enabled ? 1 : 0);
+  }
+  if (updates.last_login !== undefined) {
+    // Ajouter la colonne si elle n'existe pas
+    try {
+      db.execSync('ALTER TABLE users ADD COLUMN last_login TEXT');
+    } catch (_) { /* déjà présente */ }
+    fields.push('last_login = ?');
+    values.push(updates.last_login);
+  }
+
+  if (fields.length === 0) return;
+
+  values.push(userId);
+  db.runSync(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`, values);
+};
+
+export const getUserPreferences = (userId: string): any | null => {
+  // Créer la table preferences si elle n'existe pas
+  const db = getDB();
+  try {
+    db.execSync(`
+      CREATE TABLE IF NOT EXISTS user_preferences (
+        user_id TEXT PRIMARY KEY,
+        push_enabled INTEGER DEFAULT 1,
+        sms_reminders INTEGER DEFAULT 1,
+        sms_confirmation INTEGER DEFAULT 0,
+        monthly_report INTEGER DEFAULT 1,
+        language TEXT DEFAULT 'fr',
+        currency TEXT DEFAULT 'CDF'
+      )
+    `);
+  } catch (_) { /* déjà créée */ }
+
+  return db.getFirstSync<any>(
+    'SELECT * FROM user_preferences WHERE user_id = ?',
+    [userId]
+  ) ?? null;
+};
+
+export const updateUserPreferences = (userId: string, prefs: {
+  pushEnabled?: boolean;
+  smsReminders?: boolean;
+  smsConfirmation?: boolean;
+  monthlyReport?: boolean;
+  language?: 'fr' | 'en';
+  currency?: 'CDF' | 'USD';
+}): void => {
+  const db = getDB();
+  
+  // Vérifier si les préférences existent
+  const existing = getUserPreferences(userId);
+  
+  if (!existing) {
+    // Créer les préférences
+    db.runSync(
+      `INSERT INTO user_preferences (user_id, push_enabled, sms_reminders, sms_confirmation, monthly_report, language, currency)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        userId,
+        prefs.pushEnabled !== undefined ? (prefs.pushEnabled ? 1 : 0) : 1,
+        prefs.smsReminders !== undefined ? (prefs.smsReminders ? 1 : 0) : 1,
+        prefs.smsConfirmation !== undefined ? (prefs.smsConfirmation ? 1 : 0) : 0,
+        prefs.monthlyReport !== undefined ? (prefs.monthlyReport ? 1 : 0) : 1,
+        prefs.language ?? 'fr',
+        prefs.currency ?? 'CDF',
+      ]
+    );
+  } else {
+    // Mettre à jour les préférences
+    const fields: string[] = [];
+    const values: any[] = [];
+
+    if (prefs.pushEnabled !== undefined) {
+      fields.push('push_enabled = ?');
+      values.push(prefs.pushEnabled ? 1 : 0);
+    }
+    if (prefs.smsReminders !== undefined) {
+      fields.push('sms_reminders = ?');
+      values.push(prefs.smsReminders ? 1 : 0);
+    }
+    if (prefs.smsConfirmation !== undefined) {
+      fields.push('sms_confirmation = ?');
+      values.push(prefs.smsConfirmation ? 1 : 0);
+    }
+    if (prefs.monthlyReport !== undefined) {
+      fields.push('monthly_report = ?');
+      values.push(prefs.monthlyReport ? 1 : 0);
+    }
+    if (prefs.language !== undefined) {
+      fields.push('language = ?');
+      values.push(prefs.language);
+    }
+    if (prefs.currency !== undefined) {
+      fields.push('currency = ?');
+      values.push(prefs.currency);
+    }
+
+    if (fields.length > 0) {
+      values.push(userId);
+      db.runSync(`UPDATE user_preferences SET ${fields.join(', ')} WHERE user_id = ?`, values);
+    }
+  }
+};
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+
+export const getNotifications = (page = 1, limit = 30): any[] => {
+  const db = getDB();
+  
+  // Créer la table si elle n'existe pas
+  try {
+    db.execSync(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        is_read INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT (datetime('now')),
+        navigation_target TEXT,
+        navigation_params TEXT
+      )
+    `);
+  } catch (_) { /* déjà créée */ }
+
+  const offset = (page - 1) * limit;
+  const notifications = db.getAllSync<any>(
+    'SELECT * FROM notifications ORDER BY created_at DESC LIMIT ? OFFSET ?',
+    [limit, offset]
+  );
+
+  return notifications.map(n => ({
+    id: n.id,
+    type: n.type,
+    title: n.title,
+    body: n.body,
+    isRead: Boolean(n.is_read),
+    createdAt: n.created_at,
+    navigationTarget: n.navigation_target,
+    navigationParams: n.navigation_params ? JSON.parse(n.navigation_params) : undefined,
+  }));
+};
+
+export const getUnreadNotificationsCount = (): number => {
+  const db = getDB();
+  const result = db.getFirstSync<{ count: number }>(
+    'SELECT COUNT(*) as count FROM notifications WHERE is_read = 0'
+  );
+  return result?.count ?? 0;
+};
+
+export const markNotificationAsRead = (id: string): void => {
+  const db = getDB();
+  db.runSync('UPDATE notifications SET is_read = 1 WHERE id = ?', [id]);
+};
+
+export const markAllNotificationsAsRead = (): void => {
+  const db = getDB();
+  db.runSync('UPDATE notifications SET is_read = 1');
+};
+
+export const deleteNotification = (id: string): void => {
+  const db = getDB();
+  db.runSync('DELETE FROM notifications WHERE id = ?', [id]);
+};
+
+export const deleteReadNotifications = (): void => {
+  const db = getDB();
+  db.runSync('DELETE FROM notifications WHERE is_read = 1');
+};
+
+export const createNotification = (notification: {
+  id: string;
+  userId: string;
+  type: string;
+  title: string;
+  body: string;
+  navigationTarget?: string;
+  navigationParams?: Record<string, any>;
+}): void => {
+  const db = getDB();
+  db.runSync(
+    `INSERT INTO notifications (id, user_id, type, title, body, navigation_target, navigation_params)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [
+      notification.id,
+      notification.userId,
+      notification.type,
+      notification.title,
+      notification.body,
+      notification.navigationTarget ?? null,
+      notification.navigationParams ? JSON.stringify(notification.navigationParams) : null,
+    ]
+  );
+};

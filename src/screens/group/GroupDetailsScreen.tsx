@@ -22,6 +22,7 @@ import {
   type GroupConfig, type GroupMember, type InviteCode
 } from '../../services/groupService';
 import { useAuthStore } from '../../stores/authStore';
+import * as db from '../../services/database';
 
 // ─── Composants Locaux ────────────────────────────────────────
 
@@ -76,7 +77,8 @@ export default function GroupDetailsScreen({ navigation, route }: any) {
   const role = useAuthStore(state => state.role);
   const isPaid = true; // Fallback ou logique depuis Zustand
   
-  const groupId = "todo-use-actual-id"; // fallback to store
+  const groupId = route?.params?.groupId
+    ?? (user?.id ? (role === 'admin' ? db.getGroupForAdmin(user.id)?.id : db.getGroupForMember(user.id)?.id) : undefined);
 
   const [config, setConfig] = useState<GroupConfig | null>(null);
   const [members, setMembers] = useState<GroupMember[]>([]);
@@ -94,6 +96,10 @@ export default function GroupDetailsScreen({ navigation, route }: any) {
   }, []);
 
   const loadData = useCallback(async () => {
+    if (!groupId) {
+      setIsLoading(false);
+      return;
+    }
     try {
       const [conf, mems] = await Promise.all([
         fetchGroupConfig(groupId),

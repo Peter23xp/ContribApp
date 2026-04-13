@@ -334,7 +334,7 @@ export default function MyHistoryScreen({ navigation }: any) {
                   style={styles.primaryBtn}
                   onPress={() => {
                     closeSheet();
-                    navigation.navigate('Payer');
+                    navigation.navigate('Main', { screen: 'Payer' });
                   }}
                 >
                   <Text style={styles.primaryBtnText}>Payer maintenant</Text>

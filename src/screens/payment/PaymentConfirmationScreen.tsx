@@ -158,7 +158,10 @@ export default function PaymentConfirmationScreen({ navigation, route }: any) {
     useCallback(() => {
       const handler = BackHandler.addEventListener('hardwareBackPress', () => {
         // Toujours vrai = bloque le retour vers SCR-010
-        navigation.reset({ index: 0, routes: [{ name: 'Accueil' }] });
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Main', params: { screen: 'Accueil' } }],
+        });
         return true;
       });
       return () => handler.remove();
@@ -183,7 +186,10 @@ export default function PaymentConfirmationScreen({ navigation, route }: any) {
 
   // ── Navigation vers le tableau de bord ──
   const goToDashboard = () => {
-    navigation.reset({ index: 0, routes: [{ name: 'Accueil' }] });
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'Main', params: { screen: 'Accueil' } }],
+    });
   };
 
   // ── Navigation vers SCR-012 ──

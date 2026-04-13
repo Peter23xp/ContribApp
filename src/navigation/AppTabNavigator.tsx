@@ -37,7 +37,7 @@ const TAB_ITEMS = [
   { name: 'Accueil',  label: 'Dashboard',      icon: 'view-grid',          iconActive: 'view-grid'        },
   { name: 'Payer',    label: 'Contributions',  icon: 'cash-multiple',      iconActive: 'cash-multiple'    },
   { name: 'Groupe',   label: 'Members',        icon: 'account-group-outline', iconActive: 'account-group' },
-  { name: 'Profil',   label: 'Reports',        icon: 'chart-bar-stacked',  iconActive: 'chart-bar-stacked'},
+  { name: 'Profil',   label: 'Profil',         icon: 'account-circle-outline',  iconActive: 'account-circle' },
 ] as const;
 
 // ─── Custom Tab Bar ────────────────────────────────────────────────────────────

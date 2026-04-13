@@ -1,18 +1,28 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  View, Text, StyleSheet, ScrollView, KeyboardAvoidingView,
-  Platform, TouchableOpacity, StatusBar, Modal, TextInput,
-  Keyboard, TouchableWithoutFeedback, LayoutAnimation
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import * as LocalAuthentication from 'expo-local-authentication';
+import * as SecureStore from 'expo-secure-store';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+    Keyboard,
+    KeyboardAvoidingView,
+    LayoutAnimation,
+    Modal,
+    Platform,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    TouchableWithoutFeedback,
+    View
 } from 'react-native';
+import Toast from 'react-native-toast-message';
 import { AppButton } from '../../components/common/AppButton';
 import { AppInput } from '../../components/common/AppInput';
+import { Colors } from '../../constants/colors';
 import * as authService from '../../services/authService';
 import { useAuthStore } from '../../stores/authStore';
-import { Colors } from '../../constants/colors';
-import * as SecureStore from 'expo-secure-store';
-import * as LocalAuthentication from 'expo-local-authentication';
-import Toast from 'react-native-toast-message';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { AuthStackParamList } from '../../navigation/AuthNavigator';
 
@@ -115,10 +125,8 @@ export default function LoginScreen({ navigation }: Props) {
         setLockTimer(minutes * 60);
       } else if (err.message === 'TOO_MANY_ATTEMPTS') {
         setError('Trop de tentatives. Patientez 30 secondes.');
-      } else if (err.message === 'NETWORK_ERROR') {
-        Toast.show({ type: 'error', text1: 'Pas de connexion', text2: 'Vérifiez votre réseau' });
       } else {
-        setError('Une erreur est survenue. Réessayez.');
+        setError(err?.message || 'Une erreur est survenue. Réessayez.');
       }
     } finally {
       setIsLoading(false);

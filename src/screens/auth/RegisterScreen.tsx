@@ -126,8 +126,6 @@ export default function RegisterScreen({ navigation }: Props) {
       if (error.message === 'PHONE_ALREADY_EXISTS') {
         Toast.show({ type: 'error', text1: 'Erreur', text2: "Ce numéro est déjà inscrit" });
         setStep(2); 
-      } else if (error.message === 'NETWORK_ERROR') {
-        Toast.show({ type: 'error', text1: 'Erreur réseau', text2: 'Vérifiez votre connexion internet' });
       } else {
         Toast.show({ type: 'error', text1: 'Erreur', text2: error.message });
       }

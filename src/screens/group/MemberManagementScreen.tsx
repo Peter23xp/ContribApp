@@ -33,6 +33,8 @@ import {
     updateMemberRole, updateMemberStatus,
     type GroupMember, type PendingInvitation,
 } from '../../services/groupService';
+import { useAuthStore } from '../../stores/authStore';
+import * as db from '../../services/database';
 
 type FilterKey = 'all' | 'active' | 'late' | 'invited';
 
@@ -91,7 +93,10 @@ function SkeletonRow() {
 
 // ─── Écran principal ──────────────────────────────────────────
 export default function MemberManagementScreen({ navigation, route }: any) {
-  const groupId = "todo-use-actual-id"; // Assuming route.params.groupId or store
+  const user = useAuthStore((s) => s.user);
+  const role = useAuthStore((s) => s.role);
+  const groupId = route?.params?.groupId
+    ?? (user?.id ? (role === 'admin' ? db.getGroupForAdmin(user.id)?.id : db.getGroupForMember(user.id)?.id) : undefined);
   
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [invitations, setInvitations] = useState<PendingInvitation[]>([]);
@@ -117,6 +122,10 @@ export default function MemberManagementScreen({ navigation, route }: any) {
   }, []);
 
   const loadData = useCallback(async () => {
+    if (!groupId) {
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     try {
       const data = await fetchGroupMembers(groupId);

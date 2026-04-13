@@ -23,6 +23,7 @@ import { View, ActivityIndicator } from 'react-native';
 
 import { useAuthStore }   from '../stores/authStore';
 import { Colors }         from '../constants/colors';
+import { initDatabase }   from '../services/database';
 
 // ── Navigateurs ──
 import AuthNavigator       from './AuthNavigator';
@@ -37,9 +38,18 @@ import GroupConfigScreen      from '../screens/group/GroupConfigScreen';
 import MemberManagementScreen from '../screens/group/MemberManagementScreen';
 import InviteMembersScreen    from '../screens/group/InviteMembersScreen';
 import GroupDetailsScreen     from '../screens/group/GroupDetailsScreen';
+import FullHistoryScreen      from '../screens/history/FullHistoryScreen';
+import MyHistoryScreen        from '../screens/history/MyHistoryScreen';
+import ChangePINScreen        from '../screens/profile/ChangePINScreen';
 
 // ── Stubs écrans futurs (évitent une erreur de navigation) ──
 const FutureScreen = () => <View style={{ flex: 1, backgroundColor: Colors.surface }} />;
+
+function HistoryEntry(props: any) {
+  const role = useAuthStore((s) => s.role);
+  if (role === 'member') return <MyHistoryScreen {...props} />;
+  return <FullHistoryScreen {...props} />;
+}
 
 // ─── Types du stack racine ────────────────────────────────────
 
@@ -52,9 +62,10 @@ export type RootStackParamList = {
   MemberManagement: undefined;
   Invitations:      undefined;
   GroupDetails:     undefined;
+  ChangePIN:        undefined;
   // Stubs futurs
   MemberProfile:    { memberId: string };
-  Historique:       undefined;
+  Historique:       { presetMonth?: string; presetStatus?: 'PAYE' | 'EN_RETARD' | 'EN_ATTENTE' | 'ECHEC'; presetMemberId?: string } | undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -78,10 +89,22 @@ const NavTheme = {
 
 export default function AppNavigator() {
   const { isAuthenticated, isLoading, loadFromStorage } = useAuthStore();
+  const [isDbReady, setIsDbReady] = React.useState(false);
 
-  useEffect(() => { loadFromStorage(); }, []);
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        await initDatabase();
+      } finally {
+        if (mounted) setIsDbReady(true);
+      }
+      await loadFromStorage();
+    })();
+    return () => { mounted = false; };
+  }, []);
 
-  if (isLoading) {
+  if (isLoading || !isDbReady) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.primary }}>
         <ActivityIndicator size="large" color="#FFFFFF" />
@@ -138,10 +161,15 @@ export default function AppNavigator() {
             component={GroupDetailsScreen}
             options={{ animation: 'slide_from_right' }}
           />
+          <Stack.Screen
+            name="ChangePIN"
+            component={ChangePINScreen}
+            options={{ animation: 'slide_from_right' }}
+          />
 
           {/* Stubs futurs */}
           <Stack.Screen name="MemberProfile" component={FutureScreen} />
-          <Stack.Screen name="Historique"    component={FutureScreen} />
+          <Stack.Screen name="Historique"    component={HistoryEntry} />
         </Stack.Navigator>
       ) : (
         <AuthNavigator />

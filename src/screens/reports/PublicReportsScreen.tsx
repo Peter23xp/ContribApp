@@ -170,7 +170,7 @@ export default function PublicReportsScreen({ navigation }: any) {
               ) : (
                 <View style={styles.personalPendingCard}>
                   <Text style={styles.personalPendingText}>Votre contribution n est pas encore payee.</Text>
-                  <TouchableOpacity style={styles.payNowBtn} onPress={() => navigation.navigate('Payer')}>
+                  <TouchableOpacity style={styles.payNowBtn} onPress={() => navigation.navigate('Main', { screen: 'Payer' })}>
                     <Text style={styles.payNowText}>Payer maintenant</Text>
                   </TouchableOpacity>
                 </View>

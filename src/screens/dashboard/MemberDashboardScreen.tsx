@@ -377,7 +377,7 @@ export default function MemberDashboardScreen({ navigation }: any) {
               ))
             )}
           </View>
-          <TouchableOpacity style={s.viewAllLink}>
+          <TouchableOpacity style={s.viewAllLink} onPress={() => navigation.navigate('Historique')}>
             <Text style={[s.seeAll, { textAlign: 'center', marginTop: 10 }]}>Voir tout mon historique →</Text>
           </TouchableOpacity>
         </View>

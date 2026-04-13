@@ -5,7 +5,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  StatusBar, Platform, FlatList, ActivityIndicator,
+  StatusBar, Platform, ActivityIndicator,
   Share,
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
@@ -19,7 +19,6 @@ import Toast from 'react-native-toast-message';
 import { Colors, Fonts, Radius, Shadow } from '../../constants/colors';
 import { AppInput } from '../../components/common/AppInput';
 import { AppButton } from '../../components/common/AppButton';
-import { OperatorSelector } from '../../components/common/OperatorSelector';
 import { InvitationRow, type InvitationData } from '../../components/common/InvitationRow';
 import { ConfirmModal } from '../../components/common/ConfirmModal';
 import {
@@ -27,16 +26,19 @@ import {
   sendSmsInvite, fetchPendingInvitations, cancelInvitation,
   type InviteCode, type PendingInvitation,
 } from '../../services/groupService';
+import { useAuthStore } from '../../stores/authStore';
+import * as db from '../../services/database';
 
-export default function InviteScreen({ navigation }: any) {
-  const groupId = "todo-use-actual-id"; // Assuming route.params.groupId or store
+export default function InviteScreen({ navigation, route }: any) {
+  const user = useAuthStore((s) => s.user);
+  const groupId = route?.params?.groupId
+    ?? (user?.id ? (db.getGroupForAdmin(user.id)?.id ?? db.getGroupForMember(user.id)?.id) : undefined);
   
   const [inviteData, setInviteData] = useState<InviteCode | null>(null);
   const [pending, setPending] = useState<PendingInvitation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
   const [smsPhone, setSmsPhone] = useState('');
-  const [smsOperator, setSmsOperator] = useState<'airtel' | 'orange' | 'mpesa' | 'mtn' | null>(null);
   const [sendingSms, setSendingSms] = useState(false);
   const [smsPhoneErr, setSmsPhoneErr] = useState('');
 
@@ -45,6 +47,10 @@ export default function InviteScreen({ navigation }: any) {
   const qrRef = useRef<any>(null);
 
   const loadData = useCallback(async () => {
+    if (!groupId) {
+      setIsLoading(false);
+      return;
+    }
     try {
       const [code, invitations] = await Promise.all([
         fetchInviteCode(groupId),
@@ -78,6 +84,10 @@ export default function InviteScreen({ navigation }: any) {
   };
 
   const handleRegenerate = () => {
+    if (!groupId) {
+      Toast.show({ type: 'error', text1: 'Erreur', text2: 'Groupe introuvable pour cet administrateur.' });
+      return;
+    }
     setConfirmData({
       message: "Régénérer le code ? L'ancien code sera invalide et les invitations en attente seront annulées.",
       destructive: true,
@@ -139,6 +149,10 @@ export default function InviteScreen({ navigation }: any) {
       setSmsPhoneErr('Numéro invalide (format : +243...)');
       return;
     }
+    if (!groupId) {
+      Toast.show({ type: 'error', text1: 'Erreur', text2: 'Groupe introuvable pour cet administrateur.' });
+      return;
+    }
     setSendingSms(true);
     setSmsPhoneErr('');
     try {
@@ -163,6 +177,10 @@ export default function InviteScreen({ navigation }: any) {
 
   // ── Actions Liste ──
   const requestCancelInvitation = (inv: InvitationData) => {
+    if (!groupId) {
+      Toast.show({ type: 'error', text1: 'Erreur', text2: 'Groupe introuvable pour cet administrateur.' });
+      return;
+    }
     setConfirmData({
       message: `Annuler l'invitation envoyée à ${inv.phone} ?`,
       action: async () => {

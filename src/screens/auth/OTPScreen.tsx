@@ -1,16 +1,23 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  View, Text, StyleSheet, KeyboardAvoidingView, Platform, 
-  TouchableOpacity, StatusBar, TextInput, Animated, Keyboard, TouchableWithoutFeedback
-} from 'react-native';
-import { Colors } from '../../constants/colors';
-import { AppButton } from '../../components/common/AppButton';
-import * as authService from '../../services/authService';
-import { useAuthStore } from '../../stores/authStore';
-import Toast from 'react-native-toast-message';
 import { RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+    Animated, Keyboard,
+    KeyboardAvoidingView, Platform,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    TouchableWithoutFeedback,
+    View
+} from 'react-native';
+import Toast from 'react-native-toast-message';
+import { AppButton } from '../../components/common/AppButton';
+import { Colors } from '../../constants/colors';
 import { AuthStackParamList } from '../../navigation/AuthNavigator'; // On créera ça juste après
+import * as authService from '../../services/authService';
+import { useAuthStore } from '../../stores/authStore';
 
 type OTPScreenRouteProp = RouteProp<AuthStackParamList, 'OTP'>;
 type OTPScreenNavigationProp = NativeStackNavigationProp<AuthStackParamList, 'OTP'>;
