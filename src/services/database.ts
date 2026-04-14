@@ -98,14 +98,7 @@ export const initDatabase = async (): Promise<void> => {
   try { db.execSync(`ALTER TABLE groups ADD COLUMN payments_visible INTEGER DEFAULT 1`); } catch (_) {}
   try { db.execSync(`ALTER TABLE groups ADD COLUMN photo_url TEXT`); } catch (_) {}
 
-  // Seed automatique en développement
-  // Créer des données de test au premier lancement
-  try {
-    const { seedDevelopmentData } = await import('./seedData');
-    await seedDevelopmentData();
-  } catch (error) {
-    console.log('[DB] ℹ️  Seed ignoré ou déjà effectué');
-  }
+  // Seed supprimé !
 
   console.log('[DB] ✅ Base de données SQLite initialisée');
 };

@@ -458,36 +458,42 @@ export default function MemberDashboardScreen({ navigation }: any) {
 
 // ─── Join Modal content ───────────────────────────────────────────────────────
 function JoinModalContent({ code, error, joining, onChangeCode, onCancel, onConfirm }: any) {
-  const { TextInput, ActivityIndicator } = require('react-native');
+  const { TextInput, ActivityIndicator, KeyboardAvoidingView, Platform } = require('react-native');
   return (
-    <View style={s.modalBox}>
-      <MaterialCommunityIcons name="ticket-percent-outline" size={44} color={Colors.primary} style={{ marginBottom: 12 }} />
-      <Text style={s.modalTitle}>Code d'invitation</Text>
-      <Text style={s.modalSub}>Entrez le code fourni par l'administrateur du groupe.</Text>
-      <Text style={s.hintCode}>Ex : ABC123</Text>
-      <TextInput
-        style={s.codeInput}
-        value={code}
-        onChangeText={onChangeCode}
-        placeholder="Code d'invitation"
-        placeholderTextColor={Colors.textMuted}
-        autoCapitalize="characters"
-        maxLength={12}
-      />
-      {error ? <Text style={s.errorText}>{error}</Text> : null}
-      <View style={s.modalBtns}>
-        <TouchableOpacity style={s.modalBtnCancel} onPress={onCancel}>
-          <Text style={s.modalBtnCancelText}>Annuler</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[s.modalBtnConfirm, code.length < 4 && { opacity: 0.5 }]}
-          onPress={onConfirm}
-          disabled={joining || code.length < 4}
-        >
-          {joining ? <ActivityIndicator color="#FFF" size="small" /> : <Text style={s.modalBtnConfirmText}>Rejoindre</Text>}
-        </TouchableOpacity>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={{ width: '100%' }}
+    >
+      <View style={s.modalBox}>
+        <MaterialCommunityIcons name="ticket-percent-outline" size={44} color={Colors.primary} style={{ marginBottom: 12 }} />
+        <Text style={s.modalTitle}>Code d'invitation</Text>
+        <Text style={s.modalSub}>Entrez le code fourni par l'administrateur du groupe.</Text>
+        <Text style={s.hintCode}>Ex : ABC123</Text>
+        <TextInput
+          style={s.codeInput}
+          value={code}
+          onChangeText={onChangeCode}
+          placeholder="Code d'invitation"
+          placeholderTextColor={Colors.textMuted}
+          autoCapitalize="characters"
+          maxLength={12}
+          autoFocus
+        />
+        {error ? <Text style={s.errorText}>{error}</Text> : null}
+        <View style={s.modalBtns}>
+          <TouchableOpacity style={s.modalBtnCancel} onPress={onCancel}>
+            <Text style={s.modalBtnCancelText}>Annuler</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.modalBtnConfirm, code.length < 4 && { opacity: 0.5 }]}
+            onPress={onConfirm}
+            disabled={joining || code.length < 4}
+          >
+            {joining ? <ActivityIndicator color="#FFF" size="small" /> : <Text style={s.modalBtnConfirmText}>Rejoindre</Text>}
+          </TouchableOpacity>
+        </View>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

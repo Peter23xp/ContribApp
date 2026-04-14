@@ -1,0 +1,16 @@
+name = "contributapp-storage"
+main = "src/index.ts"
+compatibility_date = "2023-05-18"
+
+# Remplacez "VOTRE_ID_DE_COMPTE" par l'ID réel depuis votre tableau de bord Cloudflare
+# account_id = "VOTRE_ID_DE_COMPTE"
+
+# Liez le worker à votre bucket R2 existant
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "contrib-bucket"
+
+# Set les secrets via le dashboard Cloudflare ou `npx wrangler secret put R2_ACCESS_KEY_ID`
+# [vars]
+# R2_ACCESS_KEY_ID = "..."
+# R2_SECRET_ACCESS_KEY = "..."

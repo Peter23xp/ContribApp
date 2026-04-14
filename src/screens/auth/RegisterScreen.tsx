@@ -106,13 +106,12 @@ export default function RegisterScreen({ navigation }: Props) {
 
     setIsLoading(true);
     try {
-      const pin_hash = await authService.hashPIN(pin);
-      
       await authService.register({
         full_name: fullName.trim(),
         phone: '+243' + phone,
         operator: operator!,
-        pin_hash
+        pin: pin,
+        photoUri: photoUri
       });
 
       Toast.show({

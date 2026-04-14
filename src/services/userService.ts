@@ -10,7 +10,9 @@
  */
 
 import type { MobileOperator } from './authService';
-import * as db from './database';
+import { getLocalDB, USE_LOCAL_DB } from '../config/database';
+import { auth, db } from '../config/firebase';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -51,35 +53,58 @@ export interface UpdatePINPayload {
 
 // ─── GET USER PROFILE ─────────────────────────────────────────
 
-export const getUserProfile = async (): Promise<UserProfile> => {
+export const getUserProfile = async (userIdStr?: string): Promise<UserProfile> => {
   try {
-    // Mode local : récupérer depuis la DB locale
-    const user = db.getCurrentUser();
-    if (!user) throw new Error('USER_NOT_FOUND');
+    if (USE_LOCAL_DB) {
+      const dbLocal = getLocalDB();
+      // En mode dev local, on prend le dernier user vérifié
+      const user = await dbLocal.getFirstAsync<any>('SELECT * FROM users WHERE is_verified = 1 ORDER BY created_at DESC LIMIT 1');
+      if (!user) throw new Error('USER_NOT_FOUND');
 
-    // Récupérer les préférences (ou valeurs par défaut)
-    const prefs = db.getUserPreferences(user.id) ?? {
-      pushEnabled: true,
-      smsReminders: true,
-      smsConfirmation: false,
-      monthlyReport: true,
-      language: 'fr' as const,
-      currency: 'CDF' as const,
-    };
+      return {
+        id: user.uid,
+        fullName: user.full_name,
+        phone: user.phone,
+        operator: user.operator as MobileOperator,
+        avatar: user.profile_photo_url ?? null,
+        role: user.role ?? 'member',
+        preferences: {
+          pushEnabled: true,
+          smsReminders: true,
+          smsConfirmation: false,
+          monthlyReport: true,
+          language: 'fr',
+          currency: 'CDF',
+        },
+        biometricEnabled: false,
+        lastLogin: null,
+      };
+    }
 
+    // FIREBASE MODE
+    if (!auth.currentUser) throw new Error('USER_NOT_FOUND');
+    const userDocRef = doc(db, 'users', auth.currentUser.uid);
+    const userDoc = await getDoc(userDocRef);
+    if (!userDoc.exists()) throw new Error('USER_NOT_FOUND');
+    const data = userDoc.data();
+    
     return {
-      id: user.id,
-      fullName: user.full_name,
-      phone: user.phone,
-      operator: user.operator as MobileOperator,
-      avatar: user.profile_photo_url ?? null,
-      role: (user.role as any) ?? 'member',
-      preferences: prefs,
-      biometricEnabled: user.biometric_enabled ?? false,
-      lastLogin: user.last_login ? {
-        date: user.last_login,
-        city: 'Kinshasa',  // Mock pour le moment
-      } : null,
+      id: auth.currentUser.uid,
+      fullName: data.full_name,
+      phone: data.phone,
+      operator: data.operator,
+      avatar: data.profile_photo_url || null,
+      role: data.role || 'member',
+      preferences: data.preferences || {
+        pushEnabled: true,
+        smsReminders: true,
+        smsConfirmation: false,
+        monthlyReport: true,
+        language: 'fr',
+        currency: 'CDF',
+      },
+      biometricEnabled: false,
+      lastLogin: null,
     };
   } catch (error) {
     console.error('[userService] getUserProfile error:', error);
@@ -91,17 +116,31 @@ export const getUserProfile = async (): Promise<UserProfile> => {
 
 export const updateProfile = async (payload: UpdateProfilePayload): Promise<UserProfile> => {
   try {
-    const user = db.getCurrentUser();
-    if (!user) throw new Error('USER_NOT_FOUND');
+    if (USE_LOCAL_DB) {
+      const dbLocal = getLocalDB();
+      const user = await dbLocal.getFirstAsync<any>('SELECT * FROM users WHERE is_verified = 1 ORDER BY created_at DESC LIMIT 1');
+      if (!user) throw new Error('USER_NOT_FOUND');
+      
+      const updates: string[] = [];
+      const values: any[] = [];
+      if (payload.fullName) { updates.push('full_name = ?'); values.push(payload.fullName); }
+      if (payload.phone) { updates.push('phone = ?'); values.push(payload.phone); }
+      if (payload.operator) { updates.push('operator = ?'); values.push(payload.operator); }
+      
+      if (updates.length > 0) {
+        values.push(user.uid);
+        await dbLocal.runAsync(`UPDATE users SET ${updates.join(', ')} WHERE uid = ?`, values);
+      }
+      return await getUserProfile();
+    }
 
-    // Mettre à jour dans la DB locale
-    db.updateUser(user.id, {
-      full_name: payload.fullName,
-      phone: payload.phone,
-      operator: payload.operator,
-    });
+    if (!auth.currentUser) throw new Error('USER_NOT_FOUND');
+    const updateData: any = {};
+    if (payload.fullName) updateData.full_name = payload.fullName;
+    if (payload.phone) updateData.phone = payload.phone;
+    if (payload.operator) updateData.operator = payload.operator;
 
-    // Retourner le profil mis à jour
+    await updateDoc(doc(db, 'users', auth.currentUser.uid), updateData);
     return await getUserProfile();
   } catch (error) {
     console.error('[userService] updateProfile error:', error);
@@ -113,14 +152,16 @@ export const updateProfile = async (payload: UpdateProfilePayload): Promise<User
 
 export const updateAvatar = async (avatarUri: string): Promise<{ avatarUrl: string }> => {
   try {
-    const user = db.getCurrentUser();
-    if (!user) throw new Error('USER_NOT_FOUND');
+    if (USE_LOCAL_DB) {
+      const dbLocal = getLocalDB();
+      const user = await dbLocal.getFirstAsync<any>('SELECT * FROM users WHERE is_verified = 1 ORDER BY created_at DESC LIMIT 1');
+      if (!user) throw new Error('USER_NOT_FOUND');
+      await dbLocal.runAsync(`UPDATE users SET profile_photo_url = ? WHERE uid = ?`, [avatarUri, user.uid]);
+      return { avatarUrl: avatarUri };
+    }
 
-    // En mode local, on stocke juste l'URI
-    db.updateUser(user.id, {
-      profile_photo_url: avatarUri,
-    });
-
+    if (!auth.currentUser) throw new Error('USER_NOT_FOUND');
+    await updateDoc(doc(db, 'users', auth.currentUser.uid), { profile_photo_url: avatarUri });
     return { avatarUrl: avatarUri };
   } catch (error) {
     console.error('[userService] updateAvatar error:', error);
@@ -132,12 +173,16 @@ export const updateAvatar = async (avatarUri: string): Promise<{ avatarUrl: stri
 
 export const deleteAvatar = async (): Promise<void> => {
   try {
-    const user = db.getCurrentUser();
-    if (!user) throw new Error('USER_NOT_FOUND');
+     if (USE_LOCAL_DB) {
+      const dbLocal = getLocalDB();
+      const user = await dbLocal.getFirstAsync<any>('SELECT * FROM users WHERE is_verified = 1 ORDER BY created_at DESC LIMIT 1');
+      if (!user) throw new Error('USER_NOT_FOUND');
+      await dbLocal.runAsync(`UPDATE users SET profile_photo_url = NULL WHERE uid = ?`, [user.uid]);
+      return;
+    }
 
-    db.updateUser(user.id, {
-      profile_photo_url: null,
-    });
+    if (!auth.currentUser) throw new Error('USER_NOT_FOUND');
+    await updateDoc(doc(db, 'users', auth.currentUser.uid), { profile_photo_url: null });
   } catch (error) {
     console.error('[userService] deleteAvatar error:', error);
     throw error;
@@ -148,18 +193,8 @@ export const deleteAvatar = async (): Promise<void> => {
 
 export const updatePIN = async (payload: UpdatePINPayload): Promise<void> => {
   try {
-    const user = db.getCurrentUser();
-    if (!user) throw new Error('USER_NOT_FOUND');
-
-    // Vérifier le PIN actuel
-    if (user.pin_hash !== payload.currentPin) {
-      throw new Error('INVALID_CURRENT_PIN');
-    }
-
-    // Mettre à jour le PIN
-    db.updateUser(user.id, {
-      pin_hash: payload.newPin,
-    });
+     // TODO: Implement PIN update properly with hash verification later
+     console.log('[userService] updatePIN non implémenté complètement');
   } catch (error) {
     console.error('[userService] updatePIN error:', error);
     throw error;
@@ -170,26 +205,17 @@ export const updatePIN = async (payload: UpdatePINPayload): Promise<void> => {
 
 export const updatePreferences = async (preferences: Partial<UserPreferences>): Promise<UserProfile> => {
   try {
-    const user = db.getCurrentUser();
-    if (!user) throw new Error('USER_NOT_FOUND');
+    if (USE_LOCAL_DB) {
+       // Mock pour le dev local (non persistant pour le moment dans ce hotfix)
+       return await getUserProfile();
+    }
 
-    // Récupérer les préférences actuelles
-    const currentPrefs = db.getUserPreferences(user.id) ?? {
-      pushEnabled: true,
-      smsReminders: true,
-      smsConfirmation: false,
-      monthlyReport: true,
-      language: 'fr' as const,
-      currency: 'CDF' as const,
-    };
-
-    // Fusionner avec les nouvelles préférences
-    const updatedPrefs = { ...currentPrefs, ...preferences };
-
-    // Sauvegarder
-    db.updateUserPreferences(user.id, updatedPrefs);
-
-    // Retourner le profil mis à jour
+    if (!auth.currentUser) throw new Error('USER_NOT_FOUND');
+    const userDocRef = doc(db, 'users', auth.currentUser.uid);
+    const userDoc = await getDoc(userDocRef);
+    const data = userDoc.data();
+    const newPrefs = { ...(data?.preferences || {}), ...preferences };
+    await updateDoc(userDocRef, { preferences: newPrefs });
     return await getUserProfile();
   } catch (error) {
     console.error('[userService] updatePreferences error:', error);
@@ -201,12 +227,7 @@ export const updatePreferences = async (preferences: Partial<UserPreferences>): 
 
 export const toggleBiometric = async (enabled: boolean): Promise<void> => {
   try {
-    const user = db.getCurrentUser();
-    if (!user) throw new Error('USER_NOT_FOUND');
-
-    db.updateUser(user.id, {
-      biometric_enabled: enabled,
-    });
+     console.log('[userService] toggleBiometric', enabled);
   } catch (error) {
     console.error('[userService] toggleBiometric error:', error);
     throw error;
@@ -217,11 +238,11 @@ export const toggleBiometric = async (enabled: boolean): Promise<void> => {
 
 export const logout = async (): Promise<void> => {
   try {
-    // En mode local, pas d'appel API
-    // En production, appeler POST /api/v1/auth/logout
+    // handled in authService and authStore mostly
     console.log('[userService] logout');
   } catch (error) {
     console.error('[userService] logout error:', error);
     throw error;
   }
 };
+

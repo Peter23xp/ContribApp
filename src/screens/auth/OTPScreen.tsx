@@ -69,15 +69,15 @@ export default function OTPScreen({ route, navigation }: Props) {
     setHasError(false);
     setError(null);
     try {
-      const response = await authService.verifyOTP(phone, otpCode);
-      await useAuthStore.getState().setAuth(response.user, response.role, {
-        access: response.access_token,
-        refresh: response.refresh_token,
-      });
-      Toast.show({ type: 'success', text1: 'Téléphone vérifié !', text2: 'Bienvenue sur ContribApp' });
+      const isResetPhase = context === 'reset_pin';
+      const response = await authService.verifyOTP(phone, otpCode, isResetPhase);
       
-      if (context === 'reset_pin') {
+      if (isResetPhase) {
+        Toast.show({ type: 'success', text1: 'Code vérifié !', text2: 'Choisissez votre nouveau PIN' });
         navigation.replace('SetNewPIN', { phone });
+      } else {
+        await useAuthStore.getState().setAuth(response.user, response.role);
+        Toast.show({ type: 'success', text1: 'Téléphone vérifié !', text2: 'Bienvenue sur ContribApp' });
       }
     } catch (err: any) {
       setHasError(true);

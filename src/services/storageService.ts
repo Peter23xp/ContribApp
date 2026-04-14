@@ -20,6 +20,8 @@ interface UploadResult {
   key: string;       // Clé R2 (chemin dans le bucket)
 }
 
+import { getLocalDB, USE_LOCAL_DB } from '../config/database';
+
 /**
  * Obtient une URL pré-signée depuis le Cloudflare Worker
  */
@@ -28,6 +30,14 @@ async function getPresignedUrl(
   contentType: string,
   category: FileCategory
 ): Promise<{ uploadUrl: string; publicUrl: string; key: string }> {
+  if (USE_LOCAL_DB) {
+     return { 
+       uploadUrl: 'local', 
+       publicUrl: 'file://local/storage/' + fileName, 
+       key: fileName 
+     };
+  }
+
   const token = await auth.currentUser?.getIdToken();
   if (!token) throw new Error('NOT_AUTHENTICATED');
 
@@ -78,11 +88,15 @@ export async function uploadFile(
     category
   );
 
+  if (USE_LOCAL_DB) {
+    return { url: localUri, key };
+  }
+
   // Upload direct vers R2 (PUT avec le fichier en body)
   const uploadResponse = await FileSystem.uploadAsync(uploadUrl, localUri, {
     httpMethod: 'PUT',
     headers: { 'Content-Type': contentType },
-    uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+    uploadType: 1, // FileSystemUploadType.BINARY_CONTENT = 1
   });
 
   if (uploadResponse.status !== 200) throw new Error('UPLOAD_FAILED');

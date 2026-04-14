@@ -53,6 +53,9 @@ export const useAuthStore = create<AuthStore>((set) => ({
 
   loadFromStorage: async () => {
     try {
+      // 🛠️ NETTOYAGE iOS: On force la suppression du cache sécurisé qui a survécu à la désinstallation !
+      await SecureStore.deleteItemAsync('user_data'); 
+
       const stored = await SecureStore.getItemAsync('user_data');
       if (stored) {
         const { user, role } = JSON.parse(stored);

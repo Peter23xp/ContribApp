@@ -104,17 +104,13 @@ export default function LoginScreen({ navigation }: Props) {
     setIsLoading(true);
     setError(null);
     try {
-      const pin_hash = await authService.hashPIN(pin);
       const response = await authService.login({ 
         phone: '+243' + phone, 
-        pin_hash 
+        pin 
       });
       
       await SecureStore.setItemAsync('last_phone', phone);
-      await useAuthStore.getState().setAuth(response.user, response.role, {
-        access: response.access_token,
-        refresh: response.refresh_token,
-      });
+      await useAuthStore.getState().setAuth(response.user, response.role);
     } catch (err: any) {
       setPin(''); // Vider le PIN
       if (err.message === 'INVALID_CREDENTIALS') {
@@ -146,10 +142,7 @@ export default function LoginScreen({ navigation }: Props) {
         setError(null);
         try {
           const response = await authService.loginWithBiometric('+243' + savedPhone, biometricToken);
-          await useAuthStore.getState().setAuth(response.user, response.role, {
-            access: response.access_token,
-            refresh: response.refresh_token,
-          });
+          await useAuthStore.getState().setAuth(response.user, response.role);
         } catch (err: any) {
           setError("Erreur d'authentification biométrique.");
         } finally {

@@ -6,8 +6,7 @@ import SplashScreen from '../screens/auth/SplashScreen';
 import LoginScreen from '../screens/auth/LoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
 import OTPScreen from '../screens/auth/OTPScreen';
-// TODO: Ajouter SetNewPINScreen
-const SetNewPINScreen = () => <></>;
+import SetNewPINScreen from '../screens/auth/SetNewPINScreen';
 
 export type AuthStackParamList = {
   Splash: undefined;
