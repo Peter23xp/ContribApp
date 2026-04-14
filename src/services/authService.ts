@@ -2,12 +2,16 @@
  * authService.ts — Service d'authentification Firebase-only
  * 
  * Gère : inscription, OTP, login, logout, reset PIN.
- * Toute la logique SQLite a été supprimée.
+ * 
+ * ARCHITECTURE PHONE AUTH (Expo):
+ * - Le reCAPTCHA est géré par le composant FirebaseRecaptcha (WebView invisible)
+ * - Le WebView fait signInWithPhoneNumber côté web et retourne le verificationId
+ * - Côté React Native on utilise PhoneAuthProvider.credential + signInWithCredential
  */
 import {
-  signInWithPhoneNumber,
+  PhoneAuthProvider,
+  signInWithCredential,
   signOut,
-  ConfirmationResult,
 } from 'firebase/auth';
 import {
   collection,
@@ -51,7 +55,16 @@ export interface AuthResponse {
   role: UserRole;
 }
 
-let _confirmationResult: ConfirmationResult | null = null;
+// Stocke le verificationId retourné par le reCAPTCHA WebView
+let _verificationId: string | null = null;
+
+export function setVerificationId(id: string) {
+  _verificationId = id;
+}
+
+export function getVerificationId(): string | null {
+  return _verificationId;
+}
 
 export async function hashPIN(pin: string): Promise<string> {
   return await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, pin);
@@ -59,26 +72,26 @@ export async function hashPIN(pin: string): Promise<string> {
 
 // ─── INSCRIPTION ──────────────────────────────────────────────
 
+/**
+ * Étape 1 : Enregistrer les données en attente + demander l'OTP.
+ * L'OTP est envoyé par le composant FirebaseRecaptcha (WebView).
+ * Cette fonction ne fait que sauvegarder les données + le PIN hash.
+ */
 export async function register(payload: RegisterPayload): Promise<{ success: boolean }> {
   const pin_hash = await hashPIN(payload.pin);
 
-  try {
-    await SecureStore.setItemAsync('pending_registration', JSON.stringify({
-      full_name: payload.full_name,
-      phone: payload.phone,
-      operator: payload.operator,
-      pin_hash,
-      photoUri: payload.photoUri ?? null
-    }));
-    await SecureStore.setItemAsync('pin_hash', pin_hash);
+  await SecureStore.setItemAsync('pending_registration', JSON.stringify({
+    full_name: payload.full_name,
+    phone: payload.phone,
+    operator: payload.operator,
+    pin_hash,
+    photoUri: payload.photoUri ?? null
+  }));
+  await SecureStore.setItemAsync('pin_hash', pin_hash);
 
-    _confirmationResult = await signInWithPhoneNumber(auth, payload.phone) as any;
-    return { success: true };
-  } catch (err: any) {
-    if (err.code === 'auth/phone-number-already-exists') throw new Error('PHONE_ALREADY_EXISTS');
-    if (err.code === 'auth/too-many-requests') throw new Error('TOO_MANY_ATTEMPTS');
-    throw new Error('NETWORK_ERROR: ' + err.message);
-  }
+  // L'envoi d'OTP se fait maintenant via le FirebaseRecaptcha WebView
+  // qui appelle setVerificationId() après succès
+  return { success: true };
 }
 
 // ─── VÉRIFICATION OTP ─────────────────────────────────────────
@@ -92,10 +105,13 @@ export async function verifyOTP(phone: string, otp_code: string, isResetPhase = 
     data = JSON.parse(pendingData);
   }
 
+  if (!_verificationId) throw new Error('OTP_NOT_SENT');
+
   try {
-    if (!_confirmationResult) throw new Error('OTP_NOT_SENT');
-    const credential = await _confirmationResult.confirm(otp_code);
-    const uid = credential.user.uid;
+    // Créer le credential avec le verificationId + le code OTP saisi
+    const credential = PhoneAuthProvider.credential(_verificationId, otp_code);
+    const userCredential = await signInWithCredential(auth, credential);
+    const uid = userCredential.user.uid;
     
     if (isResetPhase) {
       const userDoc = await getDoc(doc(db, 'users', uid));
@@ -151,20 +167,20 @@ export async function verifyOTP(phone: string, otp_code: string, isResetPhase = 
       },
       role: 'member',
     };
-  } catch (error) {
-    throw new Error('INVALID_OTP');
+  } catch (error: any) {
+    console.error('[authService] verifyOTP error:', error);
+    if (error.code === 'auth/invalid-verification-code') throw new Error('INVALID_OTP');
+    if (error.code === 'auth/session-expired') throw new Error('OTP_EXPIRED');
+    throw error;
   }
 }
 
 // ─── RENVOYER OTP ─────────────────────────────────────────────
-
+// L'envoi d'OTP est maintenant géré par FirebaseRecaptcha WebView.
+// Cette fonction est appelée par le composant pour re-déclencher.
 export async function resendOTP(phone: string): Promise<{ success: boolean; expires_in?: number }> {
-  try {
-    _confirmationResult = await signInWithPhoneNumber(auth, phone) as any;
-    return { success: true, expires_in: 120 };
-  } catch (error: any) {
-    throw new Error('NETWORK_ERROR: ' + error.message);
-  }
+  // Le composant FirebaseRecaptcha gère le renvoi
+  return { success: true, expires_in: 120 };
 }
 
 // ─── CONNEXION ────────────────────────────────────────────────

@@ -1,8 +1,14 @@
+/**
+ * firebase.ts — Configuration Firebase (React Native / Expo)
+ * 
+ * Utilise initializeAuth avec getReactNativePersistence pour
+ * que la session Auth persiste entre les relances de l'app.
+ */
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { initializeAuth, getAuth, getReactNativePersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Configuration Firebase (remplacer par les vraies valeurs depuis la console Firebase)
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -15,6 +21,17 @@ const firebaseConfig = {
 // Évite la réinitialisation en mode hot-reload Expo
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-export const auth = getAuth(app);
+// Auth avec persistence React Native (AsyncStorage)
+let auth: ReturnType<typeof initializeAuth>;
+try {
+  auth = initializeAuth(app, {
+    persistence: getReactNativePersistence(AsyncStorage),
+  });
+} catch (e) {
+  // En hot-reload, initializeAuth peut lancer si le auth a déjà été initialisé
+  auth = getAuth(app) as any;
+}
+
+export { auth };
 export const db = getFirestore(app);
 export default app;
