@@ -22,9 +22,11 @@ import { AppButton } from '../../components/common/AppButton';
 import { AppInput } from '../../components/common/AppInput';
 import { Colors } from '../../constants/colors';
 import * as authService from '../../services/authService';
+import { setVerificationId } from '../../services/authService';
 import { useAuthStore } from '../../stores/authStore';
 
 import { AuthStackParamList } from '../../navigation/AuthNavigator';
+import FirebaseRecaptcha, { FirebaseRecaptchaRef } from '../../components/auth/FirebaseRecaptcha';
 
 type Props = {
   navigation: NativeStackNavigationProp<AuthStackParamList, 'Register'>;
@@ -46,6 +48,7 @@ export default function LoginScreen({ navigation }: Props) {
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
 
   const pinRef = useRef<TextInput>(null);
+  const recaptchaRef = useRef<FirebaseRecaptchaRef>(null);
 
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
@@ -161,11 +164,15 @@ export default function LoginScreen({ navigation }: Props) {
     }
     setForgotLoading(true);
     try {
-      await authService.resendOTP('+243' + forgotPhone);
+      if (!recaptchaRef.current) {
+        throw new Error('Recaptcha non initialisé. Réessayez.');
+      }
+      const verificationId = await recaptchaRef.current.sendVerification('+243' + forgotPhone);
+      setVerificationId(verificationId);
       setShowForgotModal(false);
       (navigation as any).navigate('OTP', { phone: '+243' + forgotPhone, context: 'reset_pin' });
     } catch (error: any) {
-      Toast.show({ type: 'error', text1: 'Erreur', text2: error.message });
+      Toast.show({ type: 'error', text1: 'Erreur', text2: error.message || 'Impossible d\'envoyer le code' });
     } finally {
       setForgotLoading(false);
     }
@@ -182,6 +189,8 @@ export default function LoginScreen({ navigation }: Props) {
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
       <View style={styles.container}>
+        {/* reCAPTCHA invisible (WebView) */}
+        <FirebaseRecaptcha ref={recaptchaRef} />
         <StatusBar barStyle="light-content" backgroundColor={Colors.primary} />
         
         {/* Zone Haute (Dynamique) */}

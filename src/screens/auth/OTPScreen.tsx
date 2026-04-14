@@ -15,9 +15,11 @@ import {
 import Toast from 'react-native-toast-message';
 import { AppButton } from '../../components/common/AppButton';
 import { Colors } from '../../constants/colors';
-import { AuthStackParamList } from '../../navigation/AuthNavigator'; // On créera ça juste après
+import { AuthStackParamList } from '../../navigation/AuthNavigator';
 import * as authService from '../../services/authService';
+import { setVerificationId } from '../../services/authService';
 import { useAuthStore } from '../../stores/authStore';
+import FirebaseRecaptcha, { FirebaseRecaptchaRef } from '../../components/auth/FirebaseRecaptcha';
 
 type OTPScreenRouteProp = RouteProp<AuthStackParamList, 'OTP'>;
 type OTPScreenNavigationProp = NativeStackNavigationProp<AuthStackParamList, 'OTP'>;
@@ -40,6 +42,7 @@ export default function OTPScreen({ route, navigation }: Props) {
   const inputRefs = Array.from({ length: 6 }, () => useRef<TextInput>(null));
   
   const shakeAnimation = useRef(new Animated.Value(0)).current;
+  const recaptchaRef = useRef<FirebaseRecaptchaRef>(null);
 
   // Masked phone ex: +243 97 *** ** 89
   const maskedPhone = phone.slice(0, -3).replace(/\d/g, '*') + phone.slice(-3);
@@ -110,7 +113,11 @@ export default function OTPScreen({ route, navigation }: Props) {
   const handleResend = async () => {
     setIsResending(true);
     try {
-      await authService.resendOTP(phone);
+      if (!recaptchaRef.current) {
+        throw new Error('Recaptcha non initialisé');
+      }
+      const verificationId = await recaptchaRef.current.sendVerification(phone);
+      setVerificationId(verificationId);
       setTimer(120);
       setHasError(false);
       setError(null);
@@ -119,10 +126,10 @@ export default function OTPScreen({ route, navigation }: Props) {
       inputRefs[0].current?.focus();
       Toast.show({ type: 'success', text1: 'Code renvoyé !', text2: `SMS envoyé au ${phone}` });
     } catch (err: any) {
-      if (err.message === 'RESEND_LIMIT') {
+      if (err?.code === 'auth/too-many-requests') {
         Toast.show({ type: 'error', text1: 'Limite atteinte', text2: 'Attendez avant de renvoyer.' });
       } else {
-        Toast.show({ type: 'error', text1: 'Erreur', text2: err.message });
+        Toast.show({ type: 'error', text1: 'Erreur', text2: err.message || 'Impossible de renvoyer le code' });
       }
     } finally {
       setIsResending(false);
@@ -168,6 +175,8 @@ export default function OTPScreen({ route, navigation }: Props) {
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
       <View style={styles.container}>
+        {/* reCAPTCHA invisible (WebView) pour resend */}
+        <FirebaseRecaptcha ref={recaptchaRef} />
         <StatusBar barStyle="light-content" backgroundColor={Colors.primary} />
         {/* Header */}
         <View style={styles.header}>

@@ -1,23 +1,17 @@
 /**
  * FirebaseRecaptcha.tsx — Invisible reCAPTCHA pour Firebase Phone Auth
  * 
- * Ce composant rend un WebView invisible qui charge la page reCAPTCHA.
- * Il expose une ref pour déclencher la vérification depuis n'importe quel écran.
+ * Rend un WebView invisible TOUJOURS monté qui charge Firebase Auth
+ * avec un RecaptchaVerifier invisible.
  * 
- * ALTERNATIVE SIMPLE : On utilise signInWithPhoneNumber avec
- * l'option appVerificationDisabledForTesting en dev,
- * et en prod on passe par un backend (Cloud Function) pour l'envoi d'OTP.
- * 
- * Pour Expo managed workflow sans ejecting, la meilleure approche est
- * d'utiliser le Firebase JS SDK avec un reCAPTCHA invisible.
- * On le fait ici via un portail WebView.
+ * Le WebView est rendu dans un conteneur 1x1px transparent,
+ * sans Modal — pour éviter le rechargement à chaque ouverture.
  */
 import React, { forwardRef, useImperativeHandle, useRef, useState, useCallback } from 'react';
-import { View, Modal, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { auth } from '../../config/firebase';
 
-const RECAPTCHA_HTML = (siteKey: string, authDomain: string) => `
+const RECAPTCHA_HTML = (apiKey: string, authDomain: string) => `
 <!DOCTYPE html>
 <html>
 <head>
@@ -25,46 +19,51 @@ const RECAPTCHA_HTML = (siteKey: string, authDomain: string) => `
   <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
   <style>
-    body { background: transparent; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+    body { background: transparent; margin: 0; overflow: hidden; }
+    .grecaptcha-badge { visibility: hidden; }
   </style>
 </head>
 <body>
   <div id="recaptcha-container"></div>
   <script>
-    // Invisible reCAPTCHA
     try {
-      firebase.initializeApp({ apiKey: "${siteKey}", authDomain: "${authDomain}" });
+      firebase.initializeApp({ apiKey: "${apiKey}", authDomain: "${authDomain}" });
+      
       var recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
         size: 'invisible',
         callback: function(token) {
-          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'recaptcha_token', token: token }));
+          // Token reçu — on n'en a pas besoin directement,
+          // signInWithPhoneNumber l'utilisera automatiquement
         },
         'expired-callback': function() {
           window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'recaptcha_expired' }));
         }
       });
+      
       recaptchaVerifier.render().then(function() {
-        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'recaptcha_ready' }));
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'ready' }));
+      }).catch(function(err) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'error', code: 'render_failed', message: err.message }));
       });
       
       window.sendVerification = function(phoneNumber) {
         firebase.auth().signInWithPhoneNumber(phoneNumber, recaptchaVerifier)
           .then(function(confirmationResult) {
             window.ReactNativeWebView.postMessage(JSON.stringify({ 
-              type: 'verification_sent',
+              type: 'sent',
               verificationId: confirmationResult.verificationId
             }));
           })
           .catch(function(error) {
             window.ReactNativeWebView.postMessage(JSON.stringify({ 
               type: 'error',
-              code: error.code,
-              message: error.message
+              code: error.code || 'unknown',
+              message: error.message || 'Unknown error'
             }));
           });
       };
     } catch(e) {
-      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'error', message: e.message }));
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'error', code: 'init_failed', message: e.message }));
     }
   </script>
 </body>
@@ -72,19 +71,21 @@ const RECAPTCHA_HTML = (siteKey: string, authDomain: string) => `
 `;
 
 export interface FirebaseRecaptchaRef {
-  sendVerification: (phone: string) => Promise<string>; // Returns verificationId
+  sendVerification: (phone: string) => Promise<string>;
 }
 
 interface Props {
   onReady?: () => void;
 }
 
+const TIMEOUT_MS = 30000; // 30 secondes max
+
 const FirebaseRecaptcha = forwardRef<FirebaseRecaptchaRef, Props>(({ onReady }, ref) => {
   const webViewRef = useRef<WebView>(null);
-  const [visible, setVisible] = useState(false);
-  const resolveRef = useRef<((verificationId: string) => void) | null>(null);
-  const rejectRef = useRef<((error: Error) => void) | null>(null);
-  const [isReady, setIsReady] = useState(false);
+  const isReadyRef = useRef(false);
+  const resolveRef = useRef<((id: string) => void) | null>(null);
+  const rejectRef = useRef<((err: Error) => void) | null>(null);
+  const pendingPhoneRef = useRef<string | null>(null);
 
   const apiKey = process.env.EXPO_PUBLIC_FIREBASE_API_KEY || '';
   const authDomain = process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || '';
@@ -92,19 +93,39 @@ const FirebaseRecaptcha = forwardRef<FirebaseRecaptchaRef, Props>(({ onReady }, 
   useImperativeHandle(ref, () => ({
     sendVerification: (phone: string) => {
       return new Promise<string>((resolve, reject) => {
+        // Nettoyer toute promesse précédente
         resolveRef.current = resolve;
         rejectRef.current = reject;
-        setVisible(true);
-        
-        // Attendre que le WebView soit prêt, puis envoyer
-        const checkAndSend = () => {
-          if (isReady && webViewRef.current) {
-            webViewRef.current.injectJavaScript(`window.sendVerification("${phone}"); true;`);
-          } else {
-            setTimeout(checkAndSend, 200);
+
+        // Timeout de sécurité
+        const timer = setTimeout(() => {
+          if (rejectRef.current) {
+            rejectRef.current(new Error('Délai dépassé. Vérifiez votre connexion.'));
+            resolveRef.current = null;
+            rejectRef.current = null;
           }
+        }, TIMEOUT_MS);
+
+        const wrappedResolve = (id: string) => {
+          clearTimeout(timer);
+          resolve(id);
         };
-        setTimeout(checkAndSend, 500);
+        const wrappedReject = (err: Error) => {
+          clearTimeout(timer);
+          reject(err);
+        };
+        resolveRef.current = wrappedResolve;
+        rejectRef.current = wrappedReject;
+
+        if (isReadyRef.current && webViewRef.current) {
+          // WebView prêt → envoyer immédiatement
+          console.log('[Recaptcha] Sending verification for:', phone);
+          webViewRef.current.injectJavaScript(`window.sendVerification("${phone}"); true;`);
+        } else {
+          // WebView pas encore prêt → stocker le numéro, sera envoyé au ready
+          console.log('[Recaptcha] WebView not ready, queuing phone:', phone);
+          pendingPhoneRef.current = phone;
+        }
       });
     }
   }));
@@ -112,50 +133,62 @@ const FirebaseRecaptcha = forwardRef<FirebaseRecaptchaRef, Props>(({ onReady }, 
   const handleMessage = useCallback((event: any) => {
     try {
       const data = JSON.parse(event.nativeEvent.data);
+      console.log('[Recaptcha] Message:', data.type);
       
       switch (data.type) {
-        case 'recaptcha_ready':
-          setIsReady(true);
+        case 'ready':
+          isReadyRef.current = true;
           onReady?.();
+          // Si un envoi était en attente
+          if (pendingPhoneRef.current && webViewRef.current) {
+            const phone = pendingPhoneRef.current;
+            pendingPhoneRef.current = null;
+            console.log('[Recaptcha] Sending queued verification for:', phone);
+            webViewRef.current.injectJavaScript(`window.sendVerification("${phone}"); true;`);
+          }
           break;
           
-        case 'verification_sent':
+        case 'sent':
+          console.log('[Recaptcha] Verification sent, id:', data.verificationId?.substring(0, 20) + '...');
           resolveRef.current?.(data.verificationId);
           resolveRef.current = null;
-          setVisible(false);
+          rejectRef.current = null;
           break;
           
-        case 'error':
-          const error = new Error(data.message || 'RECAPTCHA_ERROR');
+        case 'error': {
+          console.error('[Recaptcha] Error:', data.code, data.message);
+          const error = new Error(data.message || 'Erreur reCAPTCHA');
           (error as any).code = data.code;
           rejectRef.current?.(error);
+          resolveRef.current = null;
           rejectRef.current = null;
-          setVisible(false);
           break;
+        }
           
         case 'recaptcha_expired':
-          rejectRef.current?.(new Error('RECAPTCHA_EXPIRED'));
+          rejectRef.current?.(new Error('Le reCAPTCHA a expiré. Réessayez.'));
+          resolveRef.current = null;
           rejectRef.current = null;
-          setVisible(false);
           break;
       }
     } catch (e) {
-      console.error('[Recaptcha] Parse error', e);
+      console.error('[Recaptcha] Parse error:', e);
     }
   }, [onReady]);
 
   return (
-    <Modal visible={visible} transparent animationType="none">
-      <View style={styles.container}>
-        <WebView
-          ref={webViewRef}
-          source={{ html: RECAPTCHA_HTML(apiKey, authDomain) }}
-          onMessage={handleMessage}
-          javaScriptEnabled
-          style={styles.webview}
-        />
-      </View>
-    </Modal>
+    <View style={styles.container} pointerEvents="none">
+      <WebView
+        ref={webViewRef}
+        source={{ html: RECAPTCHA_HTML(apiKey, authDomain) }}
+        onMessage={handleMessage}
+        javaScriptEnabled
+        domStorageEnabled
+        originWhitelist={['*']}
+        style={styles.webview}
+        onError={(e) => console.error('[Recaptcha] WebView error:', e.nativeEvent)}
+      />
+    </View>
   );
 });
 
@@ -165,9 +198,11 @@ const styles = StyleSheet.create({
     width: 1,
     height: 1,
     opacity: 0,
+    overflow: 'hidden',
   },
   webview: {
-    flex: 1,
+    width: 1,
+    height: 1,
     backgroundColor: 'transparent',
   },
 });

@@ -7,12 +7,13 @@ import { AppButton } from '../../components/common/AppButton';
 import { AppInput } from '../../components/common/AppInput';
 import { OperatorSelector } from '../../components/common/OperatorSelector';
 import * as authService from '../../services/authService';
-import { MobileOperator } from '../../services/authService';
+import { MobileOperator, setVerificationId } from '../../services/authService';
 import { Colors } from '../../constants/colors';
 import * as ImagePicker from 'expo-image-picker';
 import Toast from 'react-native-toast-message';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AuthStackParamList } from '../../navigation/AuthNavigator';
+import FirebaseRecaptcha, { FirebaseRecaptchaRef } from '../../components/auth/FirebaseRecaptcha';
 
 type Props = {
   navigation: NativeStackNavigationProp<AuthStackParamList, 'Register'>;
@@ -29,6 +30,7 @@ export default function RegisterScreen({ navigation }: Props) {
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const recaptchaRef = useRef<FirebaseRecaptchaRef>(null);
   const [hasSubmitted, setHasSubmitted] = useState(false);
 
   // Animation pour switcher de page
@@ -106,6 +108,7 @@ export default function RegisterScreen({ navigation }: Props) {
 
     setIsLoading(true);
     try {
+      // 1. Sauvegarder les données d'inscription en local
       await authService.register({
         full_name: fullName.trim(),
         phone: '+243' + phone,
@@ -113,6 +116,13 @@ export default function RegisterScreen({ navigation }: Props) {
         pin: pin,
         photoUri: photoUri
       });
+
+      // 2. Envoyer l'OTP via le reCAPTCHA WebView
+      if (!recaptchaRef.current) {
+        throw new Error('Recaptcha non initialisé. Réessayez.');
+      }
+      const verificationId = await recaptchaRef.current.sendVerification('+243' + phone);
+      setVerificationId(verificationId);
 
       Toast.show({
         type: 'success',
@@ -122,11 +132,14 @@ export default function RegisterScreen({ navigation }: Props) {
 
       navigation.navigate('OTP', { phone: '+243' + phone, context: 'register' });
     } catch (error: any) {
-      if (error.message === 'PHONE_ALREADY_EXISTS') {
+      console.error('[Register] error:', error);
+      if (error.message === 'PHONE_ALREADY_EXISTS' || error?.code === 'auth/phone-number-already-exists') {
         Toast.show({ type: 'error', text1: 'Erreur', text2: "Ce numéro est déjà inscrit" });
         setStep(2); 
+      } else if (error?.code === 'auth/too-many-requests') {
+        Toast.show({ type: 'error', text1: 'Trop de tentatives', text2: 'Attendez quelques minutes' });
       } else {
-        Toast.show({ type: 'error', text1: 'Erreur', text2: error.message });
+        Toast.show({ type: 'error', text1: 'Erreur', text2: error.message || 'Erreur réseau' });
       }
     } finally {
       setIsLoading(false);
@@ -136,6 +149,8 @@ export default function RegisterScreen({ navigation }: Props) {
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
       <View style={styles.container}>
+        {/* reCAPTCHA invisible (WebView) */}
+        <FirebaseRecaptcha ref={recaptchaRef} />
         {/* Header avec barre de progression */}
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => step > 1 ? handlePrevStep() : navigation.goBack()}>

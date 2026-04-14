@@ -5,6 +5,7 @@
  * que la session Auth persiste entre les relances de l'app.
  */
 import { initializeApp, getApps, getApp } from 'firebase/app';
+// @ts-ignore — getReactNativePersistence existe au runtime mais les types TS ne le voient pas
 import { initializeAuth, getAuth, getReactNativePersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -22,14 +23,14 @@ const firebaseConfig = {
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
 // Auth avec persistence React Native (AsyncStorage)
-let auth: ReturnType<typeof initializeAuth>;
+let auth: ReturnType<typeof getAuth>;
 try {
   auth = initializeAuth(app, {
     persistence: getReactNativePersistence(AsyncStorage),
   });
 } catch (e) {
   // En hot-reload, initializeAuth peut lancer si le auth a déjà été initialisé
-  auth = getAuth(app) as any;
+  auth = getAuth(app);
 }
 
 export { auth };
