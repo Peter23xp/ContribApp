@@ -41,9 +41,9 @@ export default function ChangePINScreen({ navigation }: any) {
 
   // ── Validation ──
   const isValid = 
-    oldPin.length === 6 &&
-    newPin.length === 6 &&
-    confirmPin.length === 6 &&
+    oldPin.length === 4 &&
+    newPin.length === 4 &&
+    confirmPin.length === 4 &&
     newPin === confirmPin;
 
   // ── Gestion des changements ──
@@ -155,7 +155,7 @@ export default function ChangePINScreen({ navigation }: any) {
         <View style={s.instructionsBox}>
           <Ionicons name="information-circle" size={24} color={Colors.tertiary} />
           <Text style={s.instructionsText}>
-            Votre code PIN doit contenir exactement 6 chiffres. Assurez-vous de le mémoriser.
+            Votre code PIN doit contenir exactement 4 chiffres. Assurez-vous de le mémoriser.
           </Text>
         </View>
 
@@ -195,7 +195,7 @@ export default function ChangePINScreen({ navigation }: any) {
           </View>
           <View style={s.tipRow}>
             <Ionicons name="checkmark-circle" size={16} color={Colors.secondary} />
-            <Text style={s.tipText}>Évitez les séquences simples (123456)</Text>
+            <Text style={s.tipText}>Évitez les séquences simples (1234)</Text>
           </View>
           <View style={s.tipRow}>
             <Ionicons name="checkmark-circle" size={16} color={Colors.secondary} />
@@ -215,7 +215,7 @@ export default function ChangePINScreen({ navigation }: any) {
       </ScrollView>
 
       {/* Loading overlay */}
-      {isLoading && <LoadingOverlay message="Modification du PIN..." />}
+      {isLoading && <LoadingOverlay />}
     </View>
   );
 }

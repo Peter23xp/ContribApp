@@ -41,8 +41,8 @@ export default function SetNewPINScreen({ route, navigation }: Props) {
   const confirmPinRef = useRef<TextInput>(null);
 
   const handleReset = async () => {
-    if (pin.length < 6 || confirmPin.length < 6) {
-      Toast.show({ type: 'error', text1: 'Erreur', text2: 'Le PIN doit faire 6 chiffres.' });
+    if (pin.length < 4 || confirmPin.length < 4) {
+      Toast.show({ type: 'error', text1: 'Erreur', text2: 'Le PIN doit faire 4 chiffres.' });
       return;
     }
     if (pin !== confirmPin) {
@@ -87,13 +87,13 @@ export default function SetNewPINScreen({ route, navigation }: Props) {
               keyboardDismissMode="on-drag"
             >
               <AppInput
-                label="Nouveau Code PIN (6 chiffres)"
+                label="Nouveau Code PIN (4 chiffres)"
                 placeholder="******"
                 value={pin}
                 onChangeText={setPin}
                 secureTextEntry={!showPin}
                 keyboardType="numeric"
-                maxLength={6}
+                maxLength={4}
                 autoFocus
                 onSubmitEditing={() => confirmPinRef.current?.focus()}
                 rightIcon={
@@ -111,7 +111,7 @@ export default function SetNewPINScreen({ route, navigation }: Props) {
                 onChangeText={setConfirmPin}
                 secureTextEntry={!showConfirmPin}
                 keyboardType="numeric"
-                maxLength={6}
+                maxLength={4}
                 rightIcon={
                   <TouchableOpacity onPress={() => setShowConfirmPin(!showConfirmPin)}>
                     <Text style={styles.showText}>{showConfirmPin ? 'Cacher' : 'Voir'}</Text>
@@ -122,7 +122,7 @@ export default function SetNewPINScreen({ route, navigation }: Props) {
               <AppButton 
                 title="Enregistrer le nouveau PIN"
                 onPress={handleReset}
-                disabled={pin.length < 6 || confirmPin.length < 6 || pin !== confirmPin}
+                disabled={pin.length < 4 || confirmPin.length < 4 || pin !== confirmPin}
                 loading={isLoading}
                 loadingText="Mise à jour..."
                 style={styles.submitButton}

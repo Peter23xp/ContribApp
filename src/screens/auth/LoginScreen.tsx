@@ -177,7 +177,7 @@ export default function LoginScreen({ navigation }: Props) {
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  const isFormInvalid = phone.length !== 9 || pin.length < 6;
+  const isFormInvalid = phone.length !== 9 || pin.length < 4;
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
@@ -230,7 +230,7 @@ export default function LoginScreen({ navigation }: Props) {
                 onChangeText={setPin}
                 secureTextEntry={!showPin}
                 keyboardType="numeric"
-                maxLength={6}
+                maxLength={4}
                 rightIcon={
                   <TouchableOpacity onPress={() => setShowPin(!showPin)}>
                     <Text style={{ color: Colors.primary, fontWeight: 'bold' }}>

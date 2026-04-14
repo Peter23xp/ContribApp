@@ -3,7 +3,7 @@
  * 
  * Champ de saisie PIN avec :
  *  - Label flottant (style AppInput)
- *  - 6 points masqués (clavier numérique uniquement)
+ *  - 4 points masqués (clavier numérique uniquement)
  *  - Bouton œil pour afficher/masquer
  *  - Message d'erreur sous le champ
  * 
@@ -48,10 +48,10 @@ export function PINInputRow({
           value={value}
           onChangeText={onChange}
           keyboardType="number-pad"
-          maxLength={6}
+          maxLength={4}
           secureTextEntry={!isVisible}
           placeholderTextColor={Colors.textMuted}
-          placeholder="••••••"
+          placeholder="••••"
           editable={!disabled}
         />
         {showToggle && (

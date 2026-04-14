@@ -48,7 +48,7 @@ export default function RegisterScreen({ navigation }: Props) {
       if (!operator) errs.operator = "Sélectionnez votre opérateur";
     }
     if (step === 3) {
-      if (pin.length !== 6) errs.pin = "Le PIN doit contenir 6 chiffres";
+      if (pin.length !== 4) errs.pin = "Le PIN doit contenir 4 chiffres";
       if (pin !== confirmPin) errs.confirmPin = "Les codes PIN ne correspondent pas";
     }
     return errs;
@@ -214,10 +214,10 @@ export default function RegisterScreen({ navigation }: Props) {
                 <View style={styles.stepContainer}>
                   <Text style={styles.stepEmoji}>🔒</Text>
                   <Text style={styles.stepTitle}>Sécurisez votre profil</Text>
-                  <Text style={styles.stepSubtitle}>Créez un code PIN secret à 6 chiffres pour protéger vos transactions.</Text>
+                  <Text style={styles.stepSubtitle}>Créez un code PIN secret à 4 chiffres pour protéger vos transactions.</Text>
 
                   <AppInput 
-                    label="Code PIN (6 chiffres)"
+                    label="Code PIN (4 chiffres)"
                     placeholder="******"
                     value={pin}
                     onChangeText={(v) => { setPin(v); handleValidation(); }}
@@ -225,7 +225,7 @@ export default function RegisterScreen({ navigation }: Props) {
                     error={errors.pin}
                     secureTextEntry
                     keyboardType="numeric"
-                    maxLength={6}
+                    maxLength={4}
                     autoFocus
                   />
 
@@ -238,7 +238,7 @@ export default function RegisterScreen({ navigation }: Props) {
                     error={errors.confirmPin}
                     secureTextEntry
                     keyboardType="numeric"
-                    maxLength={6}
+                    maxLength={4}
                   />
                 </View>
               )}
