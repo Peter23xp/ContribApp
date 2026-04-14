@@ -1,292 +1,242 @@
-import * as SQLite from 'expo-sqlite';
+/**
+ * database.ts — Service de données Firestore-only
+ * 
+ * Remplace l'ancien module SQLite. Toutes les fonctions sont async
+ * et utilisent Firestore comme backend unique.
+ */
+import {
+  collection, doc, getDoc, getDocs, setDoc, updateDoc, addDoc,
+  query, where, orderBy, limit as firestoreLimit, deleteDoc,
+  Timestamp, serverTimestamp,
+} from 'firebase/firestore';
+import { db } from '../config/firebase';
 
-let _db: SQLite.SQLiteDatabase | null = null;
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-export const getDB = (): SQLite.SQLiteDatabase => {
-  if (!_db) _db = SQLite.openDatabaseSync('contribapp.db');
-  return _db;
-};
-
-export const initDatabase = async (): Promise<void> => {
-  const db = getDB();
-
-  db.execSync(`
-    CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY,
-      full_name TEXT NOT NULL,
-      phone TEXT UNIQUE NOT NULL,
-      operator TEXT NOT NULL,
-      pin_hash TEXT NOT NULL,
-      profile_photo_url TEXT,
-      role TEXT DEFAULT 'member',
-      is_verified INTEGER DEFAULT 0,
-      created_at TEXT DEFAULT (datetime('now'))
-    );
-  `);
-
-  db.execSync(`
-    CREATE TABLE IF NOT EXISTS otp_codes (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      phone TEXT NOT NULL,
-      code TEXT NOT NULL,
-      context TEXT NOT NULL,
-      attempts INTEGER DEFAULT 0,
-      expires_at TEXT NOT NULL,
-      used INTEGER DEFAULT 0,
-      created_at TEXT DEFAULT (datetime('now'))
-    );
-  `);
-
-  db.execSync(`
-    CREATE TABLE IF NOT EXISTS groups (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      description TEXT,
-      monthly_amount REAL NOT NULL,
-      admin_id TEXT NOT NULL,
-      due_day INTEGER DEFAULT 25,
-      invite_code TEXT UNIQUE,
-      created_at TEXT DEFAULT (datetime('now'))
-    );
-  `);
-
-  db.execSync(`
-    CREATE TABLE IF NOT EXISTS group_members (
-      id TEXT PRIMARY KEY,
-      group_id TEXT NOT NULL,
-      user_id TEXT NOT NULL,
-      role TEXT DEFAULT 'member',
-      joined_at TEXT DEFAULT (datetime('now'))
-    );
-  `);
-
-  db.execSync(`
-    CREATE TABLE IF NOT EXISTS contributions (
-      id TEXT PRIMARY KEY,
-      group_id TEXT NOT NULL,
-      user_id TEXT NOT NULL,
-      month TEXT NOT NULL,
-      amount REAL NOT NULL,
-      penalty_amount REAL DEFAULT 0,
-      status TEXT DEFAULT 'EN_ATTENTE',
-      operator TEXT,
-      tx_id TEXT,
-      paid_at TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
-    );
-  `);
-
-  // ── Migration : ajouter invite_code si colonne absente (base existante) ─
-  try {
-    db.execSync(`ALTER TABLE groups ADD COLUMN invite_code TEXT`);
-    console.log('[DB] ✅ Migration : colonne invite_code ajoutée');
-  } catch (_) {
-    // Colonne déjà présente — normal au 2ème démarrage
-  }
-
-  // ── Migration : ajouter due_date aux contributions existantes ─────────
-  try {
-    db.execSync(`ALTER TABLE contributions ADD COLUMN due_date TEXT`);
-  } catch (_) { /* déjà présente */ }
-
-  // ── Migration : Module 04 GroupConfig Columns ────────────────────────────
-  try { db.execSync(`ALTER TABLE groups ADD COLUMN currency TEXT DEFAULT 'CDF'`); } catch (_) {}
-  try { db.execSync(`ALTER TABLE groups ADD COLUMN penalty_enabled INTEGER DEFAULT 0`); } catch (_) {}
-  try { db.execSync(`ALTER TABLE groups ADD COLUMN penalty_type TEXT DEFAULT 'fixed'`); } catch (_) {}
-  try { db.execSync(`ALTER TABLE groups ADD COLUMN penalty_amount REAL DEFAULT 0`); } catch (_) {}
-  try { db.execSync(`ALTER TABLE groups ADD COLUMN require_approval INTEGER DEFAULT 0`); } catch (_) {}
-  try { db.execSync(`ALTER TABLE groups ADD COLUMN payments_visible INTEGER DEFAULT 1`); } catch (_) {}
-  try { db.execSync(`ALTER TABLE groups ADD COLUMN photo_url TEXT`); } catch (_) {}
-
-  // Seed supprimé !
-
-  console.log('[DB] ✅ Base de données SQLite initialisée');
-};
-
-// ─── Utilisateurs ─────────────────────────────────────────────────────────────
-export const findUserByPhone = (phone: string): any | null => {
-  return getDB().getFirstSync<any>('SELECT * FROM users WHERE phone = ?', [phone]) ?? null;
-};
-
-export const findUserById = (id: string): any | null => {
-  return getDB().getFirstSync<any>('SELECT * FROM users WHERE id = ?', [id]) ?? null;
-};
-
-export const createUser = (user: {
-  id: string; full_name: string; phone: string;
-  operator: string; pin_hash: string; profile_photo_url?: string;
-}): void => {
-  getDB().runSync(
-    `INSERT INTO users (id, full_name, phone, operator, pin_hash, profile_photo_url)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [user.id, user.full_name, user.phone, user.operator, user.pin_hash, user.profile_photo_url ?? null]
-  );
-};
-
-export const markUserAsVerified = (phone: string): void => {
-  getDB().runSync('UPDATE users SET is_verified = 1 WHERE phone = ?', [phone]);
-};
-
-// ─── Groupes ──────────────────────────────────────────────────────────────────
-export const getGroupForAdmin = (adminId: string): any | null => {
-  return getDB().getFirstSync<any>('SELECT * FROM groups WHERE admin_id = ?', [adminId]) ?? null;
-};
-
-export const getGroupForMember = (userId: string): any | null => {
-  return getDB().getFirstSync<any>(`
-    SELECT g.* FROM groups g
-    JOIN group_members gm ON gm.group_id = g.id
-    WHERE gm.user_id = ?
-    LIMIT 1
-  `, [userId]) ?? null;
-};
-
-export const getMembersOfGroup = (groupId: string): any[] => {
-  return getDB().getAllSync<any>(`
-    SELECT u.*, gm.role as member_role FROM users u
-    JOIN group_members gm ON gm.user_id = u.id
-    WHERE gm.group_id = ?
-  `, [groupId]);
-};
-
-export const getAllGroups = (): any[] => {
-  return getDB().getAllSync<any>('SELECT * FROM groups ORDER BY created_at DESC');
-};
-
-export const getGroupByInviteCode = (code: string): any | null => {
-  return getDB().getFirstSync<any>(
-    'SELECT * FROM groups WHERE invite_code = ?',
-    [code.trim().toUpperCase()]
-  ) ?? null;
-};
-
-export const isAlreadyMember = (userId: string, groupId: string): boolean => {
-  const row = getDB().getFirstSync<any>(
-    'SELECT id FROM group_members WHERE user_id = ? AND group_id = ?',
-    [userId, groupId]
-  );
-  return !!row;
-};
-
-export const joinGroup = (userId: string, groupId: string): void => {
-  const db = getDB();
-  const memberId = 'gm_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-  db.runSync(
-    `INSERT INTO group_members (id, group_id, user_id, role) VALUES (?, ?, ?, 'member')`,
-    [memberId, groupId, userId]
-  );
-  // Créer automatiquement une contribution EN_ATTENTE pour le mois en cours
-  const month = getCurrentMonthKey();
-  const existing = db.getFirstSync<any>(
-    'SELECT id FROM contributions WHERE user_id = ? AND group_id = ? AND month = ?',
-    [userId, groupId, month]
-  );
-  if (!existing) {
-    const group = db.getFirstSync<any>('SELECT * FROM groups WHERE id = ?', [groupId]);
-    const contribId = 'ctb_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-    db.runSync(
-      `INSERT INTO contributions (id, group_id, user_id, month, amount, status)
-       VALUES (?, ?, ?, ?, ?, 'EN_ATTENTE')`,
-      [contribId, groupId, userId, month, group?.monthly_amount ?? 0]
-    );
-    console.log(`[DB] ✅ Contribution EN_ATTENTE créée pour ${userId} dans ${groupId} (${month})`);
-  }
-  console.log(`[DB] ✅ ${userId} a rejoint le groupe ${groupId}`);
-};
-
-// ─── Contributions ────────────────────────────────────────────────────────────
 export const getCurrentMonthKey = (): string => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 };
 
-export const getContributionsForMonth = (groupId: string, month?: string): any[] => {
-  const m = month ?? getCurrentMonthKey();
-  return getDB().getAllSync<any>(
-    'SELECT c.*, u.full_name, u.phone, u.operator as user_operator FROM contributions c JOIN users u ON c.user_id = u.id WHERE c.group_id = ? AND c.month = ?',
-    [groupId, m]
-  );
+/** No-op — Firestore n'a pas besoin d'initialisation de schéma */
+export const initDatabase = async (): Promise<void> => {
+  console.log('[DB] ✅ Firestore prêt (pas d\'initialisation nécessaire)');
 };
 
-export const getMemberContribution = (userId: string, groupId: string, month?: string): any | null => {
-  const m = month ?? getCurrentMonthKey();
-  return getDB().getFirstSync<any>(
-    'SELECT * FROM contributions WHERE user_id = ? AND group_id = ? AND month = ?',
-    [userId, groupId, m]
-  ) ?? null;
+// ─── Utilisateurs ─────────────────────────────────────────────────────────────
+
+export const findUserByPhone = async (phone: string): Promise<any | null> => {
+  const q = query(collection(db, 'users'), where('phone', '==', phone));
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  const docSnap = snap.docs[0];
+  return { id: docSnap.id, ...docSnap.data() };
 };
 
-export const getRecentPaymentsForMember = (userId: string, limit = 3): any[] => {
-  return getDB().getAllSync<any>(
-    `SELECT * FROM contributions WHERE user_id = ? AND status = 'PAYE' ORDER BY paid_at DESC LIMIT ?`,
-    [userId, limit]
-  );
+export const findUserById = async (id: string): Promise<any | null> => {
+  const docSnap = await getDoc(doc(db, 'users', id));
+  if (!docSnap.exists()) return null;
+  return { id: docSnap.id, ...docSnap.data() };
 };
 
-export const getRecentPaymentsForGroup = (groupId: string, limit = 5): any[] => {
-  return getDB().getAllSync<any>(`
-    SELECT c.*, u.full_name FROM contributions c
-    JOIN users u ON c.user_id = u.id
-    WHERE c.group_id = ? AND c.status = 'PAYE'
-    ORDER BY c.paid_at DESC LIMIT ?
-  `, [groupId, limit]);
+export const createUser = async (user: {
+  id: string; full_name: string; phone: string;
+  operator: string; pin_hash: string; profile_photo_url?: string;
+}): Promise<void> => {
+  await setDoc(doc(db, 'users', user.id), {
+    full_name: user.full_name,
+    phone: user.phone,
+    operator: user.operator,
+    pin_hash: user.pin_hash,
+    profile_photo_url: user.profile_photo_url ?? null,
+    role: 'member',
+    is_verified: false,
+    created_at: serverTimestamp(),
+  });
 };
 
-// ─── OTP ──────────────────────────────────────────────────────────────────────
-export const generateOTP = (): string => {
-  // TODO: La génération d'OTP devrait être gérée par le backend
-  // Cette implémentation locale est temporaire pour le développement
-  return Math.floor(100000 + Math.random() * 900000).toString();
-};
-
-export const saveOTP = (phone: string, code: string, context: string): void => {
-  const db = getDB();
-  db.runSync('UPDATE otp_codes SET used = 1 WHERE phone = ? AND used = 0', [phone]);
-  const expiresAt = new Date(Date.now() + 2 * 60 * 1000).toISOString();
-  db.runSync(
-    `INSERT INTO otp_codes (phone, code, context, expires_at) VALUES (?, ?, ?, ?)`,
-    [phone, code, context, expiresAt]
-  );
-  // En production, l'OTP serait envoyé par SMS via un service externe
-  console.log('\n╔════════════════════════════════════╗');
-  console.log(`║  📱 OTP POUR ${phone}`);
-  console.log(`║  🔑 CODE : ${code}`);
-  console.log(`║  📋 CONTEXTE : ${context}`);
-  console.log(`║  ⏱  Expire dans 2 minutes`);
-  console.log('╚════════════════════════════════════╝\n');
-};
-
-export const verifyOTPCode = (phone: string, code: string): { valid: boolean; reason?: string } => {
-  const db = getDB();
-  const otp = db.getFirstSync<any>(
-    `SELECT * FROM otp_codes WHERE phone = ? AND used = 0 ORDER BY created_at DESC LIMIT 1`,
-    [phone]
-  );
-  if (!otp) return { valid: false, reason: 'OTP_NOT_FOUND' };
-  if (new Date(otp.expires_at) < new Date()) {
-    db.runSync('UPDATE otp_codes SET used = 1 WHERE id = ?', [otp.id]);
-    return { valid: false, reason: 'OTP_EXPIRED' };
+export const markUserAsVerified = async (phone: string): Promise<void> => {
+  const user = await findUserByPhone(phone);
+  if (user) {
+    await updateDoc(doc(db, 'users', user.id), { is_verified: true });
   }
-  if (otp.attempts >= 3) return { valid: false, reason: 'MAX_ATTEMPTS' };
-  if (otp.code !== code) {
-    db.runSync('UPDATE otp_codes SET attempts = attempts + 1 WHERE id = ?', [otp.id]);
-    return { valid: false, reason: 'INVALID_OTP' };
+};
+
+// ─── Groupes ──────────────────────────────────────────────────────────────────
+
+export const getGroupForAdmin = async (adminId: string): Promise<any | null> => {
+  const q = query(collection(db, 'groups'), where('admin_id', '==', adminId));
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  const docSnap = snap.docs[0];
+  return { id: docSnap.id, ...docSnap.data() };
+};
+
+export const getGroupForMember = async (userId: string): Promise<any | null> => {
+  const q = query(collection(db, 'group_members'), where('user_id', '==', userId));
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  const membership = snap.docs[0].data();
+  const groupDoc = await getDoc(doc(db, 'groups', membership.group_id));
+  if (!groupDoc.exists()) return null;
+  return { id: groupDoc.id, ...groupDoc.data() };
+};
+
+export const getMembersOfGroup = async (groupId: string): Promise<any[]> => {
+  const q = query(collection(db, 'group_members'), where('group_id', '==', groupId));
+  const snap = await getDocs(q);
+  const members: any[] = [];
+  for (const memberDoc of snap.docs) {
+    const data = memberDoc.data();
+    const userDoc = await getDoc(doc(db, 'users', data.user_id));
+    if (userDoc.exists()) {
+      members.push({ id: data.user_id, ...userDoc.data(), member_role: data.role });
+    }
   }
-  db.runSync('UPDATE otp_codes SET used = 1 WHERE id = ?', [otp.id]);
-  return { valid: true };
+  return members;
+};
+
+export const getAllGroups = async (): Promise<any[]> => {
+  const snap = await getDocs(collection(db, 'groups'));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+};
+
+export const getGroupByInviteCode = async (code: string): Promise<any | null> => {
+  const q = query(collection(db, 'groups'), where('invite_code', '==', code.trim().toUpperCase()));
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  const docSnap = snap.docs[0];
+  return { id: docSnap.id, ...docSnap.data() };
+};
+
+export const isAlreadyMember = async (userId: string, groupId: string): Promise<boolean> => {
+  const q = query(
+    collection(db, 'group_members'),
+    where('user_id', '==', userId),
+    where('group_id', '==', groupId)
+  );
+  const snap = await getDocs(q);
+  return !snap.empty;
+};
+
+export const joinGroup = async (userId: string, groupId: string): Promise<void> => {
+  // Ajouter le membre
+  await addDoc(collection(db, 'group_members'), {
+    group_id: groupId,
+    user_id: userId,
+    role: 'member',
+    joined_at: serverTimestamp(),
+  });
+
+  // Créer une contribution EN_ATTENTE pour le mois en cours
+  const month = getCurrentMonthKey();
+  const existingQ = query(
+    collection(db, 'contributions'),
+    where('user_id', '==', userId),
+    where('group_id', '==', groupId),
+    where('month', '==', month)
+  );
+  const existingSnap = await getDocs(existingQ);
+  
+  if (existingSnap.empty) {
+    const groupDoc = await getDoc(doc(db, 'groups', groupId));
+    const groupData = groupDoc.data();
+    await addDoc(collection(db, 'contributions'), {
+      group_id: groupId,
+      user_id: userId,
+      month,
+      amount: groupData?.monthly_amount ?? 0,
+      penalty_amount: 0,
+      status: 'EN_ATTENTE',
+      created_at: serverTimestamp(),
+    });
+  }
+  console.log(`[DB] ✅ ${userId} a rejoint le groupe ${groupId}`);
+};
+
+// ─── Contributions ────────────────────────────────────────────────────────────
+
+export const getContributionsForMonth = async (groupId: string, month?: string): Promise<any[]> => {
+  const m = month ?? getCurrentMonthKey();
+  const q = query(
+    collection(db, 'contributions'),
+    where('group_id', '==', groupId),
+    where('month', '==', m)
+  );
+  const snap = await getDocs(q);
+  const results: any[] = [];
+  for (const d of snap.docs) {
+    const data = d.data();
+    const userDoc = await getDoc(doc(db, 'users', data.user_id));
+    const userData = userDoc.exists() ? userDoc.data() : {};
+    results.push({
+      id: d.id,
+      ...data,
+      full_name: userData?.full_name,
+      phone: userData?.phone,
+      user_operator: userData?.operator,
+    });
+  }
+  return results;
+};
+
+export const getMemberContribution = async (userId: string, groupId: string, month?: string): Promise<any | null> => {
+  const m = month ?? getCurrentMonthKey();
+  const q = query(
+    collection(db, 'contributions'),
+    where('user_id', '==', userId),
+    where('group_id', '==', groupId),
+    where('month', '==', m)
+  );
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  const d = snap.docs[0];
+  return { id: d.id, ...d.data() };
+};
+
+export const getRecentPaymentsForMember = async (userId: string, limitCount = 3): Promise<any[]> => {
+  const q = query(
+    collection(db, 'contributions'),
+    where('user_id', '==', userId),
+    where('status', '==', 'PAYE'),
+    orderBy('paid_at', 'desc'),
+    firestoreLimit(limitCount)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+};
+
+export const getRecentPaymentsForGroup = async (groupId: string, limitCount = 5): Promise<any[]> => {
+  const q = query(
+    collection(db, 'contributions'),
+    where('group_id', '==', groupId),
+    where('status', '==', 'PAYE'),
+    orderBy('paid_at', 'desc'),
+    firestoreLimit(limitCount)
+  );
+  const snap = await getDocs(q);
+  const results: any[] = [];
+  for (const d of snap.docs) {
+    const data = d.data();
+    const userDoc = await getDoc(doc(db, 'users', data.user_id));
+    results.push({
+      id: d.id,
+      ...data,
+      full_name: userDoc.exists() ? userDoc.data()?.full_name : '?',
+    });
+  }
+  return results;
 };
 
 // ─── User Profile & Preferences ───────────────────────────────────────────────
 
-export const getCurrentUser = (): any | null => {
-  // Récupérer l'utilisateur actuellement connecté
-  // En mode local, on prend le dernier utilisateur vérifié
-  return getDB().getFirstSync<any>(
-    'SELECT * FROM users WHERE is_verified = 1 ORDER BY created_at DESC LIMIT 1'
-  ) ?? null;
+export const getCurrentUser = async (): Promise<any | null> => {
+  const { auth } = require('../config/firebase');
+  if (!auth.currentUser) return null;
+  return await findUserById(auth.currentUser.uid);
 };
 
-export const updateUser = (userId: string, updates: Partial<{
+export const updateUser = async (userId: string, updates: Partial<{
   full_name: string;
   phone: string;
   operator: string;
@@ -294,211 +244,84 @@ export const updateUser = (userId: string, updates: Partial<{
   pin_hash: string;
   biometric_enabled: boolean;
   last_login: string;
-}>): void => {
-  const db = getDB();
-  const fields: string[] = [];
-  const values: any[] = [];
-
-  if (updates.full_name !== undefined) {
-    fields.push('full_name = ?');
-    values.push(updates.full_name);
-  }
-  if (updates.phone !== undefined) {
-    fields.push('phone = ?');
-    values.push(updates.phone);
-  }
-  if (updates.operator !== undefined) {
-    fields.push('operator = ?');
-    values.push(updates.operator);
-  }
-  if (updates.profile_photo_url !== undefined) {
-    fields.push('profile_photo_url = ?');
-    values.push(updates.profile_photo_url);
-  }
-  if (updates.pin_hash !== undefined) {
-    fields.push('pin_hash = ?');
-    values.push(updates.pin_hash);
-  }
-  if (updates.biometric_enabled !== undefined) {
-    // Ajouter la colonne si elle n'existe pas
-    try {
-      db.execSync('ALTER TABLE users ADD COLUMN biometric_enabled INTEGER DEFAULT 0');
-    } catch (_) { /* déjà présente */ }
-    fields.push('biometric_enabled = ?');
-    values.push(updates.biometric_enabled ? 1 : 0);
-  }
-  if (updates.last_login !== undefined) {
-    // Ajouter la colonne si elle n'existe pas
-    try {
-      db.execSync('ALTER TABLE users ADD COLUMN last_login TEXT');
-    } catch (_) { /* déjà présente */ }
-    fields.push('last_login = ?');
-    values.push(updates.last_login);
-  }
-
-  if (fields.length === 0) return;
-
-  values.push(userId);
-  db.runSync(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`, values);
+}>): Promise<void> => {
+  await updateDoc(doc(db, 'users', userId), updates as any);
 };
 
-export const getUserPreferences = (userId: string): any | null => {
-  // Créer la table preferences si elle n'existe pas
-  const db = getDB();
-  try {
-    db.execSync(`
-      CREATE TABLE IF NOT EXISTS user_preferences (
-        user_id TEXT PRIMARY KEY,
-        push_enabled INTEGER DEFAULT 1,
-        sms_reminders INTEGER DEFAULT 1,
-        sms_confirmation INTEGER DEFAULT 0,
-        monthly_report INTEGER DEFAULT 1,
-        language TEXT DEFAULT 'fr',
-        currency TEXT DEFAULT 'CDF'
-      )
-    `);
-  } catch (_) { /* déjà créée */ }
-
-  return db.getFirstSync<any>(
-    'SELECT * FROM user_preferences WHERE user_id = ?',
-    [userId]
-  ) ?? null;
+export const getUserPreferences = async (userId: string): Promise<any | null> => {
+  const userDoc = await getDoc(doc(db, 'users', userId));
+  if (!userDoc.exists()) return null;
+  return userDoc.data()?.preferences ?? null;
 };
 
-export const updateUserPreferences = (userId: string, prefs: {
+export const updateUserPreferences = async (userId: string, prefs: {
   pushEnabled?: boolean;
   smsReminders?: boolean;
   smsConfirmation?: boolean;
   monthlyReport?: boolean;
   language?: 'fr' | 'en';
   currency?: 'CDF' | 'USD';
-}): void => {
-  const db = getDB();
-  
-  // Vérifier si les préférences existent
-  const existing = getUserPreferences(userId);
-  
-  if (!existing) {
-    // Créer les préférences
-    db.runSync(
-      `INSERT INTO user_preferences (user_id, push_enabled, sms_reminders, sms_confirmation, monthly_report, language, currency)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [
-        userId,
-        prefs.pushEnabled !== undefined ? (prefs.pushEnabled ? 1 : 0) : 1,
-        prefs.smsReminders !== undefined ? (prefs.smsReminders ? 1 : 0) : 1,
-        prefs.smsConfirmation !== undefined ? (prefs.smsConfirmation ? 1 : 0) : 0,
-        prefs.monthlyReport !== undefined ? (prefs.monthlyReport ? 1 : 0) : 1,
-        prefs.language ?? 'fr',
-        prefs.currency ?? 'CDF',
-      ]
-    );
-  } else {
-    // Mettre à jour les préférences
-    const fields: string[] = [];
-    const values: any[] = [];
-
-    if (prefs.pushEnabled !== undefined) {
-      fields.push('push_enabled = ?');
-      values.push(prefs.pushEnabled ? 1 : 0);
-    }
-    if (prefs.smsReminders !== undefined) {
-      fields.push('sms_reminders = ?');
-      values.push(prefs.smsReminders ? 1 : 0);
-    }
-    if (prefs.smsConfirmation !== undefined) {
-      fields.push('sms_confirmation = ?');
-      values.push(prefs.smsConfirmation ? 1 : 0);
-    }
-    if (prefs.monthlyReport !== undefined) {
-      fields.push('monthly_report = ?');
-      values.push(prefs.monthlyReport ? 1 : 0);
-    }
-    if (prefs.language !== undefined) {
-      fields.push('language = ?');
-      values.push(prefs.language);
-    }
-    if (prefs.currency !== undefined) {
-      fields.push('currency = ?');
-      values.push(prefs.currency);
-    }
-
-    if (fields.length > 0) {
-      values.push(userId);
-      db.runSync(`UPDATE user_preferences SET ${fields.join(', ')} WHERE user_id = ?`, values);
-    }
-  }
+}): Promise<void> => {
+  const userDoc = await getDoc(doc(db, 'users', userId));
+  const current = userDoc.exists() ? (userDoc.data()?.preferences ?? {}) : {};
+  await updateDoc(doc(db, 'users', userId), {
+    preferences: { ...current, ...prefs },
+  });
 };
 
 // ─── Notifications ────────────────────────────────────────────────────────────
 
-export const getNotifications = (page = 1, limit = 30): any[] => {
-  const db = getDB();
-  
-  // Créer la table si elle n'existe pas
-  try {
-    db.execSync(`
-      CREATE TABLE IF NOT EXISTS notifications (
-        id TEXT PRIMARY KEY,
-        user_id TEXT NOT NULL,
-        type TEXT NOT NULL,
-        title TEXT NOT NULL,
-        body TEXT NOT NULL,
-        is_read INTEGER DEFAULT 0,
-        created_at TEXT DEFAULT (datetime('now')),
-        navigation_target TEXT,
-        navigation_params TEXT
-      )
-    `);
-  } catch (_) { /* déjà créée */ }
-
-  const offset = (page - 1) * limit;
-  const notifications = db.getAllSync<any>(
-    'SELECT * FROM notifications ORDER BY created_at DESC LIMIT ? OFFSET ?',
-    [limit, offset]
+export const getNotifications = async (page = 1, limitCount = 30): Promise<any[]> => {
+  const q = query(
+    collection(db, 'notifications'),
+    orderBy('created_at', 'desc'),
+    firestoreLimit(limitCount)
   );
-
-  return notifications.map(n => ({
-    id: n.id,
-    type: n.type,
-    title: n.title,
-    body: n.body,
-    isRead: Boolean(n.is_read),
-    createdAt: n.created_at,
-    navigationTarget: n.navigation_target,
-    navigationParams: n.navigation_params ? JSON.parse(n.navigation_params) : undefined,
-  }));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => {
+    const data = d.data();
+    return {
+      id: d.id,
+      type: data.type,
+      title: data.title,
+      body: data.body,
+      isRead: Boolean(data.is_read),
+      createdAt: data.created_at,
+      navigationTarget: data.navigation_target,
+      navigationParams: data.navigation_params,
+    };
+  });
 };
 
-export const getUnreadNotificationsCount = (): number => {
-  const db = getDB();
-  const result = db.getFirstSync<{ count: number }>(
-    'SELECT COUNT(*) as count FROM notifications WHERE is_read = 0'
-  );
-  return result?.count ?? 0;
+export const getUnreadNotificationsCount = async (): Promise<number> => {
+  const q = query(collection(db, 'notifications'), where('is_read', '==', false));
+  const snap = await getDocs(q);
+  return snap.size;
 };
 
-export const markNotificationAsRead = (id: string): void => {
-  const db = getDB();
-  db.runSync('UPDATE notifications SET is_read = 1 WHERE id = ?', [id]);
+export const markNotificationAsRead = async (id: string): Promise<void> => {
+  await updateDoc(doc(db, 'notifications', id), { is_read: true });
 };
 
-export const markAllNotificationsAsRead = (): void => {
-  const db = getDB();
-  db.runSync('UPDATE notifications SET is_read = 1');
+export const markAllNotificationsAsRead = async (): Promise<void> => {
+  const q = query(collection(db, 'notifications'), where('is_read', '==', false));
+  const snap = await getDocs(q);
+  const promises = snap.docs.map(d => updateDoc(d.ref, { is_read: true }));
+  await Promise.all(promises);
 };
 
-export const deleteNotification = (id: string): void => {
-  const db = getDB();
-  db.runSync('DELETE FROM notifications WHERE id = ?', [id]);
+export const deleteNotification = async (id: string): Promise<void> => {
+  await deleteDoc(doc(db, 'notifications', id));
 };
 
-export const deleteReadNotifications = (): void => {
-  const db = getDB();
-  db.runSync('DELETE FROM notifications WHERE is_read = 1');
+export const deleteReadNotifications = async (): Promise<void> => {
+  const q = query(collection(db, 'notifications'), where('is_read', '==', true));
+  const snap = await getDocs(q);
+  const promises = snap.docs.map(d => deleteDoc(d.ref));
+  await Promise.all(promises);
 };
 
-export const createNotification = (notification: {
+export const createNotification = async (notification: {
   id: string;
   userId: string;
   type: string;
@@ -506,19 +329,26 @@ export const createNotification = (notification: {
   body: string;
   navigationTarget?: string;
   navigationParams?: Record<string, any>;
-}): void => {
-  const db = getDB();
-  db.runSync(
-    `INSERT INTO notifications (id, user_id, type, title, body, navigation_target, navigation_params)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [
-      notification.id,
-      notification.userId,
-      notification.type,
-      notification.title,
-      notification.body,
-      notification.navigationTarget ?? null,
-      notification.navigationParams ? JSON.stringify(notification.navigationParams) : null,
-    ]
-  );
+}): Promise<void> => {
+  await setDoc(doc(db, 'notifications', notification.id), {
+    user_id: notification.userId,
+    type: notification.type,
+    title: notification.title,
+    body: notification.body,
+    is_read: false,
+    created_at: serverTimestamp(),
+    navigation_target: notification.navigationTarget ?? null,
+    navigation_params: notification.navigationParams ?? null,
+  });
+};
+
+// ─── OTP (géré par Firebase Auth en production) ───────────────────────────────
+// Ces fonctions ne sont plus utilisées en mode Firebase-only.
+// Firebase Auth gère l'OTP via signInWithPhoneNumber.
+export const generateOTP = (): string => {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+};
+export const saveOTP = (_phone: string, _code: string, _context: string): void => {};
+export const verifyOTPCode = (_phone: string, _code: string): { valid: boolean; reason?: string } => {
+  return { valid: true };
 };

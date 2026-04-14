@@ -1,9 +1,11 @@
+/**
+ * authStore.ts — Store Zustand pour l'authentification (Firebase-only)
+ */
 import * as SecureStore from 'expo-secure-store';
 import { create } from 'zustand';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
-import { USE_LOCAL_DB } from '../config/database';
 
 export type UserRole = 'admin' | 'treasurer' | 'member' | 'auditor';
 
@@ -18,15 +20,15 @@ export interface User {
 interface AuthStore {
   user: User | null;
   role: UserRole | null;
-  groupId: string | null;        // ← NOUVEAU : groupe actif de l'utilisateur
+  groupId: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   
   setAuth: (user: User, role: UserRole) => Promise<void>;
-  setGroupId: (groupId: string) => void;  // ← NOUVEAU
+  setGroupId: (groupId: string) => void;
   logout: () => Promise<void>;
   loadFromStorage: () => Promise<void>;
-  initFirebaseListener: () => () => void;  // ← NOUVEAU
+  initFirebaseListener: () => () => void;
 }
 
 export const useAuthStore = create<AuthStore>((set) => ({
@@ -37,7 +39,6 @@ export const useAuthStore = create<AuthStore>((set) => ({
   isLoading: true,
 
   setAuth: async (user, role) => {
-    // Save to SecureStore for local cache
     await SecureStore.setItemAsync('user_data', JSON.stringify({ user, role }));
     set({ user, role, isAuthenticated: true });
   },
@@ -59,15 +60,11 @@ export const useAuthStore = create<AuthStore>((set) => ({
         set({ user, role, isAuthenticated: true });
       }
     } finally {
-      if (USE_LOCAL_DB) {
-        set({ isLoading: false });
-      }
+      set({ isLoading: false });
     }
   },
 
   initFirebaseListener: () => {
-    if (USE_LOCAL_DB) return () => {}; 
-
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));

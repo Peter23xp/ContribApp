@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Platform, ActivityIndicator } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -14,8 +14,31 @@ import AdminPaymentTrackingScreen    from '../screens/payment/AdminPaymentTracki
 import TreasurerPaymentsScreen       from '../screens/payment/TreasurerPaymentsScreen';
 import GroupDetailsScreen            from '../screens/group/GroupDetailsScreen';
 import ProfileScreen                 from '../screens/profile/ProfileScreen';
+import * as db from '../services/database';
 
 const Tab = createBottomTabNavigator();
+
+// ─── Placeholder "Pas de Groupe" ──────────────────────────────────────────────
+function NoGroupPlaceholder({ navigation, title }: { navigation: any; title: string }) {
+  return (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32, backgroundColor: Colors.surface }}>
+      <MaterialCommunityIcons name="account-group-outline" size={72} color={Colors.outlineVariant} style={{ marginBottom: 16 }} />
+      <Text style={{ fontFamily: Fonts.headline, fontSize: 22, color: Colors.onSurface, textAlign: 'center', marginBottom: 8 }}>
+        {title}
+      </Text>
+      <Text style={{ fontFamily: Fonts.body, fontSize: 15, color: Colors.onSurfaceVariant, textAlign: 'center', marginBottom: 32, lineHeight: 22 }}>
+        Vous devez intégrer un groupe pour accéder à cet écran. Rendez-vous sur la page d'accueil pour en rejoindre un.
+      </Text>
+      <TouchableOpacity 
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.primary, paddingVertical: 14, paddingHorizontal: 24, borderRadius: Radius.lg }}
+        onPress={() => navigation.navigate('Accueil')}
+      >
+        <MaterialCommunityIcons name="arrow-left" size={18} color="#FFF" />
+        <Text style={{ fontFamily: Fonts.headline, fontSize: 15, color: '#FFF' }}>Retour à l'accueil</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
 
 function HomeDashboard({ navigation, route }: any) {
   const role = useAuthStore(s => s.role);
@@ -27,9 +50,38 @@ function HomeDashboard({ navigation, route }: any) {
 /** Tab "Contributions" : SCR-008 Admin | SCR-009 Trésorière | SCR-010 Membre */
 function ContributionsTab(props: any) {
   const role = useAuthStore(s => s.role);
+  const user = useAuthStore(s => s.user);
+  const [hasGroup, setHasGroup] = useState<boolean | null>(null);
+  
+  useEffect(() => {
+    if (role !== 'member' || !user) { setHasGroup(true); return; }
+    db.getGroupForMember(user.id).then(g => setHasGroup(!!g));
+  }, [user, role]);
+
   if (role === 'admin')     return <AdminPaymentTrackingScreen {...props} />;
   if (role === 'treasurer') return <TreasurerPaymentsScreen {...props} />;
+  
+  if (hasGroup === null) return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.surface }}><ActivityIndicator color={Colors.primary} /></View>;
+  if (!hasGroup) return <NoGroupPlaceholder navigation={props.navigation} title="Paiements inaccessibles" />;
+  
   return <PayContributionScreen {...props} />;
+}
+
+/** Tab "Groupe" */
+function GroupTab(props: any) {
+  const role = useAuthStore(s => s.role);
+  const user = useAuthStore(s => s.user);
+  const [hasGroup, setHasGroup] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (role !== 'member' || !user) { setHasGroup(true); return; }
+    db.getGroupForMember(user.id).then(g => setHasGroup(!!g));
+  }, [user, role]);
+
+  if (hasGroup === null) return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.surface }}><ActivityIndicator color={Colors.primary} /></View>;
+  if (!hasGroup) return <NoGroupPlaceholder navigation={props.navigation} title="Aucun groupe" />;
+  
+  return <GroupDetailsScreen {...props} />;
 }
 
 // ─── Tab items config ──────────────────────────────────────────────────────────
@@ -84,7 +136,7 @@ export default function AppTabNavigator() {
     >
       <Tab.Screen name="Accueil"  component={HomeDashboard}      />
       <Tab.Screen name="Payer"    component={ContributionsTab}    />
-      <Tab.Screen name="Groupe"   component={GroupDetailsScreen}   />
+      <Tab.Screen name="Groupe"   component={GroupTab}   />
       <Tab.Screen name="Profil"   component={ProfileScreen}        />
     </Tab.Navigator>
   );
@@ -107,7 +159,6 @@ const styles = StyleSheet.create({
     shadowRadius: 24,
     shadowOffset: { width: 0, height: -6 },
     elevation: 12,
-    // Position absolute-like bottom, handled by React Navigation
   },
   tabItem: {
     flex: 1,
@@ -120,7 +171,7 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   tabItemActive: {
-    backgroundColor: Colors.surfaceContainer, // #DBF1FE — pill actif
+    backgroundColor: Colors.surfaceContainer,
   },
   tabLabel: {
     fontFamily: Fonts.label,
@@ -129,6 +180,6 @@ const styles = StyleSheet.create({
     color: '#64748b',
   },
   tabLabelActive: {
-    color: Colors.primary, // #00342d
+    color: Colors.primary,
   },
 });

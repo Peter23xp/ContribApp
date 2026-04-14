@@ -4,7 +4,7 @@ import {
 } from 'firebase/firestore';
 import * as Print from 'expo-print';
 import { db, auth } from '../config/firebase';
-import { getLocalDB, USE_LOCAL_DB } from '../config/database';
+
 import { AGGREGATOR_CONFIG } from '../config/aggregator';
 import { uploadReceipt } from './storageService';
 
@@ -117,21 +117,7 @@ export async function checkPaymentStatus(transactionId: string): Promise<{status
 export async function initiatePayment(data: InitiatePaymentData): Promise<{ transaction_id: string; status: string }> {
   const contributionId = 'contrib_' + Date.now();
   
-  if (USE_LOCAL_DB) {
-    const dbL = getLocalDB();
-    const countRes = await dbL.getFirstAsync('SELECT COUNT(*) as c FROM contributions WHERE group_id=? AND member_uid=? AND period_month=? AND status="paid"', [
-      data.group_id, data.member_uid, data.period_month
-    ]) as any;
-    
-    if (countRes && countRes.c > 0) throw new Error('ALREADY_PAID');
-    
-    // Insert pending
-    await dbL.runAsync(`
-      INSERT INTO contributions (id, group_id, member_uid, member_name, period_month, amount_due, status, payment_method)
-      VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)
-    `, [contributionId, data.group_id, data.member_uid, data.member_name, data.period_month, data.amount, data.operator]);
-    
-  } else {
+  {
       const q = query(collection(db, 'contributions'), 
         where('group_id', '==', data.group_id),
         where('member_uid', '==', data.member_uid),
@@ -158,47 +144,15 @@ export async function initiatePayment(data: InitiatePaymentData): Promise<{ tran
   const aggRes = await callFlexPay(flexReqData);
   
   if (aggRes.code === "0") {
-      if (USE_LOCAL_DB) {
-          const dbL = getLocalDB();
-          await dbL.runAsync('UPDATE contributions SET aggregator_ref = ? WHERE id = ?', [aggRes.orderNumber, contributionId]);
-      } else {
-          await updateDoc(doc(db, 'contributions', contributionId), { aggregator_ref: aggRes.orderNumber });
-      }
+      await updateDoc(doc(db, 'contributions', contributionId), { aggregator_ref: aggRes.orderNumber });
       return { transaction_id: aggRes.orderNumber, status: 'pending' };
   } else {
-      if (USE_LOCAL_DB) {
-          const dbL = getLocalDB();
-          await dbL.runAsync('UPDATE contributions SET status = "failed" WHERE id = ?', [contributionId]);
-      } else {
-          await updateDoc(doc(db, 'contributions', contributionId), { status: 'failed' });
-      }
+      await updateDoc(doc(db, 'contributions', contributionId), { status: 'failed' });
       throw new Error('PAYMENT_INIT_FAILED');
   }
 }
 
 export async function getContributionHistory(groupId: string, filters: any): Promise<Contribution[]> {
-   if (USE_LOCAL_DB) {
-      const dbL = getLocalDB();
-      const rows = await dbL.getAllAsync('SELECT * FROM contributions WHERE group_id = ? ORDER BY created_at DESC', [groupId]) as any[];
-      return rows.map(r => ({
-          id: r.id,
-          group_id: r.group_id,
-          member_uid: r.member_uid,
-          member_name: r.member_name,
-          period_month: r.period_month,
-          amount_due: r.amount_due,
-          amount_paid: r.amount_paid,
-          status: r.status,
-          payment_method: r.payment_method,
-          transaction_ref: r.transaction_ref,
-          aggregator_ref: r.aggregator_ref,
-          paid_at: r.paid_at,
-          is_late: r.is_late === 1,
-          penalty_amount: r.penalty_amount,
-          receipt_url: r.receipt_url
-      }));
-   }
-
    const q = query(collection(db, 'contributions'), where('group_id', '==', groupId) /* + autres filtres*/);
    const snap = await getDocs(q);
    return snap.docs.map(doc => ({ id: doc.id, ...doc.data()} as Contribution));
@@ -207,31 +161,6 @@ export async function getContributionHistory(groupId: string, filters: any): Pro
 export async function getCurrentMonthContribution(groupId: string, memberUid: string): Promise<Contribution | null> {
     const currentMonth = new Date().toISOString().substring(0, 7);
     
-    if (USE_LOCAL_DB) {
-        const dbL = getLocalDB();
-        const row = await dbL.getFirstAsync('SELECT * FROM contributions WHERE group_id = ? AND member_uid = ? AND period_month = ?', [
-            groupId, memberUid, currentMonth
-        ]) as any;
-        if (!row) return null;
-        return {
-           id: row.id,
-           group_id: row.group_id,
-           member_uid: row.member_uid,
-           member_name: row.member_name,
-           period_month: row.period_month,
-           amount_due: row.amount_due,
-           amount_paid: row.amount_paid,
-           status: row.status,
-           payment_method: row.payment_method,
-           transaction_ref: row.transaction_ref,
-           aggregator_ref: row.aggregator_ref,
-           paid_at: row.paid_at,
-           is_late: row.is_late === 1,
-           penalty_amount: row.penalty_amount,
-           receipt_url: row.receipt_url
-        };
-    }
-
     const q = query(collection(db, 'contributions'), 
         where('group_id', '==', groupId),
         where('member_uid', '==', memberUid),
@@ -255,12 +184,7 @@ export async function generateReceiptPDF(contributionId: string): Promise<string
     const { uri } = await Print.printToFileAsync({ html });
     const publicUrl = await uploadReceipt(uri, contributionId);
     
-    if (USE_LOCAL_DB) {
-        const dbL = getLocalDB();
-        await dbL.runAsync('UPDATE contributions SET receipt_url = ? WHERE id = ?', [publicUrl, contributionId]);
-    } else {
-        await updateDoc(doc(db, 'contributions', contributionId), { receipt_url: publicUrl });
-    }
+    await updateDoc(doc(db, 'contributions', contributionId), { receipt_url: publicUrl });
     
     return publicUrl;
 }

@@ -53,29 +53,14 @@ export default function SplashScreen({ navigation }: Props) {
         // 4. Attendre que la barre soit à 100% (soit encore ~1000ms)
         await new Promise(resolve => setTimeout(resolve, 1000));
 
-        // 5. Décider de la navigation
+        // 5. Si l'utilisateur n'est pas authentifié, aller au Login.
+        // Si authentifié, AppNavigator bascule automatiquement vers les Tabs.
         const authState = useAuthStore.getState();
         if (!authState.isAuthenticated) {
           navigation.replace('Login');
-          return;
         }
-
-        // NB: Si 'AppNavigator' bascule automatiquement via 'isAuthenticated', 
-        // SplashScreen sera démonté avant ce switch. Sinon, le code suivant gère la redirection.
-        switch(authState.role) {
-          case 'admin':
-            (navigation.replace as any)('AdminDashboard');
-            break;
-          case 'treasurer':
-            (navigation.replace as any)('TreasurerDashboard');
-            break;
-          case 'member':
-            (navigation.replace as any)('MemberDashboard');
-            break;
-          default:
-            navigation.replace('Login');
-            break;
-        }
+        // Si authentifié, ne rien faire — AppNavigator affichera
+        // automatiquement AppTabNavigator via le flag isAuthenticated.
       } catch (error) {
         navigation.replace('Login');
       }

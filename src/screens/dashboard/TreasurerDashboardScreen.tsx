@@ -44,20 +44,25 @@ export default function TreasurerDashboardScreen({ navigation }: any) {
   const [members, setMembers] = useState<any[]>([]);
   const [reminderSentMap, setReminderSentMap] = useState<Record<string, boolean>>({});
 
-  const loadData = useCallback(() => {
+  const loadData = useCallback(async () => {
     if (!user) return;
-    const g = db.getGroupForMember(user.id) ?? db.getGroupForAdmin(user.id);
+    const g = await db.getGroupForMember(user.id) ?? await db.getGroupForAdmin(user.id);
     setGroup(g);
     if (g) {
-      setContributions(db.getContributionsForMonth(g.id));
-      setMembers(db.getMembersOfGroup(g.id));
-      setRecentPayments(db.getRecentPaymentsForGroup(g.id, 5));
+      const [contribs, mems, recent] = await Promise.all([
+        db.getContributionsForMonth(g.id),
+        db.getMembersOfGroup(g.id),
+        db.getRecentPaymentsForGroup(g.id, 5),
+      ]);
+      setContributions(contribs);
+      setMembers(mems);
+      setRecentPayments(recent);
     }
     setIsLoading(false);
   }, [user]);
 
   useEffect(() => { loadData(); }, [loadData]);
-  const handleRefresh = () => { setRefreshing(true); loadData(); setRefreshing(false); };
+  const handleRefresh = () => { setRefreshing(true); loadData().then(() => setRefreshing(false)); };
 
   const paidContribs = contributions.filter((c: any) => c.status === 'PAYE');
   const pendingContribs = contributions.filter((c: any) => c.status !== 'PAYE');

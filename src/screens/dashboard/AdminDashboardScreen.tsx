@@ -30,16 +30,23 @@ export default function AdminDashboardScreen({ navigation }: any) {
   const [showConfirm, setShowConfirm] = useState(false);
   const [sending, setSending] = useState(false);
 
-  const loadData = useCallback(() => {
+  const loadData = useCallback(async () => {
     if (!user) return;
-    const g = db.getGroupForAdmin(user.id);
+    const g = await db.getGroupForAdmin(user.id);
     setGroup(g);
-    if (g) { setContributions(db.getContributionsForMonth(g.id)); setMembers(db.getMembersOfGroup(g.id)); }
+    if (g) {
+      const [contribs, mems] = await Promise.all([
+        db.getContributionsForMonth(g.id),
+        db.getMembersOfGroup(g.id),
+      ]);
+      setContributions(contribs);
+      setMembers(mems);
+    }
     setIsLoading(false);
   }, [user]);
 
   useEffect(() => { loadData(); }, [loadData]);
-  const handleRefresh = () => { setRefreshing(true); loadData(); setRefreshing(false); };
+  const handleRefresh = () => { setRefreshing(true); loadData().then(() => setRefreshing(false)); };
 
   const paidContribs = contributions.filter(c => c.status === 'PAYE');
   const lateContribs = contributions.filter(c => c.status !== 'PAYE');

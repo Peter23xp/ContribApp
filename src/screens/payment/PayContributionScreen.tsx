@@ -353,7 +353,12 @@ function Step3Content({ operator, txStatus, errorMessage, onRetry, navigation }:
 
 export default function PayContributionScreen({ navigation, route }: Props) {
   const user   = useAuthStore(s => s.user);
-  const group  = db.getGroupForMember(user?.id ?? '');
+  const [group, setGroup] = useState<any>(null);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    db.getGroupForMember(user.id).then(g => setGroup(g));
+  }, [user?.id]);
 
   // Paramètres optionnels de navigation
   const navAmount        = route?.params?.amount ?? group?.monthly_amount ?? 0;

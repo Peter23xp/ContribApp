@@ -163,17 +163,18 @@ export default function MemberDashboardScreen({ navigation }: any) {
   const [joinError, setJoinError] = useState('');
   const checkAnim = useRef(new Animated.Value(0)).current;
 
-  const loadData = useCallback(() => {
+  const loadData = useCallback(async () => {
     if (!user) return;
-    const g = db.getGroupForMember(user.id);
+    const g = await db.getGroupForMember(user.id);
     setGroup(g);
     if (g) {
-      const c = db.getMemberContribution(user.id, g.id);
+      const c = await db.getMemberContribution(user.id, g.id);
       setContribution(c);
-      const allC = db.getContributionsForMonth(g.id);
+      const allC = await db.getContributionsForMonth(g.id);
       setGroupProgress({ paid: allC.filter((x: any) => x.status === 'PAYE').length, total: allC.length });
-      setRecentPayments(db.getRecentPaymentsForMember(user.id, 3));
-      const members = db.getMembersOfGroup(g.id);
+      const recent = await db.getRecentPaymentsForMember(user.id, 3);
+      setRecentPayments(recent);
+      const members = await db.getMembersOfGroup(g.id);
       const ranking = members
         .map((m: any) => {
           const paid = allC.filter((x: any) => x.user_id === m.id && x.status === 'PAYE');
@@ -205,16 +206,17 @@ export default function MemberDashboardScreen({ navigation }: any) {
     }
   }, [contribution?.status]);
 
-  const handleRefresh = () => { setRefreshing(true); loadData(); setRefreshing(false); };
+  const handleRefresh = () => { setRefreshing(true); loadData().then(() => setRefreshing(false)); };
 
-  const handleJoinGroup = () => {
+  const handleJoinGroup = async () => {
     if (!user) return;
     setJoining(true); setJoinError('');
     try {
-      const foundGroup = db.getGroupByInviteCode(inviteCode);
+      const foundGroup = await db.getGroupByInviteCode(inviteCode);
       if (!foundGroup) { setJoinError('Code invalide. Vérifiez et réessayez.'); setJoining(false); return; }
-      if (db.isAlreadyMember(user.id, foundGroup.id)) { setJoinError('Vous êtes déjà membre.'); setJoining(false); return; }
-      db.joinGroup(user.id, foundGroup.id);
+      const alreadyIn = await db.isAlreadyMember(user.id, foundGroup.id);
+      if (alreadyIn) { setJoinError('Vous êtes déjà membre.'); setJoining(false); return; }
+      await db.joinGroup(user.id, foundGroup.id);
       setShowJoinModal(false); setInviteCode('');
       Toast.show({ type: 'success', text1: 'Bienvenue !', text2: `Vous avez rejoint "${foundGroup.name}".` });
       loadData();

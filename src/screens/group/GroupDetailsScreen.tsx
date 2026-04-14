@@ -77,8 +77,17 @@ export default function GroupDetailsScreen({ navigation, route }: any) {
   const role = useAuthStore(state => state.role);
   const isPaid = true; // Fallback ou logique depuis Zustand
   
-  const groupId = route?.params?.groupId
-    ?? (user?.id ? (role === 'admin' ? db.getGroupForAdmin(user.id)?.id : db.getGroupForMember(user.id)?.id) : undefined);
+  const [groupId, setGroupId] = useState<string | undefined>(route?.params?.groupId);
+
+  useEffect(() => {
+    if (groupId || !user?.id) return;
+    (async () => {
+      const g = role === 'admin' 
+        ? await db.getGroupForAdmin(user.id) 
+        : await db.getGroupForMember(user.id);
+      if (g) setGroupId(g.id);
+    })();
+  }, [user?.id, role, groupId]);
 
   const [config, setConfig] = useState<GroupConfig | null>(null);
   const [members, setMembers] = useState<GroupMember[]>([]);

@@ -484,7 +484,7 @@ export default function ProfileScreen({ navigation }: any) {
 
   // ── Loading ──
   if (isLoading || !profile) {
-    return <LoadingOverlay message="Chargement du profil..." />;
+    return <LoadingOverlay />;
   }
 
   const roleConfig = ROLE_CONFIG[profile.role] ?? ROLE_CONFIG.member;
@@ -724,7 +724,7 @@ export default function ProfileScreen({ navigation }: any) {
       </ScrollView>
 
       {/* Overlay de mise à jour */}
-      {isUpdating && <LoadingOverlay message="Mise à jour..." />}
+      {isUpdating && <LoadingOverlay />}
 
       {/* Modal : Modifier le nom */}
       <Modal

@@ -23,7 +23,6 @@ import { View, ActivityIndicator } from 'react-native';
 
 import { useAuthStore }   from '../stores/authStore';
 import { Colors }         from '../constants/colors';
-import { initDatabase }   from '../services/database';
 
 // ── Navigateurs ──
 import AuthNavigator       from './AuthNavigator';
@@ -89,22 +88,12 @@ const NavTheme = {
 
 export default function AppNavigator() {
   const { isAuthenticated, isLoading, loadFromStorage } = useAuthStore();
-  const [isDbReady, setIsDbReady] = React.useState(false);
 
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        await initDatabase();
-      } finally {
-        if (mounted) setIsDbReady(true);
-      }
-      await loadFromStorage();
-    })();
-    return () => { mounted = false; };
+    loadFromStorage();
   }, []);
 
-  if (isLoading || !isDbReady) {
+  if (isLoading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.primary }}>
         <ActivityIndicator size="large" color="#FFFFFF" />
