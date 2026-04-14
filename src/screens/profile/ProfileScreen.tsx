@@ -78,8 +78,12 @@ export default function ProfileScreen({ navigation }: any) {
       setIsLoading(true);
       const data = await userService.getUserProfile();
       setProfile(data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('[ProfileScreen] loadProfile error:', error);
+      if (error?.message === 'USER_NOT_FOUND' || error?.message === 'NOT_AUTHENTICATED') {
+        logout();
+        return;
+      }
       Toast.show({
         type: 'error',
         text1: 'Erreur',
@@ -88,7 +92,7 @@ export default function ProfileScreen({ navigation }: any) {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [logout]);
 
   useEffect(() => {
     loadProfile();

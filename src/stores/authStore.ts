@@ -67,17 +67,26 @@ export const useAuthStore = create<AuthStore>((set) => ({
   initFirebaseListener: () => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          set({
-            user: { id: firebaseUser.uid, ...userData } as User,
-            role: userData.role as UserRole,
-            isAuthenticated: true,
-            isLoading: false,
-          });
+        try {
+          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            set({
+              user: { id: firebaseUser.uid, ...userData } as User,
+              role: userData.role as UserRole,
+              isAuthenticated: true,
+              isLoading: false,
+            });
+          } else {
+            // Utilisateur Firebase sans document Firestore (compte supprimé ou incomplet)
+            await SecureStore.deleteItemAsync('user_data');
+            set({ user: null, role: null, isAuthenticated: false, isLoading: false });
+          }
+        } catch (e) {
+          set({ isLoading: false });
         }
       } else {
+        SecureStore.deleteItemAsync('user_data').catch(() => {});
         set({ user: null, role: null, isAuthenticated: false, isLoading: false });
       }
     });

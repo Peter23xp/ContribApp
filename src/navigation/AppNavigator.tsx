@@ -87,10 +87,12 @@ const NavTheme = {
 // ─── Navigator principal ──────────────────────────────────────
 
 export default function AppNavigator() {
-  const { isAuthenticated, isLoading, loadFromStorage } = useAuthStore();
+  const { isAuthenticated, isLoading, loadFromStorage, initFirebaseListener } = useAuthStore();
 
   useEffect(() => {
     loadFromStorage();
+    const unsubscribe = initFirebaseListener();
+    return () => unsubscribe();
   }, []);
 
   if (isLoading) {
