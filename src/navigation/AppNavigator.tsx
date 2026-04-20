@@ -1,17 +1,5 @@
 /**
  * AppNavigator.tsx
- *
- * Architecture :
- *   NavigationContainer
- *   └── RootStack  (createNativeStackNavigator, headerShown: false)
- *       ├── Main  → AppTabNavigator   (tabs normaux)
- *       ├── PaymentConfirm → PaymentConfirmationScreen (SCR-011)  — gestureEnabled: false
- *       ├── Receipt        → PaymentReceiptScreen      (SCR-012)
- *       ├── MemberProfile  → MemberProfileScreen       (futur)
- *       └── Historique     → HistoryScreen             (futur)
- *
- * Les écrans du stack "modal" s'affichent par-dessus les tabs sans
- * que la BottomTabBar soit visible.
  */
 import React from 'react';
 import {
@@ -27,6 +15,12 @@ import { Colors }         from '../constants/colors';
 // ── Navigateurs ──
 import AuthNavigator       from './AuthNavigator';
 import AppTabNavigator     from './AppTabNavigator';
+
+// ── Écrans Onboarding ──
+import WelcomeScreen from '../screens/onboarding/WelcomeScreen';
+import GroupCreationScreen from '../screens/onboarding/GroupCreationScreen';
+import GroupReadyScreen from '../screens/onboarding/GroupReadyScreen';
+import InviteHubScreen from '../screens/onboarding/InviteHubScreen';
 
 // ── Écrans "overlay" accessibles par dessus les tabs ──
 import PaymentConfirmationScreen from '../screens/payment/PaymentConfirmationScreen';
@@ -53,15 +47,24 @@ function HistoryEntry(props: any) {
 // ─── Types du stack racine ────────────────────────────────────
 
 export type RootStackParamList = {
+  // Onboarding
+  Welcome: undefined;
+  GroupCreation: undefined;
+  GroupReady: { groupId: string; inviteCode: string };
+  InviteHub: { groupId?: string; inviteCode?: string };
+
+  // Main
   Main:             undefined;
   PaymentConfirm:   { txId: string };
   Receipt:          { txId: string; receiptData?: any };
+
   // Module 04
   GroupConfig:      { groupId?: string };
   MemberManagement: undefined;
   Invitations:      undefined;
   GroupDetails:     undefined;
   ChangePIN:        undefined;
+
   // Stubs futurs
   MemberProfile:    { memberId: string };
   Historique:       { presetMonth?: string; presetStatus?: 'PAYE' | 'EN_RETARD' | 'EN_ATTENTE' | 'ECHEC'; presetMemberId?: string } | undefined;
@@ -87,7 +90,7 @@ const NavTheme = {
 // ─── Navigator principal ──────────────────────────────────────
 
 export default function AppNavigator() {
-  const { isAuthenticated, isLoading } = useAuthStore();
+  const { isAuthenticated, isLoading, role, groupId } = useAuthStore();
 
   if (isLoading) {
     return (
@@ -97,10 +100,23 @@ export default function AppNavigator() {
     );
   }
 
+  // Handle initialization logical screen
+  const needsOnboarding = isAuthenticated && role === 'admin' && !groupId;
+  const initScreen = needsOnboarding ? 'Welcome' : 'Main';
+
   return (
     <NavigationContainer theme={NavTheme}>
       {isAuthenticated ? (
-        <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
+        <Stack.Navigator 
+          initialRouteName={initScreen} 
+          screenOptions={{ headerShown: false, animation: 'slide_from_right' }}
+        >
+          {/* Onboarding spécifiques */}
+          <Stack.Screen name="Welcome" component={WelcomeScreen} options={{ gestureEnabled: false }} />
+          <Stack.Screen name="GroupCreation" component={GroupCreationScreen} />
+          <Stack.Screen name="GroupReady" component={GroupReadyScreen} options={{ gestureEnabled: false }} />
+          <Stack.Screen name="InviteHub" component={InviteHubScreen} />
+
           {/* Tabs principales */}
           <Stack.Screen
             name="Main"
@@ -108,12 +124,12 @@ export default function AppNavigator() {
             options={{ gestureEnabled: false }}
           />
 
-          {/* SCR-011 — Confirmation de paiement (no-back gesture) */}
+          {/* SCR-011 — Confirmation de paiement */}
           <Stack.Screen
             name="PaymentConfirm"
             component={PaymentConfirmationScreen}
             options={{
-              gestureEnabled: false,        // pas de swipe-back
+              gestureEnabled: false,
               animation: 'fade_from_bottom',
             }}
           />
@@ -122,35 +138,14 @@ export default function AppNavigator() {
           <Stack.Screen
             name="Receipt"
             component={PaymentReceiptScreen}
-            options={{ animation: 'slide_from_right' }}
           />
 
           {/* ─── Module 04 : Gestion du Groupe ─── */}
-          <Stack.Screen
-            name="GroupConfig"
-            component={GroupConfigScreen}
-            options={{ animation: 'slide_from_right' }}
-          />
-          <Stack.Screen
-            name="MemberManagement"
-            component={MemberManagementScreen}
-            options={{ animation: 'slide_from_right' }}
-          />
-          <Stack.Screen
-            name="Invitations"
-            component={InviteMembersScreen}
-            options={{ animation: 'slide_from_right' }}
-          />
-          <Stack.Screen
-            name="GroupDetails"
-            component={GroupDetailsScreen}
-            options={{ animation: 'slide_from_right' }}
-          />
-          <Stack.Screen
-            name="ChangePIN"
-            component={ChangePINScreen}
-            options={{ animation: 'slide_from_right' }}
-          />
+          <Stack.Screen name="GroupConfig" component={GroupConfigScreen} />
+          <Stack.Screen name="MemberManagement" component={MemberManagementScreen} />
+          <Stack.Screen name="Invitations" component={InviteMembersScreen} />
+          <Stack.Screen name="GroupDetails" component={GroupDetailsScreen} />
+          <Stack.Screen name="ChangePIN" component={ChangePINScreen} />
 
           {/* Stubs futurs */}
           <Stack.Screen name="MemberProfile" component={FutureScreen} />

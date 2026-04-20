@@ -13,11 +13,15 @@ export const AppInput = forwardRef<TextInput, AppInputProps>(({ label, error, pr
   return (
     <View style={styles.container}>
       <Text style={styles.label}>{label}</Text>
-      <View style={[styles.inputWrapper, error ? styles.inputError : null]}>
+      <View style={[
+        styles.inputWrapper, 
+        props.multiline && { height: 'auto', minHeight: 48, paddingVertical: 12 },
+        error ? styles.inputError : null
+      ]}>
         {prefix && <Text style={styles.prefix}>{prefix}</Text>}
         <TextInput 
           ref={ref}
-          style={styles.input} 
+          style={[styles.input, props.multiline && { height: 'auto' }, props.style]} 
           placeholderTextColor={Colors.textMuted}
           {...props} 
         />
