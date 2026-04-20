@@ -4,6 +4,7 @@
  */
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import NetInfo from '@react-native-community/netinfo';
+import { useFocusEffect } from '@react-navigation/native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     Animated,
@@ -29,6 +30,7 @@ import {
     cancelInvitation,
     fetchGroupMembers,
     fetchPendingInvitations,
+    getGroupForAdmin,
     remindMember,
     updateMemberRole, updateMemberStatus,
     type GroupMember, type PendingInvitation,
@@ -94,7 +96,8 @@ function SkeletonRow() {
 export default function MemberManagementScreen({ navigation, route }: any) {
   const user = useAuthStore((s) => s.user);
   const role = useAuthStore((s) => s.role);
-  const groupId = route?.params?.groupId ?? useAuthStore.getState().groupId ?? '';
+  const initialGroupId = route?.params?.groupId ?? useAuthStore.getState().groupId ?? '';
+  const [groupId, setGroupId] = useState(initialGroupId);
   
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [invitations, setInvitations] = useState<PendingInvitation[]>([]);
@@ -119,17 +122,48 @@ export default function MemberManagementScreen({ navigation, route }: any) {
     return unsub;
   }, []);
 
-  const loadData = useCallback(async () => {
-    if (!groupId) {
-      setIsLoading(false);
-      return;
+  useEffect(() => {
+    setGroupId(route?.params?.groupId ?? useAuthStore.getState().groupId ?? '');
+  }, [route?.params?.groupId]);
+
+  const ensureAdminGroup = useCallback(async (): Promise<string> => {
+    if (!user?.id || role !== 'admin') return '';
+
+    const existingGroup = await getGroupForAdmin(user.id);
+    if (existingGroup?.id) {
+      setGroupId(existingGroup.id);
+      await useAuthStore.getState().setAuthenticatedUser({
+        user,
+        role,
+        groupId: existingGroup.id,
+      });
+      return existingGroup.id;
     }
+    return '';
+  }, [role, user]);
+
+  const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const data = await fetchGroupMembers(groupId);
+      let activeGroupId = groupId;
+
+      if (!activeGroupId && role === 'admin') {
+        activeGroupId = await ensureAdminGroup();
+        if (activeGroupId) {
+          setGroupId(activeGroupId);
+        }
+      }
+
+      if (!activeGroupId) {
+        setMembers([]);
+        setInvitations([]);
+        return;
+      }
+
+      const data = await fetchGroupMembers(activeGroupId);
       setMembers(data);
       if (filter === 'invited') {
-        const invs = await fetchPendingInvitations(groupId);
+        const invs = await fetchPendingInvitations(activeGroupId);
         setInvitations(invs);
       }
     } catch {
@@ -138,9 +172,14 @@ export default function MemberManagementScreen({ navigation, route }: any) {
       setIsLoading(false);
       setRefreshing(false);
     }
-  }, [groupId, filter]);
+  }, [ensureAdminGroup, filter, groupId, role]);
 
   useEffect(() => { loadData(); }, [loadData]);
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -306,6 +345,39 @@ export default function MemberManagementScreen({ navigation, route }: any) {
       </TouchableOpacity>
     );
   };
+
+  if (!isLoading && !groupId && role === 'admin') {
+    return (
+      <GestureHandlerRootView style={s.container}>
+        <StatusBar barStyle="dark-content" backgroundColor={Colors.surface} />
+
+        <View style={s.header}>
+          <View style={{ flex: 1 }}>
+            <Text style={s.headerTitle}>Membres du groupe</Text>
+            <Text style={s.counter}>Créez d'abord un groupe pour continuer</Text>
+          </View>
+        </View>
+
+        <View style={s.emptyStateWrap}>
+          <View style={s.emptyStateIcon}>
+            <MaterialCommunityIcons name="account-group-outline" size={46} color={Colors.primary} />
+          </View>
+          <Text style={s.emptyStateTitle}>Aucun groupe pour le moment</Text>
+          <Text style={s.emptyStateText}>
+            Avant de voir les informations des membres, créez votre groupe. Vous pourrez ensuite inviter des membres et gérer leurs rôles.
+          </Text>
+          <TouchableOpacity
+            style={s.createGroupBtn}
+            activeOpacity={0.85}
+            onPress={() => navigation.navigate('GroupConfig')}
+          >
+            <MaterialCommunityIcons name="plus-circle-outline" size={20} color="#FFF" />
+            <Text style={s.createGroupBtnText}>Créer un groupe pour continuer</Text>
+          </TouchableOpacity>
+        </View>
+      </GestureHandlerRootView>
+    );
+  }
 
   return (
     <GestureHandlerRootView style={s.container}>
@@ -517,6 +589,53 @@ const s = StyleSheet.create({
   chipTextActive: { color: '#FFF' },
 
   emptyHint: { fontFamily: Fonts.body, fontSize: 15, color: Colors.textMuted, textAlign: 'center', marginTop: 40 },
+  emptyStateWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingBottom: 56,
+  },
+  emptyStateIcon: {
+    width: 92,
+    height: 92,
+    borderRadius: 46,
+    backgroundColor: Colors.primary + '14',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  emptyStateTitle: {
+    fontFamily: Fonts.display,
+    fontSize: 24,
+    color: Colors.onSurface,
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  emptyStateText: {
+    fontFamily: Fonts.body,
+    fontSize: 15,
+    lineHeight: 22,
+    color: Colors.onSurfaceVariant,
+    textAlign: 'center',
+    marginBottom: 24,
+    maxWidth: 360,
+  },
+  createGroupBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderRadius: Radius.xl,
+    backgroundColor: Colors.primary,
+    ...Shadow.card,
+  },
+  createGroupBtnText: {
+    fontFamily: Fonts.headline,
+    fontSize: 15,
+    color: '#FFF',
+  },
   
   footerBtnWrap: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
