@@ -26,7 +26,6 @@ import {
   type ContributionSummary,
 } from '../../services/contributionService';
 import { useAuthStore } from '../../stores/authStore';
-import * as db from '../../services/database';
 
 // ─── Constantes ──────────────────────────────────────────────
 
@@ -87,8 +86,8 @@ function SkeletonRow() {
 // ─── Écran principal ─────────────────────────────────────────
 
 export default function TreasurerPaymentsScreen({ navigation }: any) {
-  const user  = useAuthStore(s => s.user);
-  const group = db.getGroupForAdmin(user?.id ?? '');
+  const user    = useAuthStore(s => s.user);
+  const groupId = useAuthStore(s => s.groupId);
 
   const [selectedMonth, setSelectedMonth] = useState<string>(toYearMonth(new Date()));
   const [opFilter,      setOpFilter]      = useState<OperatorFilter>('all');
@@ -117,12 +116,12 @@ export default function TreasurerPaymentsScreen({ navigation }: any) {
 
   // ── Chargement ──
   const loadData = useCallback(async (p: number, month: string, append = false) => {
-    if (!group?.id) return;
+    if (!groupId) return;
     try {
       if (p === 1) setIsLoading(true);
       else         setIsLoadingMore(true);
 
-      const result = await fetchPaidContributions(group.id, month, p);
+      const result = await fetchPaidContributions(groupId, month, p);
       setAllItems(prev => append ? [...prev, ...result.items] : result.items);
       setSummary(result.summary);
       setHasMore(result.hasMore);
@@ -134,7 +133,7 @@ export default function TreasurerPaymentsScreen({ navigation }: any) {
       setIsLoadingMore(false);
       setRefreshing(false);
     }
-  }, [group?.id]);
+  }, [groupId]);
 
   useEffect(() => {
     setPage(1);
@@ -163,10 +162,10 @@ export default function TreasurerPaymentsScreen({ navigation }: any) {
 
   // ── Export Excel ──
   const handleExport = async () => {
-    if (!group?.id || isOffline) return;
+    if (!groupId || isOffline) return;
     setExporting(true);
     try {
-      const result = await exportContributions(group.id, selectedMonth, 'xlsx');
+      const result = await exportContributions(groupId, selectedMonth, 'xlsx');
       await Share.share({ url: result.downloadUrl, message: `Paiements ${displayMonth()} — ContribApp` });
     } catch {
       Toast.show({ type: 'error', text1: 'Export échoué', text2: 'Impossible de générer le fichier.' });
@@ -189,12 +188,12 @@ export default function TreasurerPaymentsScreen({ navigation }: any) {
   const renderItem = useCallback(({ item }: { item: ContributionItem }) => (
     <TransactionRow
       memberName={item.memberName}
-      memberAvatar={item.memberAvatar}
+      memberAvatar={item.memberAvatar || null}
       amount={item.amount}
       currency={item.currency}
-      operator={item.operator}
-      date={item.paidAt}
-      status={item.status}
+      operator={item.operator as any}
+      date={item.paidAt as string}
+      status={item.status as any}
       txReference={item.txReference}
       onPress={() => handleRowPress(item)}
     />

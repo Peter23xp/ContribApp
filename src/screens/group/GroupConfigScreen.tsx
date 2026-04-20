@@ -26,6 +26,7 @@ import {
   updateGroup,
   type GroupConfig,
 } from '../../services/groupService';
+import { useAuthStore } from '../../stores/authStore';
 
 interface FormState {
   photoUri: string | null;
@@ -63,7 +64,7 @@ const EMPTY_FORM: FormState = {
 
 function configToForm(c: GroupConfig): FormState {
   return {
-    photoUri:          c.photoUrl,
+    photoUri:          c.photoUrl ?? null,
     name:              c.name,
     description:       c.description ?? '',
     monthlyAmount:     String(c.monthlyAmount),
@@ -92,6 +93,7 @@ function Tooltip({ text }: { text: string }) {
 }
 
 export default function GroupConfigScreen({ navigation, route }: any) {
+  const user = useAuthStore(state => state.user);
   const groupId: string | undefined = route?.params?.groupId;
   const isEdit = !!groupId;
 
@@ -212,11 +214,11 @@ export default function GroupConfigScreen({ navigation, route }: any) {
       }
 
       if (isEdit && groupId) {
-        await updateGroup(groupId, payload);
+        await updateGroup(groupId, payload, user?.id ?? '');
         Toast.show({ type: 'success', text1: 'Configuration sauvegardée' });
         navigation.goBack();
       } else {
-        await createGroup(payload);
+        await createGroup(payload, user?.id ?? '');
         Toast.show({ type: 'success', text1: 'Groupe créé !' });
         navigation.navigate('DashboardTab');
       }

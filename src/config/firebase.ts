@@ -1,11 +1,10 @@
 /**
- * firebase.ts — Configuration Firebase (React Native / Expo)
- * 
- * Utilise initializeAuth avec getReactNativePersistence pour
- * que la session Auth persiste entre les relances de l'app.
+ * firebase.ts — Configuration Firebase v2.0
+ * Architecture : 100% Firebase + Cloudflare R2 (SQLite supprimé)
+ * Persistance Auth via AsyncStorage (recommandé Expo)
  */
 import { initializeApp, getApps, getApp } from 'firebase/app';
-// @ts-ignore — getReactNativePersistence existe au runtime mais les types TS ne le voient pas
+// @ts-ignore
 import { initializeAuth, getAuth, getReactNativePersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -19,20 +18,16 @@ const firebaseConfig = {
   appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
 };
 
-// Évite la réinitialisation en mode hot-reload Expo
+// Évite la double initialisation en hot-reload Expo
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-// Auth avec persistence React Native (AsyncStorage)
-let auth: ReturnType<typeof getAuth>;
-try {
-  auth = initializeAuth(app, {
-    persistence: getReactNativePersistence(AsyncStorage),
-  });
-} catch (e) {
-  // En hot-reload, initializeAuth peut lancer si le auth a déjà été initialisé
-  auth = getAuth(app);
-}
+// Auth avec persistance AsyncStorage — évite la reconnexion après fermeture
+// initializeAuth est appelé une seule fois (si app est neuf), sinon getAuth()
+export const auth = getApps().length === 1
+  ? initializeAuth(app, {
+      persistence: getReactNativePersistence(AsyncStorage),
+    })
+  : getAuth(app);
 
-export { auth };
 export const db = getFirestore(app);
 export default app;

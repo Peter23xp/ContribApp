@@ -48,3 +48,4 @@ app-example
 .env.development
 .env.production
 .env.example
+serviceAccountKey.json

@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors, Radius, Fonts } from '../../constants/colors';
 
-export type PaymentStatus = 'PAYE' | 'EN_ATTENTE' | 'EN_RETARD' | 'ECHEC' | 'PARTIEL';
+export type PaymentStatus = 'PAYE' | 'EN_ATTENTE' | 'EN_RETARD' | 'ECHEC' | 'PARTIEL' | 'EN_VERIFICATION' | 'REJETEE';
 
 interface Props {
   status: PaymentStatus;
@@ -15,6 +15,8 @@ const STATUS_CONFIG: Record<PaymentStatus, { bg: string; text: string; label: st
   EN_RETARD:  { bg: Colors.errorContainer,       text: Colors.onErrorContainer,     label: 'EN RETARD'   },
   ECHEC:      { bg: '#FFD6D6',                   text: Colors.error,                label: 'ÉCHEC'       },
   PARTIEL:    { bg: '#E3EDFF',                   text: Colors.tertiary,             label: 'PARTIEL'     },
+  EN_VERIFICATION: { bg: '#F3E5F5',               text: '#9B59B6',                   label: 'EN VÉRIFICATION' },
+  REJETEE:    { bg: '#FFEBEE',                   text: '#F44336',                   label: 'REJETÉE'     },
 };
 
 export function StatusBadge({ status, size = 'sm' }: Props) {

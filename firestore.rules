@@ -2,44 +2,72 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Un utilisateur ne peut lire/modifier que son propre profil
+    // ── USERS ─────────────────────────────────────────────────────────────────
+    // Lecture/écriture : uniquement le propriétaire du compte
+    // pin_hash protégé : seul l'utilisateur connecté peut lire son propre doc
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Les membres d'un groupe peuvent lire le groupe
-    // Seul l'admin peut modifier
+    // ── PENDING REGISTRATIONS ─────────────────────────────────────────────────
+    // Accessible sans auth pour permettre l'inscription
+    // Clé = SHA-256 du numéro (pas le numéro en clair)
+    // TTL géré via expires_at (configurer dans la console Firebase)
+    match /pending_registrations/{phoneHash} {
+      allow create: if true;
+      allow read:   if request.auth != null;
+      allow delete: if request.auth != null;
+      allow update: if false;   // immutable une fois créé
+    }
+
+    // ── GROUPS ────────────────────────────────────────────────────────────────
     match /groups/{groupId} {
-      allow read: if request.auth != null && 
+      allow read: if request.auth != null &&
         exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid));
       allow create: if request.auth != null;
-      allow update, delete: if request.auth != null && 
+      allow update, delete: if request.auth != null &&
         resource.data.admin_uid == request.auth.uid;
 
-      // Sous-collection membres
+      // Sous-collection members
       match /members/{memberId} {
         allow read: if request.auth != null &&
           exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid));
-        allow write: if request.auth != null && 
-          get(/databases/$(database)/documents/groups/$(groupId)).data.admin_uid == request.auth.uid;
+        allow write: if request.auth != null && (
+          request.auth.uid == memberId ||
+          get(/databases/$(database)/documents/groups/$(groupId)).data.admin_uid == request.auth.uid
+        );
       }
     }
 
-    // Contributions : lecture par membres du groupe, écriture par le membre concerné
+    // ── CONTRIBUTIONS ─────────────────────────────────────────────────────────
     match /contributions/{contributionId} {
-      allow read: if request.auth != null && 
-        (resource.data.member_uid == request.auth.uid || 
-         exists(/databases/$(database)/documents/groups/$(resource.data.group_id)/members/$(request.auth.uid)));
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.member_uid;
-      allow update: if request.auth != null && 
-        (request.auth.uid == resource.data.member_uid || 
-         get(/databases/$(database)/documents/groups/$(resource.data.group_id)).data.admin_uid == request.auth.uid);
+      allow read: if request.auth != null && (
+        resource.data.member_uid == request.auth.uid ||
+        exists(/databases/$(database)/documents/groups/$(resource.data.group_id)/members/$(request.auth.uid))
+      );
+      allow create: if request.auth != null &&
+        request.auth.uid == request.resource.data.member_uid;
+      allow update: if request.auth != null && (
+        request.auth.uid == resource.data.member_uid ||
+        get(/databases/$(database)/documents/groups/$(resource.data.group_id)).data.admin_uid == request.auth.uid ||
+        get(/databases/$(database)/documents/groups/$(resource.data.group_id)).data.treasurer_uid == request.auth.uid
+      );
     }
 
-    // Notifications : chaque utilisateur ne lit que les siennes
+    // ── NOTIFICATIONS ─────────────────────────────────────────────────────────
     match /notifications/{notificationId} {
-      allow read, write: if request.auth != null && 
+      // Lecture : uniquement le destinataire
+      allow read: if request.auth != null &&
         resource.data.recipient_uid == request.auth.uid;
+      // Mise à jour (marquer comme lu) : uniquement le destinataire
+      allow update: if request.auth != null &&
+        resource.data.recipient_uid == request.auth.uid;
+      // Suppression : uniquement le destinataire
+      allow delete: if request.auth != null &&
+        resource.data.recipient_uid == request.auth.uid;
+      // Création : tout utilisateur authentifié (pour notifier les autres)
+      allow create: if request.auth != null;
     }
   }
 }

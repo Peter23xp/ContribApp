@@ -79,7 +79,7 @@ export default function OTPScreen({ route, navigation }: Props) {
         Toast.show({ type: 'success', text1: 'Code vérifié !', text2: 'Choisissez votre nouveau PIN' });
         navigation.replace('SetNewPIN', { phone });
       } else {
-        await useAuthStore.getState().setAuth(response.user, response.role);
+        await useAuthStore.getState().hydrateCurrentUserProfile(response.uid);
         Toast.show({ type: 'success', text1: 'Téléphone vérifié !', text2: 'Bienvenue sur ContribApp' });
       }
     } catch (err: any) {

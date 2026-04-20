@@ -10,6 +10,8 @@ import { MemberPaymentRow } from '../../components/common/MemberPaymentRow';
 import Toast from 'react-native-toast-message';
 import { useAuthStore } from '../../stores/authStore';
 import * as db from '../../services/database';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { db as firestoreDb } from '../../config/firebase'; // Ensure we don't clash with the db import mapping
 
 function Avatar({ name, size = 40 }: { name: string; size?: number }) {
   const initials = (name ?? '?').split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase();
@@ -43,6 +45,22 @@ export default function TreasurerDashboardScreen({ navigation }: any) {
   const [recentPayments, setRecentPayments] = useState<any[]>([]);
   const [members, setMembers] = useState<any[]>([]);
   const [reminderSentMap, setReminderSentMap] = useState<Record<string, boolean>>({});
+
+  const [pendingApprovals, setPendingApprovals] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!group?.id) return;
+    const q = query(
+      collection(firestoreDb, 'contributions'),
+      where('groupId', '==', group.id),
+      where('status', '==', 'pending_approval')
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setPendingApprovals(items);
+    });
+    return () => unsubscribe();
+  }, [group?.id]);
 
   const loadData = useCallback(async () => {
     if (!user) return;
@@ -111,6 +129,32 @@ export default function TreasurerDashboardScreen({ navigation }: any) {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[Colors.primary]} />}
         showsVerticalScrollIndicator={false}
       >
+        {/* ── NOUVEAU WIDGET PRIORITAIRE : À valider ───────────────────── */}
+        <View style={[s.card, { backgroundColor: pendingApprovals.length > 0 ? '#FFF3E0' : '#E8F5E9' }]}>
+          {pendingApprovals.length > 0 ? (
+            <>
+              <Text style={[s.cardTitle, { color: '#E65100' }]}>⚡ {pendingApprovals.length} contribution(s) à valider</Text>
+              <View style={{ marginTop: 12, marginBottom: 16 }}>
+                {pendingApprovals.slice(0, 3).map((item, idx) => (
+                  <View key={item.id} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                    <Text style={{ fontWeight: 'bold', flex: 1 }}>{item.memberName}</Text>
+                    <Text style={{ marginRight: 8, color: '#666' }}>{item.geminiAnalysis?.amount || item.amountDue} CDF</Text>
+                    {item.captureImageUrl && <View style={{ width: 30, height: 30, borderRadius: 4, backgroundColor: '#ccc' }} />}
+                  </View>
+                ))}
+              </View>
+              <TouchableOpacity
+                style={[s.exportBtn, { backgroundColor: '#FF9800', marginBottom: 0, height: 44 }]}
+                onPress={() => navigation.navigate('ApprovalQueueScreen')}
+              >
+                <Text style={s.exportBtnText}>Valider maintenant</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <Text style={{ color: '#4CAF50', fontWeight: 'bold' }}>✓ Aucune contribution en attente de validation</Text>
+          )}
+        </View>
+
         {/* ── Balance (hero) ──────────────────────────────────────────── */}
         <View style={s.balanceSection}>
           <Text style={s.balLabel}>TOTAL RECEIVED THIS MONTH</Text>

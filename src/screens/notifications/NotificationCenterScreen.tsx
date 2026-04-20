@@ -52,23 +52,24 @@ export default function NotificationCenterScreen({ navigation }: any) {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
 
-  const pollingInterval = useRef<NodeJS.Timeout | null>(null);
+  const pollingInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ── Chargement initial ──
   const loadNotifications = useCallback(async (pageNum = 1, append = false) => {
     try {
       if (!append) setIsLoading(true);
 
-      const response = await notificationService.getNotifications(pageNum, 30);
+      const response = await notificationService.getNotifications('ALL', { pageSize: 30 });
+      const items: any[] = response;
       
       if (append) {
-        setNotifications([...notifications, ...response.notifications]);
+        setNotifications([...notifications, ...items]);
       } else {
-        setNotifications(response.notifications);
+        setNotifications(items);
       }
       
-      setUnreadCount(response.unreadCount);
-      setHasMore(response.notifications.length === 30);
+      setUnreadCount(items.filter((n: any) => !n.isRead).length);
+      setHasMore(items.length === 30);
       setPage(pageNum);
     } catch (error) {
       console.error('[NotificationCenterScreen] loadNotifications error:', error);
@@ -93,15 +94,16 @@ export default function NotificationCenterScreen({ navigation }: any) {
 
     pollingInterval.current = setInterval(async () => {
       try {
-        const response = await notificationService.getNotifications(1, 10);
+        const response: any[] = await notificationService.getNotifications('ALL', { pageSize: 10 });
         
         // Comparer avec la liste locale et ajouter les nouvelles
-        const existingIds = new Set(notifications.map(n => n.id));
-        const newNotifications = response.notifications.filter(n => !existingIds.has(n.id));
+        const existingIds = new Set(notifications.map((n: any) => n.id));
+        const newNotifications = response.filter((n: any) => !existingIds.has(n.id));
         
         if (newNotifications.length > 0) {
           setNotifications([...newNotifications, ...notifications]);
-          setUnreadCount(response.unreadCount);
+          const newUnread = newNotifications.filter((n: any) => !n.isRead).length;
+          setUnreadCount(unreadCount + newUnread);
         }
       } catch (error) {
         console.error('[NotificationCenterScreen] polling error:', error);
@@ -194,7 +196,7 @@ export default function NotificationCenterScreen({ navigation }: any) {
     }
 
     // Naviguer vers l'écran cible
-    const target = notificationService.getNavigationTarget(notification.type, notification.navigationParams);
+    const target = notificationService.getNavigationTarget(notification);
     if (target) {
       navigation.navigate(target.screen, target.params);
     }
@@ -227,7 +229,7 @@ export default function NotificationCenterScreen({ navigation }: any) {
 
     try {
       if (!silent) setIsMarkingAllRead(true);
-      await notificationService.markAllAsRead();
+      await notificationService.markAllAsRead('ALL');
       markAllAsRead();
       await notificationService.setBadgeCount(0);
       
@@ -266,7 +268,7 @@ export default function NotificationCenterScreen({ navigation }: any) {
           style: 'destructive',
           onPress: async () => {
             try {
-              await notificationService.deleteReadNotifications();
+              await notificationService.deleteReadNotifications('ALL');
               removeReadNotifications();
               Toast.show({
                 type: 'success',

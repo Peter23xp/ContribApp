@@ -9,7 +9,6 @@ import { Colors, Fonts, Radius, Shadow } from '../../constants/colors';
 import { MonthPickerSelector, ReportSummaryCard, StatusBadge } from '../../components/common';
 import { fetchMonthlyReport, type MonthlyReportResponse } from '../../services/contributionService';
 import { useAuthStore } from '../../stores/authStore';
-import * as db from '../../services/database';
 import { fetchGroupConfig } from '../../services/groupService';
 
 const CACHE_TTL = 24 * 60 * 60 * 1000;
@@ -26,10 +25,7 @@ export default function PublicReportsScreen({ navigation }: any) {
   const [paymentsVisible, setPaymentsVisible] = useState(false);
   const [report, setReport] = useState<MonthlyReportResponse | null>(null);
 
-  const group = useMemo(() => {
-    if (!user?.id) return null;
-    return db.getGroupForMember(user.id);
-  }, [user?.id]);
+  const groupId = useAuthStore((s) => s.groupId);
 
   useEffect(() => {
     const unsub = NetInfo.addEventListener((state) => setIsOffline(!(state.isConnected ?? true)));
@@ -38,9 +34,9 @@ export default function PublicReportsScreen({ navigation }: any) {
 
   useEffect(() => {
     async function load() {
-      if (!group?.id) return;
+      if (!groupId) return;
       setIsLoading(true);
-      const cacheKey = `public_reports_${group.id}_${selectedMonth}`;
+      const cacheKey = `public_reports_${groupId}_${selectedMonth}`;
       try {
         const raw = await AsyncStorage.getItem(cacheKey);
         if (raw) {
@@ -56,8 +52,8 @@ export default function PublicReportsScreen({ navigation }: any) {
         }
 
         const [reportData, groupConfig] = await Promise.all([
-          fetchMonthlyReport(group.id, selectedMonth),
-          fetchGroupConfig(group.id),
+          fetchMonthlyReport(groupId, selectedMonth),
+          fetchGroupConfig(groupId),
         ]);
         setReport(reportData);
         setPaymentsVisible(groupConfig.paymentsVisible);
@@ -73,7 +69,7 @@ export default function PublicReportsScreen({ navigation }: any) {
     }
 
     load();
-  }, [group?.id, selectedMonth, isOffline]);
+  }, [groupId, selectedMonth, isOffline]);
 
   const myContribution = useMemo(() => {
     if (!report || !user?.id) return null;

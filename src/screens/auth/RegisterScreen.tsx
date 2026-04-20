@@ -110,7 +110,7 @@ export default function RegisterScreen({ navigation }: Props) {
     try {
       // 1. Sauvegarder les données d'inscription en local
       await authService.register({
-        full_name: fullName.trim(),
+        fullName: fullName.trim(),
         phone: '+243' + phone,
         operator: operator!,
         pin: pin,

@@ -9,7 +9,7 @@ import {
   Share,
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as MediaLibrary from 'expo-media-library';
 import * as Sharing from 'expo-sharing';
 import * as Clipboard from 'expo-clipboard';
@@ -27,12 +27,12 @@ import {
   type InviteCode, type PendingInvitation,
 } from '../../services/groupService';
 import { useAuthStore } from '../../stores/authStore';
-import * as db from '../../services/database';
+import { getGroupForAdmin, getGroupForMember } from '../../services/groupService';
 
 export default function InviteScreen({ navigation, route }: any) {
   const user = useAuthStore((s) => s.user);
   const groupId = route?.params?.groupId
-    ?? (user?.id ? (db.getGroupForAdmin(user.id)?.id ?? db.getGroupForMember(user.id)?.id) : undefined);
+    ?? (user?.id ? undefined : undefined);  // groupId chargé via route.params
   
   const [inviteData, setInviteData] = useState<InviteCode | null>(null);
   const [pending, setPending] = useState<PendingInvitation[]>([]);
@@ -93,8 +93,8 @@ export default function InviteScreen({ navigation, route }: any) {
       destructive: true,
       action: async () => {
         try {
-          const newCode = await regenerateInviteCode(groupId);
-          setInviteData(newCode);
+          const newData = await regenerateInviteCode(groupId);
+          setInviteData(newData);
           Toast.show({ type: 'success', text1: 'Nouveau code généré', text2: 'L\'ancien code est invalide.' });
         } catch {
           Toast.show({ type: 'error', text1: 'Erreur', text2: 'Régénération échouée.' });
@@ -274,7 +274,6 @@ export default function InviteScreen({ navigation, route }: any) {
             placeholder="+243 9X XXX XXXX"
             keyboardType="phone-pad"
             error={smsPhoneErr}
-            disabled={sendingSms}
           />
           <AppButton 
             title="Envoyer l'invitation SMS" 

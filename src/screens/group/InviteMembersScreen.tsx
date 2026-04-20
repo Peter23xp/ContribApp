@@ -25,7 +25,6 @@ import {
   type InviteCode, type PendingInvitation,
 } from '../../services/groupService';
 import { useAuthStore } from '../../stores/authStore';
-import * as db from '../../services/database';
 
 // ─── Helpers ─────────────────────────────────────────────────
 
@@ -64,8 +63,8 @@ function InviteRow({ inv }: { inv: PendingInvitation }) {
 // ─── Écran principal ──────────────────────────────────────────
 
 export default function InviteMembersScreen({ navigation }: any) {
-  const user  = useAuthStore(s => s.user);
-  const group = db.getGroupForAdmin(user?.id ?? '');
+  const user = useAuthStore(s => s.user);
+  const groupId = useAuthStore(s => s.groupId);
 
   const [inviteCode,   setInviteCode]   = useState<InviteCode | null>(null);
   const [pending,      setPending]      = useState<PendingInvitation[]>([]);
@@ -79,11 +78,11 @@ export default function InviteMembersScreen({ navigation }: any) {
 
   // ── Chargement initial ──
   const loadData = useCallback(async () => {
-    if (!group?.id) { setIsLoading(false); return; }
+    if (!groupId) { setIsLoading(false); return; }
     try {
       const [code, invitations] = await Promise.all([
-        fetchInviteCode(group.id),
-        fetchPendingInvitations(group.id),
+        fetchInviteCode(groupId),
+        fetchPendingInvitations(groupId),
       ]);
       setInviteCode(code);
       setPending(invitations);
@@ -92,7 +91,7 @@ export default function InviteMembersScreen({ navigation }: any) {
     } finally {
       setIsLoading(false);
     }
-  }, [group?.id]);
+  }, [groupId]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -113,10 +112,10 @@ export default function InviteMembersScreen({ navigation }: any) {
         {
           text: 'Régénérer', style: 'destructive',
           onPress: async () => {
-            if (!group?.id) return;
+            if (!groupId) return;
             setRegenerating(true);
             try {
-              const newCode = await regenerateInviteCode(group.id);
+              const newCode = await regenerateInviteCode(groupId);
               setInviteCode(newCode);
               Toast.show({ type: 'success', text1: 'Code régénéré', text2: 'L\'ancien code est invalide.' });
             } catch {
@@ -164,14 +163,14 @@ export default function InviteMembersScreen({ navigation }: any) {
       setSmsPhoneErr('Numéro invalide (format : +243...)');
       return;
     }
-    if (!group?.id) return;
+    if (!groupId) return;
     setSendingSms(true);
     setSmsPhoneErr('');
     try {
-      await sendSmsInvite(group.id, phone);
+      await sendSmsInvite(groupId, phone);
       setSmsPhone('');
       // Recharger la liste des invitations en attente
-      const invitations = await fetchPendingInvitations(group.id);
+      const invitations = await fetchPendingInvitations(groupId);
       setPending(invitations);
       Toast.show({ type: 'success', text1: 'Invitation envoyée', text2: `SMS envoyé à ${phone}` });
     } catch {

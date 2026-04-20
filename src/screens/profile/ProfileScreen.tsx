@@ -119,7 +119,7 @@ export default function ProfileScreen({ navigation }: any) {
       );
     } else {
       // Android : utiliser Alert
-      const buttons = [
+      const buttons: import('react-native').AlertButton[] = [
         { text: 'Prendre une photo', onPress: takePhoto },
         { text: 'Choisir dans la galerie', onPress: pickImage },
       ];

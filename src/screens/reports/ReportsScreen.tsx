@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import Toast from 'react-native-toast-message';
 import { BarChart, PieChart } from 'react-native-chart-kit';
@@ -24,7 +24,6 @@ import { AppButton, MonthPickerSelector, ReportSummaryCard } from '../../compone
 import { sendGroupRemindAll, type MonthlyReportResponse, type MonthlyStatPoint } from '../../services/contributionService';
 import { exportReportExcel, exportReportPdf, fetchMonthlyReport, fetchYearMonthlyStats } from '../../services/contributionService';
 import { useAuthStore } from '../../stores/authStore';
-import * as db from '../../services/database';
 
 type ReportType = 'monthly' | 'quarterly' | 'yearly';
 type ReportContribution = MonthlyReportResponse['contributions'][number];
@@ -44,11 +43,7 @@ function quarterMonths(year: number, quarter: number): string[] {
 export default function ReportsScreen({ route, navigation }: any) {
   const user = useAuthStore((s) => s.user);
   const role = useAuthStore((s) => s.role);
-  const group = useMemo(() => {
-    if (!user?.id) return null;
-    if (role === 'admin') return db.getGroupForAdmin(user.id);
-    return db.getGroupForMember(user.id);
-  }, [user?.id, role]);
+  const groupId = useAuthStore((s) => s.groupId);
 
   const presetMonth: string | undefined = route?.params?.presetMonth;
 
@@ -82,7 +77,7 @@ export default function ReportsScreen({ route, navigation }: any) {
   const fileUrlCacheKey = useMemo(() => `report_url_cache_${reportType}_${periodKey}`, [reportType, periodKey]);
 
   const loadReport = async () => {
-    if (!group?.id) return;
+    if (!groupId) return;
     setIsLoading(true);
     try {
       const cached = await AsyncStorage.getItem(cacheKey);
@@ -98,30 +93,30 @@ export default function ReportsScreen({ route, navigation }: any) {
       }
 
       if (reportType === 'monthly') {
-        const report = await fetchMonthlyReport(group.id, selectedMonth);
+        const report = await fetchMonthlyReport(groupId, selectedMonth);
         setMonthlyData(report);
         setYearStats([]);
         await AsyncStorage.setItem(cacheKey, JSON.stringify({ monthlyData: report, yearStats: [] }));
       } else if (reportType === 'quarterly') {
         const months = quarterMonths(selectedYear, selectedQuarter);
-        const reports = await Promise.all(months.map((m) => fetchMonthlyReport(group.id, m)));
+        const reports = await Promise.all(months.map((m) => fetchMonthlyReport(groupId, m)));
         const aggregated: MonthlyReportResponse = {
           period: `${quarterLabel[selectedQuarter - 1]} ${selectedYear}`,
           summary: {
-            expectedAmount: reports.reduce((a, r) => a + r.summary.expectedAmount, 0),
-            collectedAmount: reports.reduce((a, r) => a + r.summary.collectedAmount, 0),
-            missingAmount: reports.reduce((a, r) => a + r.summary.missingAmount, 0),
-            participationRate: reports.length > 0 ? Math.round(reports.reduce((a, r) => a + r.summary.participationRate, 0) / reports.length) : 0,
-            paidCount: reports.reduce((a, r) => a + r.summary.paidCount, 0),
-            totalMembers: reports.reduce((a, r) => a + r.summary.totalMembers, 0),
-            lateCount: reports.reduce((a, r) => a + r.summary.lateCount, 0),
+            expectedAmount: reports.reduce((a: number, r: any) => a + r.summary.expectedAmount, 0),
+            collectedAmount: reports.reduce((a: number, r: any) => a + r.summary.collectedAmount, 0),
+            missingAmount: reports.reduce((a: number, r: any) => a + r.summary.missingAmount, 0),
+            participationRate: reports.length > 0 ? Math.round(reports.reduce((a: number, r: any) => a + r.summary.participationRate, 0) / reports.length) : 0,
+            paidCount: reports.reduce((a: number, r: any) => a + r.summary.paidCount, 0),
+            totalMembers: reports.reduce((a: number, r: any) => a + r.summary.totalMembers, 0),
+            lateCount: reports.reduce((a: number, r: any) => a + r.summary.lateCount, 0),
           },
-          contributions: reports.flatMap((r) => r.contributions),
-          unpaidMembers: reports.flatMap((r) => r.unpaidMembers),
+          contributions: reports.flatMap((r: any) => r.contributions),
+          unpaidMembers: reports.flatMap((r: any) => r.unpaidMembers),
         };
         setMonthlyData(aggregated);
         setYearStats(
-          reports.map((r, idx) => ({
+          reports.map((r: any, idx: number) => ({
             month: months[idx],
             collectedAmount: r.summary.collectedAmount,
             expectedAmount: r.summary.expectedAmount,
@@ -131,15 +126,15 @@ export default function ReportsScreen({ route, navigation }: any) {
         );
         await AsyncStorage.setItem(cacheKey, JSON.stringify({ monthlyData: aggregated, yearStats }));
       } else {
-        const stats = await fetchYearMonthlyStats(group.id, selectedYear);
+        const stats = await fetchYearMonthlyStats(groupId, selectedYear);
         setYearStats(stats);
         const annualSummary = {
-          expectedAmount: stats.reduce((a, x) => a + x.expectedAmount, 0),
-          collectedAmount: stats.reduce((a, x) => a + x.collectedAmount, 0),
-          missingAmount: Math.max(0, stats.reduce((a, x) => a + x.expectedAmount, 0) - stats.reduce((a, x) => a + x.collectedAmount, 0)),
-          participationRate: stats.length > 0 ? Math.round(stats.reduce((a, x) => a + (x.totalMembers > 0 ? x.paidCount / x.totalMembers : 0), 0) / stats.length * 100) : 0,
-          paidCount: stats.reduce((a, x) => a + x.paidCount, 0),
-          totalMembers: stats.reduce((a, x) => a + x.totalMembers, 0),
+          expectedAmount: stats.reduce((a: number, x: any) => a + x.expectedAmount, 0),
+          collectedAmount: stats.reduce((a: number, x: any) => a + x.collectedAmount, 0),
+          missingAmount: Math.max(0, stats.reduce((a: number, x: any) => a + x.expectedAmount, 0) - stats.reduce((a: number, x: any) => a + x.collectedAmount, 0)),
+          participationRate: stats.length > 0 ? Math.round(stats.reduce((a: number, x: any) => a + (x.totalMembers > 0 ? x.paidCount / x.totalMembers : 0), 0) / stats.length * 100) : 0,
+          paidCount: stats.reduce((a: number, x: any) => a + x.paidCount, 0),
+          totalMembers: stats.reduce((a: number, x: any) => a + x.totalMembers, 0),
           lateCount: 0,
         };
         setMonthlyData({
@@ -159,7 +154,7 @@ export default function ReportsScreen({ route, navigation }: any) {
 
   useEffect(() => {
     loadReport();
-  }, [reportType, selectedMonth, selectedQuarter, selectedYear, group?.id]);
+  }, [reportType, selectedMonth, selectedQuarter, selectedYear, groupId]);
 
   const contributionRows: ReportContribution[] = monthlyData?.contributions ?? [];
   const displayedRows = showAllRows ? contributionRows : contributionRows.slice(0, 10);
@@ -192,8 +187,8 @@ export default function ReportsScreen({ route, navigation }: any) {
         return cached.url;
       }
     }
-    if (!group?.id) throw new Error('No group');
-    const { downloadUrl } = await exportReportPdf(group.id, reportType, periodKey);
+    if (!groupId) throw new Error('No group');
+    const { downloadUrl } = await exportReportPdf(groupId, reportType, periodKey);
     await AsyncStorage.setItem(fileUrlCacheKey, JSON.stringify({ url: downloadUrl, cachedAt: Date.now() }));
     return downloadUrl;
   };
@@ -212,10 +207,10 @@ export default function ReportsScreen({ route, navigation }: any) {
   };
 
   const onExportExcel = async () => {
-    if (!group?.id || isOffline) return;
+    if (!groupId || isOffline) return;
     setLoadingExcel(true);
     try {
-      const { downloadUrl } = await exportReportExcel(group.id, reportType, periodKey);
+      const { downloadUrl } = await exportReportExcel(groupId, reportType, periodKey);
       const destination = `${(FileSystem as any).documentDirectory ?? ''}rapport_${reportType}_${periodKey}.xlsx`;
       await FileSystem.downloadAsync(downloadUrl, destination);
       Toast.show({ type: 'success', text1: 'Fichier Excel sauvegarde' });
@@ -235,7 +230,7 @@ export default function ReportsScreen({ route, navigation }: any) {
       const tmp = `${(FileSystem as any).cacheDirectory ?? ''}rapport_${reportType}_${periodKey}.pdf`;
       await FileSystem.downloadAsync(url, tmp);
       await Sharing.shareAsync(tmp, {
-        dialogTitle: `Rapport ${reportType} - ${periodKey} - Groupe ${group?.name ?? ''}`,
+        dialogTitle: `Rapport ${reportType} - ${periodKey} - Groupe ${groupId ?? ''}`,
       });
     } catch {
       Toast.show({ type: 'error', text1: 'Partage impossible' });
@@ -403,7 +398,7 @@ export default function ReportsScreen({ route, navigation }: any) {
 
             <View style={styles.card}>
               <Text style={styles.sectionTitle}>Membres n ayant pas paye ({monthlyData.unpaidMembers.length})</Text>
-              {monthlyData.unpaidMembers.map((u) => (
+              {monthlyData.unpaidMembers.map((u: any) => (
                 <View key={`${u.memberId}_${u.memberName}`} style={styles.unpaidRow}>
                   <Text style={styles.unpaidName}>{u.memberName}</Text>
                   <Text style={styles.unpaidAmount}>{Math.round(u.amountDue).toLocaleString('fr-FR')} CDF</Text>
@@ -414,8 +409,8 @@ export default function ReportsScreen({ route, navigation }: any) {
                 <TouchableOpacity
                   style={styles.remindAllBtn}
                   onPress={async () => {
-                    if (!group?.id) return;
-                    await sendGroupRemindAll(group.id);
+                    if (!groupId) return;
+                    await sendGroupRemindAll(groupId);
                     Toast.show({ type: 'success', text1: 'Rappels envoyes' });
                   }}
                 >

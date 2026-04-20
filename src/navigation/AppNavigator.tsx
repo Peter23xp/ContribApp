@@ -13,7 +13,7 @@
  * Les écrans du stack "modal" s'affichent par-dessus les tabs sans
  * que la BottomTabBar soit visible.
  */
-import React, { useEffect } from 'react';
+import React from 'react';
 import {
   NavigationContainer,
   DefaultTheme,
@@ -87,13 +87,7 @@ const NavTheme = {
 // ─── Navigator principal ──────────────────────────────────────
 
 export default function AppNavigator() {
-  const { isAuthenticated, isLoading, loadFromStorage, initFirebaseListener } = useAuthStore();
-
-  useEffect(() => {
-    loadFromStorage();
-    const unsubscribe = initFirebaseListener();
-    return () => unsubscribe();
-  }, []);
+  const { isAuthenticated, isLoading } = useAuthStore();
 
   if (isLoading) {
     return (

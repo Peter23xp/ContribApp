@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { CLOUDFLARE_CONFIG } from '../config/cloudflare';
 import { auth } from '../config/firebase';
 

@@ -242,7 +242,7 @@ export default function PaymentConfirmationScreen({ navigation, route }: any) {
             <View style={s.detailRows}>
               <DetailRow
                 label="Montant payé"
-                value={`${receipt.totalAmount.toLocaleString('fr-FR')} CDF`}
+                value={`${(receipt.totalAmount ?? receipt.amount).toLocaleString('fr-FR')} CDF`}
                 isTotal
                 valueColor={Colors.secondary}
               />
@@ -261,16 +261,16 @@ export default function PaymentConfirmationScreen({ navigation, route }: any) {
               />
               <DetailRow
                 label="Bénéficiaire"
-                value={receipt.treasurerName}
+                value={receipt.treasurerName || '-'}
               />
               <DetailRow
                 label="Mois concerné"
                 value={receipt.period}
               />
-              {receipt.penaltyAmount > 0 && (
+              {(receipt.penaltyAmount ?? 0) > 0 && (
                 <DetailRow
                   label="Dont pénalité"
-                  value={`+${receipt.penaltyAmount.toLocaleString('fr-FR')} CDF`}
+                  value={`+${(receipt.penaltyAmount ?? 0).toLocaleString('fr-FR')} CDF`}
                   valueColor={Colors.error}
                 />
               )}

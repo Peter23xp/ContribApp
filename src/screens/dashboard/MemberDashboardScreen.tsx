@@ -95,7 +95,7 @@ function HeroCardPending({ contribution, daysLeft, navigation }: { contribution:
       <Animated.Text style={[s.heroCountdown, { color: isUrgent ? Colors.error : '#e65100', opacity: isUrgent ? pulseAnim : 1 }]}>
         Il vous reste {daysLeft} jour{daysLeft !== 1 ? 's' : ''}
       </Animated.Text>
-      <TouchableOpacity style={s.payNowBtn} activeOpacity={0.85} onPress={() => navigation?.navigate('Payer')}>
+      <TouchableOpacity style={s.payNowBtn} activeOpacity={0.85} onPress={() => navigation?.navigate('SubmitContributionScreen')}>
         <MaterialCommunityIcons name="cash-multiple" size={20} color="#FFF" />
         <Text style={s.payNowBtnText}>PAYER MAINTENANT</Text>
       </TouchableOpacity>
@@ -136,12 +136,78 @@ function HeroCardLate({ contribution, navigation }: { contribution: any; navigat
       <TouchableOpacity
         style={[s.payNowBtn, { backgroundColor: penalty > 0 ? Colors.error : Colors.warning }]}
         activeOpacity={0.85}
-        onPress={() => navigation?.navigate('Payer')}
+        onPress={() => navigation?.navigate('SubmitContributionScreen')}
       >
         <MaterialCommunityIcons name="cash-multiple" size={20} color="#FFF" />
         <Text style={s.payNowBtnText}>
           {penalty > 0 ? 'PAYER MAINTENANT (avec pénalité)' : 'PAYER MAINTENANT'}
         </Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+// ─── Hero Card : EN VÉRIFICATION (pending_approval) ───────────────────────────
+function HeroCardVerification({ navigation }: { navigation: any }) {
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.timing(rotateAnim, {
+        toValue: 1,
+        duration: 3000,
+        useNativeDriver: true,
+      })
+    ).start();
+  }, []);
+
+  const spin = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg']
+  });
+
+  return (
+    <View style={[s.heroCard, { backgroundColor: '#F3E5F5', borderColor: '#9B59B6' }]}>
+      <View style={s.heroCardRow}>
+        <Text style={[s.heroTitle, { color: '#6A1B9A' }]}>Capture en cours de vérification</Text>
+        <View style={[s.badge, { backgroundColor: '#E1BEE7' }]}>
+          <Text style={[s.badgeText, { color: '#6A1B9A' }]}>EN VÉRIFICATION</Text>
+        </View>
+      </View>
+      <Animated.View style={{ transform: [{ rotate: spin }], alignSelf: 'center', marginVertical: 12 }}>
+        <MaterialCommunityIcons name="clock-outline" size={56} color="#9B59B6" />
+      </Animated.View>
+      <Text style={[s.heroDetail, { color: '#6A1B9A', textAlign: 'center' }]}>
+        La trésorière examine votre capture. Vous serez notifié dès validation.
+      </Text>
+      <TouchableOpacity style={s.heroLink} onPress={() => navigation?.navigate('SubmitContributionScreen')}>
+        <Text style={[s.heroLinkText, { color: '#8E24AA', alignSelf: 'center' }]}>Voir ma soumission →</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+// ─── Hero Card : REJETÉE ──────────────────────────────────────────────────────
+function HeroCardRejected({ contribution, navigation }: { contribution: any; navigation: any }) {
+  return (
+    <View style={[s.heroCard, { backgroundColor: '#FFEBEE', borderColor: '#F44336' }]}>
+      <View style={s.heroCardRow}>
+        <Text style={[s.heroTitle, { color: '#C62828' }]}>Contribution rejetée</Text>
+        <View style={[s.badge, { backgroundColor: '#FFCDD2' }]}>
+          <Text style={[s.badgeText, { color: '#C62828' }]}>REJETÉE</Text>
+        </View>
+      </View>
+      <MaterialCommunityIcons name="close-circle-outline" size={56} color="#F44336" style={{ alignSelf: 'center', marginVertical: 12 }} />
+      <Text style={[s.heroDetail, { color: '#C62828', textAlign: 'center', fontStyle: 'italic' }]}>
+        Raison : {contribution?.rejection_reason || 'Capture non valide'}
+      </Text>
+      <TouchableOpacity
+        style={[s.payNowBtn, { backgroundColor: '#F44336', marginTop: 16 }]}
+        activeOpacity={0.85}
+        onPress={() => navigation?.navigate('SubmitContributionScreen')}
+      >
+        <MaterialCommunityIcons name="camera-retake" size={20} color="#FFF" />
+        <Text style={s.payNowBtnText}>Soumettre une nouvelle capture</Text>
       </TouchableOpacity>
     </View>
   );
@@ -315,8 +381,12 @@ export default function MemberDashboardScreen({ navigation }: any) {
         {/* ── HERO CARD selon statut ─────────────────────────────────── */}
         {isLoading ? (
           <View style={[s.skeleton, { height: 180, marginBottom: 24 }]} />
-        ) : status === 'PAYE' ? (
+        ) : status === 'PAYE' || status === 'paid' || status === 'approved' ? (
           <HeroCardPaid contribution={contribution} checkAnim={checkAnim} />
+        ) : status === 'pending_approval' || status === 'EN_VERIFICATION' ? (
+          <HeroCardVerification navigation={navigation} />
+        ) : status === 'rejected' || status === 'REJETEE' ? (
+          <HeroCardRejected contribution={contribution} navigation={navigation} />
         ) : status === 'EN_RETARD' ? (
           <HeroCardLate contribution={contribution} navigation={navigation} />
         ) : (
@@ -325,7 +395,7 @@ export default function MemberDashboardScreen({ navigation }: any) {
 
         {/* ── Pay Now (quand EN_ATTENTE + pas de Hero Card déjà) ──────── */}
         {!status && (
-          <TouchableOpacity style={s.payBtn} activeOpacity={0.88} onPress={() => navigation?.navigate('Payer')}>
+          <TouchableOpacity style={s.payBtn} activeOpacity={0.88} onPress={() => navigation?.navigate('SubmitContributionScreen')}>
             <MaterialCommunityIcons name="cash-multiple" size={22} color="#FFF" />
             <Text style={s.payBtnText}>Pay Now</Text>
           </TouchableOpacity>

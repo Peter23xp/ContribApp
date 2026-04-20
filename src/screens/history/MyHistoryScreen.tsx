@@ -17,7 +17,6 @@ import Toast from 'react-native-toast-message';
 import { Colors, Fonts, Radius, Shadow } from '../../constants/colors';
 import { MonthStatusRow, ProgressBar } from '../../components/common';
 import { useAuthStore } from '../../stores/authStore';
-import * as db from '../../services/database';
 import {
   fetchContributionDetail,
   fetchMemberHistoryByYear,
@@ -55,10 +54,7 @@ export default function MyHistoryScreen({ navigation }: any) {
 
   const countAnim = useRef(new Animated.Value(0)).current;
 
-  const group = useMemo(() => {
-    if (!user?.id) return null;
-    return db.getGroupForMember(user.id);
-  }, [user?.id]);
+  const groupId = useAuthStore(s => s.groupId);
 
   useEffect(() => {
     const sub = NetInfo.addEventListener((state) => setIsOffline(!(state.isConnected ?? true)));
@@ -105,7 +101,7 @@ export default function MyHistoryScreen({ navigation }: any) {
 
   useEffect(() => {
     async function loadHistory() {
-      if (!user?.id || !group?.id) return;
+      if (!user?.id || !groupId) return;
       setIsLoading(true);
       const cacheKey = `member_history_${selectedYear}`;
 
@@ -123,7 +119,7 @@ export default function MyHistoryScreen({ navigation }: any) {
           }
         }
 
-        const fresh = await fetchMemberHistoryByYear(group.id, user.id, selectedYear);
+        const fresh = await fetchMemberHistoryByYear(groupId, user.id, selectedYear);
         setHistory(fresh);
         setFromCache(false);
         await AsyncStorage.setItem(
@@ -142,7 +138,7 @@ export default function MyHistoryScreen({ navigation }: any) {
     }
 
     loadHistory();
-  }, [selectedYear, user?.id, group?.id, isOffline]);
+  }, [selectedYear, user?.id, groupId, isOffline]);
 
   const displayedPaidMonths = fromCache ? history?.summary.paidMonths ?? 0 : animatedStats.paidMonths;
   const displayedTotalPaid = fromCache ? history?.summary.totalPaid ?? 0 : animatedStats.totalPaid;
@@ -188,7 +184,7 @@ export default function MyHistoryScreen({ navigation }: any) {
     setDetailLoading(false);
   };
 
-  const yearMin = (history?.months.find((m) => m.status !== 'AVANT_INSCRIPTION')?.month ?? `${selectedYear}-01`)
+  const yearMin = (history?.months.find((m: any) => m.status !== 'AVANT_INSCRIPTION')?.month ?? `${selectedYear}-01`)
     .split('-')
     .map(Number)[0];
   const yearMax = new Date().getFullYear();
@@ -278,13 +274,13 @@ export default function MyHistoryScreen({ navigation }: any) {
 
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Mois {selectedYear}</Text>
-            {history?.months.map((month) => (
+            {history?.months.map((month: any) => (
               <MonthStatusRow
                 key={month.month}
                 month={month.month}
                 status={month.status}
                 amount={month.amount}
-                currency={history.summary.currency}
+                currency={history.summary.currency as 'CDF' | 'USD'}
                 onPress={() => onMonthPress(month)}
                 isFuture={month.isFuture}
               />

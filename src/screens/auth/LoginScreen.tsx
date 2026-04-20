@@ -1,6 +1,6 @@
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as LocalAuthentication from 'expo-local-authentication';
-import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useEffect, useRef, useState } from 'react';
 import {
     Keyboard,
@@ -70,10 +70,8 @@ export default function LoginScreen({ navigation }: Props) {
   }, []);
 
   useEffect(() => {
-    SecureStore.getItemAsync('last_phone').then(saved => {
-      if (saved) {
-        setPhone(saved);
-      }
+    AsyncStorage.getItem('last_phone').then(saved => {
+      if (saved) setPhone(saved);
     });
 
     LocalAuthentication.hasHardwareAsync().then(available => {
@@ -82,7 +80,7 @@ export default function LoginScreen({ navigation }: Props) {
       });
     });
 
-    SecureStore.getItemAsync('biometric_enabled').then(enabled => {
+    AsyncStorage.getItem('biometric_enabled').then(enabled => {
       setBiometricEnabled(enabled === 'true');
     });
   }, []);
@@ -107,25 +105,39 @@ export default function LoginScreen({ navigation }: Props) {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await authService.login({ 
-        phone: '+243' + phone, 
-        pin 
+      const response = await authService.login({
+        phone: '+243' + phone,
+        pin,
       });
-      
-      await SecureStore.setItemAsync('last_phone', phone);
-      await useAuthStore.getState().setAuth(response.user, response.role);
+      await useAuthStore.getState().setAuthenticatedUser({
+        user: {
+          id: response.uid,
+          full_name: response.fullName,
+          phone: response.phone,
+          operator: response.operator,
+          profile_photo_url: response.profilePhotoUrl ?? null,
+        },
+        role: response.role,
+        groupId: response.groupId ?? null,
+      });
+      await AsyncStorage.setItem('last_phone', phone);
+      // authStore se met à jour automatiquement via onAuthStateChanged
     } catch (err: any) {
-      setPin(''); // Vider le PIN
-      if (err.message === 'INVALID_CREDENTIALS') {
-        setError('Numéro ou PIN incorrect. Vérifiez vos informations.');
-      } else if (err.message === 'ACCOUNT_LOCKED') {
-        const minutes = err.unlock_at || 15;
+      setPin('');
+      const msg = err?.message ?? '';
+      if (msg.startsWith('INVALID_CREDENTIALS')) {
+        const remaining = msg.split(':')[1];
+        setError(`PIN incorrect.${remaining ? ` ${remaining} tentative(s) restante(s).` : ''}`);
+      } else if (msg.startsWith('ACCOUNT_LOCKED')) {
+        const minutes = msg.split(':')[1] || '30';
         setError(`Compte bloqué. Réessayez dans ${minutes} minutes.`);
-        setLockTimer(minutes * 60);
-      } else if (err.message === 'TOO_MANY_ATTEMPTS') {
-        setError('Trop de tentatives. Patientez 30 secondes.');
+        setLockTimer(parseInt(minutes) * 60);
+      } else if (msg === 'TOO_MANY_ATTEMPTS') {
+        setError('Trop de tentatives. Patientez.');
+      } else if (msg === 'USER_NOT_FOUND') {
+        setError('Numéro non trouvé. Vérifiez ou inscrivez-vous.');
       } else {
-        setError(err?.message || 'Une erreur est survenue. Réessayez.');
+        setError(msg || 'Une erreur est survenue. Réessayez.');
       }
     } finally {
       setIsLoading(false);
@@ -138,14 +150,25 @@ export default function LoginScreen({ navigation }: Props) {
       fallbackLabel: 'Utiliser le PIN',
     });
     if (success) {
-      const savedPhone = await SecureStore.getItemAsync('last_phone');
-      const biometricToken = await SecureStore.getItemAsync('biometric_token');
+      const savedPhone = await AsyncStorage.getItem('last_phone');
+      const biometricToken = await AsyncStorage.getItem('biometric_token');
       if (savedPhone && biometricToken) {
         setIsLoading(true);
         setError(null);
         try {
           const response = await authService.loginWithBiometric('+243' + savedPhone, biometricToken);
-          await useAuthStore.getState().setAuth(response.user, response.role);
+          await useAuthStore.getState().setAuthenticatedUser({
+            user: {
+              id: response.uid,
+              full_name: response.fullName,
+              phone: response.phone,
+              operator: response.operator,
+              profile_photo_url: response.profilePhotoUrl ?? null,
+            },
+            role: response.role,
+            groupId: response.groupId ?? null,
+          });
+          // authStore mis à jour via onAuthStateChanged
         } catch (err: any) {
           setError("Erreur d'authentification biométrique.");
         } finally {

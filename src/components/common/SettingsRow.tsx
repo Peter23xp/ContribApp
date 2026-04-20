@@ -21,7 +21,7 @@ interface Props {
   label:      string;
   type:       SettingsRowType;
   value?:     boolean | string | null;
-  onPress?:   () => void;
+  onPress?:   (val?: any) => void | Promise<void>;
   disabled?:  boolean;
   subtitle?:  string;
 }

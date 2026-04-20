@@ -34,7 +34,6 @@ import {
     type GroupMember, type PendingInvitation,
 } from '../../services/groupService';
 import { useAuthStore } from '../../stores/authStore';
-import * as db from '../../services/database';
 
 type FilterKey = 'all' | 'active' | 'late' | 'invited';
 
@@ -95,8 +94,7 @@ function SkeletonRow() {
 export default function MemberManagementScreen({ navigation, route }: any) {
   const user = useAuthStore((s) => s.user);
   const role = useAuthStore((s) => s.role);
-  const groupId = route?.params?.groupId
-    ?? (user?.id ? (role === 'admin' ? db.getGroupForAdmin(user.id)?.id : db.getGroupForMember(user.id)?.id) : undefined);
+  const groupId = route?.params?.groupId ?? useAuthStore.getState().groupId ?? '';
   
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [invitations, setInvitations] = useState<PendingInvitation[]>([]);
@@ -167,7 +165,7 @@ export default function MemberManagementScreen({ navigation, route }: any) {
 
     const q = search.trim().toLowerCase();
     if (q) {
-      list = list.filter(m => m.fullName.toLowerCase().includes(q) || m.phone.includes(q));
+      list = list.filter(m => (m.full_name ?? m.uid).toLowerCase().includes(q) || (m.phone ?? '').includes(q));
     }
     return list;
   }, [members, filter, search]);
@@ -184,35 +182,26 @@ export default function MemberManagementScreen({ navigation, route }: any) {
   // ── Actions ──
   const handleRemind = async (m: GroupMember) => {
     try {
-      await remindMember(m.id);
-      Toast.show({ type: 'success', text1: 'Rappel envoyé', text2: `Rappel envoyé à ${m.fullName}` });
+      await remindMember(groupId, m.uid);
+      Toast.show({ type: 'success', text1: 'Rappel envoyé', text2: `Rappel envoyé à ${m.full_name ?? m.uid}` });
     } catch {
       Toast.show({ type: 'error', text1: 'Erreur', text2: 'Le rappel n\'a pas pu être envoyé.' });
     }
   };
 
   const handleMemberAction = (mCard: MemberCardData, action: 'remind' | 'edit_role' | 'suspend' | 'main') => {
-    const m = members.find(x => x.id === mCard.id)!;
-    if (action === 'remind') {
-      handleRemind(m);
-    } else if (action === 'edit_role') {
-      setMemberTarget(m);
-      setBsContent('role');
-    } else if (action === 'suspend') {
-      setMemberTarget(m);
-      setBsContent('main'); // On peut l'amener direct au main qui montre suspendre
-    } else if (action === 'main') {
-      setMemberTarget(m);
-      setBsContent('main');
-    }
+    const m = members.find(x => x.uid === mCard.id)!;
+    if (action === 'remind') handleRemind(m);
+    else { setMemberTarget(m); setBsContent(action === 'edit_role' ? 'role' : 'main'); }
   };
 
   // Actions de Rôle
-  const doChangeRole = async (target: GroupMember, role: MemberRole) => {
+  const doChangeRole = async (target: GroupMember, newRole: MemberRole) => {
     setMemberTarget(null);
+    if (!groupId) return;
     try {
-      await updateMemberRole(groupId, target.id, role);
-      setMembers(prev => prev.map(m => m.id === target.id ? { ...m, role } : m));
+      await updateMemberRole(groupId, target.uid, newRole, user?.id ?? '');
+      setMembers(prev => prev.map(m => m.uid === target.uid ? { ...m, role: newRole } : m));
       Toast.show({ type: 'success', text1: 'Rôle mis à jour' });
     } catch {
       Toast.show({ type: 'error', text1: 'Erreur', text2: 'Modification échouée.' });
@@ -235,20 +224,12 @@ export default function MemberManagementScreen({ navigation, route }: any) {
   // Actions Statut
   const doUpdateStatus = async (target: GroupMember, status: 'active' | 'suspended' | 'removed') => {
     setMemberTarget(null);
+    if (!groupId) return;
     try {
-      if (status === 'active') {
-        // TODO: Implémenter la réactivation de membre côté backend
-        await updateMemberStatus(groupId, target.id, 'active' as any);
-        Toast.show({ type: 'success', text1: 'Membre réactivé' });
-      } else {
-        await updateMemberStatus(groupId, target.id, status);
-        if (status === 'suspended') {
-          Toast.show({ type: 'success', text1: 'Membre suspendu' });
-        } else {
-          Toast.show({ type: 'success', text1: 'Membre retiré du groupe' });
-        }
-      }
-      setMembers(prev => prev.map(m => m.id === target.id ? { ...m, status } : m));
+      await updateMemberStatus(groupId, target.uid, status, user?.id ?? '');
+      setMembers(prev => prev.map(m => m.uid === target.uid ? { ...m, status } : m));
+      const msg = status === 'suspended' ? 'Membre suspendu' : status === 'removed' ? 'Membre retiré du groupe' : 'Membre réactivé';
+      Toast.show({ type: 'success', text1: msg });
     } catch {
       Toast.show({ type: 'error', text1: 'Erreur', text2: 'Impossible de modifier.' });
     }
@@ -258,7 +239,7 @@ export default function MemberManagementScreen({ navigation, route }: any) {
     if (!memberTarget) return;
     setBsContent(null);
     setConfirmData({
-      message: `Suspendre ${memberTarget.fullName} ? Son accès sera désactivé mais son historique est conservé.`,
+      message: `Suspendre ${memberTarget.full_name ?? memberTarget.uid} ? Son accès sera désactivé mais son historique est conservé.`,
       action: () => doUpdateStatus(memberTarget, 'suspended')
     });
   };
@@ -273,7 +254,7 @@ export default function MemberManagementScreen({ navigation, route }: any) {
     if (!memberTarget) return;
     setBsContent(null);
     setConfirmData({
-      message: `Retirer ${memberTarget.fullName} du groupe ? Cette action est irréversible. Son historique de paiements est conservé.`,
+      message: `Retirer ${memberTarget.full_name ?? memberTarget.uid} du groupe ? Cette action est irréversible. Son historique de paiements est conservé.`,
       destructive: true,
       action: () => doUpdateStatus(memberTarget, 'removed')
     });
@@ -281,7 +262,7 @@ export default function MemberManagementScreen({ navigation, route }: any) {
   
   const handleSendMessage = () => {
     setBsContent(null);
-    navigation.navigate('Notifications', { selectedUserId: memberTarget?.id });
+    navigation.navigate('Notifications', { selectedUserId: memberTarget?.uid });
   };
 
   // Actions Invitation
@@ -375,7 +356,7 @@ export default function MemberManagementScreen({ navigation, route }: any) {
         />
       </View>
 
-      {isOffline && <OfflineBanner className="mb-2" />}
+      {isOffline && <OfflineBanner />}
 
       {/* ════ LISTES ════ */}
       {isLoading ? (
@@ -397,20 +378,18 @@ export default function MemberManagementScreen({ navigation, route }: any) {
       ) : (
         <FlatList
           data={displayedMembers}
-          keyExtractor={item => item.id}
+          keyExtractor={item => item.uid}
           renderItem={({ item }) => (
             <TouchableOpacity activeOpacity={0.9} onPress={() => handleMemberAction(item as any, 'main')}>
               <MemberCard
                 member={{
-                  id: item.id,
-                  fullName: item.fullName,
-                  avatar: item.avatar,
-                  phone: item.phone,
-                  role: item.role,
-                  status: item.status,
-                  paymentStatus: item.paymentStatus,
-                  joinedAt: item.joinDate
-                }}
+                  id: item.uid,
+                  fullName: item.full_name ?? item.uid,
+                  phone: item.phone ?? '',
+                  role: item.role as any,
+                  status: item.status as any,
+                  paymentStatus: item.paymentStatus as any,
+                } as any}
                 showSwipeActions={!isOffline}
                 onActionPress={handleMemberAction}
               />
@@ -434,9 +413,9 @@ export default function MemberManagementScreen({ navigation, route }: any) {
         <BottomSheet
           title={
             <View style={bs.headerContent}>
-              <View style={bs.avatar}><Text style={bs.avatarTxt}>{memberTarget.fullName.charAt(0)}</Text></View>
+              <View style={bs.avatar}><Text style={bs.avatarTxt}>{(memberTarget.full_name ?? memberTarget.uid).charAt(0)}</Text></View>
               <View>
-                <Text style={bs.titleName}>{memberTarget.fullName}</Text>
+                <Text style={bs.titleName}>{memberTarget.full_name ?? memberTarget.uid}</Text>
                 <View style={bs.roleBadge}><Text style={bs.roleTxt}>{memberTarget.role.toUpperCase()}</Text></View>
               </View>
             </View>
@@ -476,7 +455,7 @@ export default function MemberManagementScreen({ navigation, route }: any) {
       )}
 
       {memberTarget && bsContent === 'role' && (
-        <BottomSheet title={`Rôle de ${memberTarget.fullName}`} onClose={() => setMemberTarget(null)}>
+        <BottomSheet title={`Rôle de ${memberTarget.full_name ?? memberTarget.uid}`} onClose={() => setMemberTarget(null)}>
           <View style={{ paddingTop: 8 }}>
             {(['member', 'treasurer', 'auditor'] as MemberRole[]).map(r => (
               <TouchableOpacity key={r} style={bs.roleOption} onPress={() => requestChangeRole(r)}>

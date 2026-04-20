@@ -7,12 +7,12 @@ import React from 'react';
 import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
 import { Colors, Fonts } from '../../constants/colors';
 
-export function LoadingOverlay() {
+export function LoadingOverlay({ message }: { message?: string } = {}) {
   return (
     <View style={styles.overlay}>
       <View style={styles.box}>
         <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={styles.text}>Chargement...</Text>
+        <Text style={styles.text}>{message ?? 'Chargement...'}</Text>
       </View>
     </View>
   );

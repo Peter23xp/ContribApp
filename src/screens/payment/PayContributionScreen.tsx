@@ -36,7 +36,6 @@ import {
     type CurrentMonthStatus,
     type TxStatus,
 } from '../../services/contributionService';
-import * as db from '../../services/database';
 import { useAuthStore } from '../../stores/authStore';
 
 // ─── Types ───────────────────────────────────────────────────
@@ -352,13 +351,13 @@ function Step3Content({ operator, txStatus, errorMessage, onRetry, navigation }:
 // ─── Écran principal ─────────────────────────────────────────
 
 export default function PayContributionScreen({ navigation, route }: Props) {
-  const user   = useAuthStore(s => s.user);
+  const user    = useAuthStore(s => s.user);
+  const groupId = useAuthStore(s => s.groupId);
   const [group, setGroup] = useState<any>(null);
 
   useEffect(() => {
-    if (!user?.id) return;
-    db.getGroupForMember(user.id).then(g => setGroup(g));
-  }, [user?.id]);
+    // group data will be fetched from Firestore via groupService when needed
+  }, [groupId]);
 
   // Paramètres optionnels de navigation
   const navAmount        = route?.params?.amount ?? group?.monthly_amount ?? 0;
@@ -483,7 +482,7 @@ export default function PayContributionScreen({ navigation, route }: Props) {
         clearInterval(pollingRef.current);
         pollingRef.current = null;
       }
-      setTxStatus(s => s === 'pending' ? 'timeout' : s);
+      setTxStatus((prev: TxStatus | null) => prev === 'pending' ? 'timeout' : prev);
     }, 120 * 1000);
   }, [navigation]);
 

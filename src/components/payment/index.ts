@@ -5,3 +5,5 @@ export { PaymentStepIndicator }     from './PaymentStepIndicator';
 export { OperatorInstructionBlock } from './OperatorInstructionBlock';
 export { ReceiptDocument }          from './ReceiptDocument';
 export type { ReceiptData }         from './ReceiptDocument';
+export { CapturePreviewCard }       from './CapturePreviewCard';
+export { ApprovalActionBar }        from './ApprovalActionBar';

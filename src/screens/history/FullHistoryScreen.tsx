@@ -14,7 +14,7 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import NetInfo from '@react-native-community/netinfo';
 import Toast from 'react-native-toast-message';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { useFocusEffect } from '@react-navigation/native';
 
@@ -31,7 +31,6 @@ import {
   type ContributionSummary,
 } from '../../services/contributionService';
 import { useAuthStore } from '../../stores/authStore';
-import * as db from '../../services/database';
 
 type StatusFilter = 'all' | 'PAYE' | 'EN_ATTENTE' | 'EN_RETARD' | 'ECHEC';
 type SortOption = 'date_desc' | 'date_asc' | 'name_asc' | 'amount_desc';
@@ -89,12 +88,8 @@ export default function FullHistoryScreen({ navigation, route }: any) {
   const user = useAuthStore((s) => s.user);
   const role = useAuthStore((s) => s.role);
 
-  const group = useMemo(() => {
-    if (!user?.id) return null;
-    if (role === 'admin') return db.getGroupForAdmin(user.id);
-    return db.getGroupForMember(user.id);
-  }, [user?.id, role]);
-
+  const groupId = useAuthStore((s) => s.groupId);
+  
   const presetMonth: string | undefined = route?.params?.presetMonth;
   const presetStatus: StatusFilter | undefined = route?.params?.presetStatus;
   const presetMemberId: string | undefined = route?.params?.presetMemberId;
@@ -121,8 +116,8 @@ export default function FullHistoryScreen({ navigation, route }: any) {
   const initializedFromPreset = useRef(false);
 
   const cacheKey = useMemo(
-    () => `${group?.id ?? 'nogroup'}|${selectedMonth}|${activeStatusFilter}|${selectedMemberId ?? 'all'}|${sortOption}`,
-    [group?.id, selectedMonth, activeStatusFilter, selectedMemberId, sortOption],
+    () => `${groupId ?? 'nogroup'}|${selectedMonth}|${activeStatusFilter}|${selectedMemberId ?? 'all'}|${sortOption}`,
+    [groupId, selectedMonth, activeStatusFilter, selectedMemberId, sortOption],
   );
 
   useEffect(() => {
@@ -131,10 +126,10 @@ export default function FullHistoryScreen({ navigation, route }: any) {
   }, []);
 
   useEffect(() => {
-    if (!group?.id) return;
-    const rows = db.getMembersOfGroup(group.id) ?? [];
-    setMembers(rows.map((m: any) => ({ id: m.id, fullName: m.full_name })));
-  }, [group?.id]);
+    if (!groupId) return;
+    // mock members until real endpoint exists inside the screen if needed, or ignore
+    setMembers([]);
+  }, [groupId]);
 
   useEffect(() => {
     if (initializedFromPreset.current) return;
@@ -146,7 +141,7 @@ export default function FullHistoryScreen({ navigation, route }: any) {
 
   const loadData = useCallback(
     async (nextPage: number, append: boolean) => {
-      if (!group?.id) return;
+      if (!groupId) return;
 
       const useCacheFirst = nextPage === 1 && !refreshing;
       if (useCacheFirst) {
@@ -166,7 +161,7 @@ export default function FullHistoryScreen({ navigation, route }: any) {
         if (nextPage > 1) setIsLoadingMore(true);
 
         const result = await fetchGroupContributions(
-          group.id,
+          groupId,
           selectedMonth,
           activeStatusFilter as ContributionFilter,
           nextPage,
@@ -203,7 +198,7 @@ export default function FullHistoryScreen({ navigation, route }: any) {
         setRefreshing(false);
       }
     },
-    [group?.id, selectedMonth, activeStatusFilter, selectedMemberId, sortOption, refreshing, cacheKey],
+    [groupId, selectedMonth, activeStatusFilter, selectedMemberId, sortOption, refreshing, cacheKey],
   );
 
   useEffect(() => {
@@ -258,10 +253,10 @@ export default function FullHistoryScreen({ navigation, route }: any) {
   }, []);
 
   const handleExport = useCallback(async () => {
-    if (!group?.id || isOffline) return;
+    if (!groupId || isOffline) return;
     setIsExporting(true);
     try {
-      const { downloadUrl } = await exportContributions(group.id, selectedMonth, 'xlsx');
+      const { downloadUrl } = await exportContributions(groupId, selectedMonth, 'xlsx');
       const filename = `contributions_${selectedMonth}.xlsx`;
       const destination = `${FileSystem.documentDirectory ?? ''}${filename}`;
 
@@ -284,7 +279,7 @@ export default function FullHistoryScreen({ navigation, route }: any) {
     } finally {
       setIsExporting(false);
     }
-  }, [group?.id, selectedMonth, isOffline]);
+  }, [groupId, selectedMonth, isOffline]);
 
   const handleRowPress = useCallback(
     (item: ContributionItem) => {
@@ -328,12 +323,12 @@ export default function FullHistoryScreen({ navigation, route }: any) {
     ({ item }: { item: ContributionItem }) => (
       <TransactionRow
         memberName={item.memberName}
-        memberAvatar={item.memberAvatar}
+        memberAvatar={item.memberAvatar ?? null}
         amount={item.amount}
         currency={item.currency}
-        operator={item.operator ?? 'airtel'}
+        operator={(item.operator ?? 'airtel') as any}
         date={item.paidAt ?? new Date().toISOString()}
-        status={item.status}
+        status={item.status as any}
         txReference={item.txReference}
         onPress={() => handleRowPress(item)}
       />

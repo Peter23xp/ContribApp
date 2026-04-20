@@ -14,8 +14,6 @@ type Props = {
 };
 
 export default function SplashScreen({ navigation }: Props) {
-  const loadFromStorage = useAuthStore(state => state.loadFromStorage);
-  
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(20)).current;
   const progressAnim = useRef(new Animated.Value(0)).current;
@@ -47,8 +45,7 @@ export default function SplashScreen({ navigation }: Props) {
         // 2. Attendre 500ms
         await new Promise(resolve => setTimeout(resolve, 500));
 
-        // 3. Appeler loadFromStorage()
-        await loadFromStorage();
+        // 3. (Supprimé: loadFromStorage est géré par le listener app)
 
         // 4. Attendre que la barre soit à 100% (soit encore ~1000ms)
         await new Promise(resolve => setTimeout(resolve, 1000));

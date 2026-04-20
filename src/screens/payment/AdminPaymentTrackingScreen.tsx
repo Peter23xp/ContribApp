@@ -30,7 +30,6 @@ import {
   type ContributionSummary,
 } from '../../services/contributionService';
 import { useAuthStore } from '../../stores/authStore';
-import * as db from '../../services/database';
 
 // ─── Constantes ──────────────────────────────────────────────
 
@@ -210,8 +209,8 @@ function ActionBottomSheet({ item, onClose, onRemind, onNavigateProfile, navigat
 // ─── Écran principal ─────────────────────────────────────────
 
 export default function AdminPaymentTrackingScreen({ navigation }: any) {
-  const user  = useAuthStore(s => s.user);
-  const group = db.getGroupForAdmin(user?.id ?? '');
+  const user    = useAuthStore(s => s.user);
+  const groupId = useAuthStore(s => s.groupId);
 
   // ── État ──
   const [selectedMonth, setSelectedMonth] = useState<string>(toYearMonth(new Date()));
@@ -244,12 +243,12 @@ export default function AdminPaymentTrackingScreen({ navigation }: any) {
   const loadContributions = useCallback(async (
     p: number, filter: ContributionFilter, month: string, append = false,
   ) => {
-    if (!group?.id) return;
+    if (!groupId) return;
     try {
       if (p === 1) setIsLoading(true);
       else         setIsLoadingMore(true);
 
-      const result = await fetchGroupContributions(group.id, month, filter, p);
+      const result = await fetchGroupContributions(groupId, month, filter, p);
 
       setItems(prev => append ? [...prev, ...result.items] : result.items);
       setSummary(result.summary);
@@ -266,7 +265,7 @@ export default function AdminPaymentTrackingScreen({ navigation }: any) {
       setIsLoadingMore(false);
       setRefreshing(false);
     }
-  }, [group?.id]);
+  }, [groupId]);
 
   // Initial + changement de mois/filtre
   useEffect(() => {
@@ -328,10 +327,10 @@ export default function AdminPaymentTrackingScreen({ navigation }: any) {
 
   /** Rappel groupé */
   const handleRemindAll = async () => {
-    if (!group?.id) return;
+    if (!groupId) return;
     setIsSendingAll(true);
     try {
-      await sendGroupRemindAll(group.id);
+      await sendGroupRemindAll(groupId);
       setShowConfirm(false);
       Toast.show({
         type: 'success',
@@ -361,12 +360,12 @@ export default function AdminPaymentTrackingScreen({ navigation }: any) {
   const renderItem = useCallback(({ item }: { item: ContributionItem }) => (
     <TransactionRow
       memberName={item.memberName}
-      memberAvatar={item.memberAvatar}
+      memberAvatar={item.memberAvatar || null}
       amount={item.amount}
       currency={item.currency}
-      operator={item.operator}
-      date={item.paidAt}
-      status={item.status}
+      operator={item.operator as any}
+      date={item.paidAt as string}
+      status={item.status as any}
       txReference={item.txReference}
       onPress={() => handleRowPress(item)}
     />

@@ -270,8 +270,19 @@ export default function GroupDetailsScreen({ navigation, route }: any) {
           {isLoading ? <SkeletonBlock /> : (
             <View style={s.card}>
               {membersPreview.map((m, idx) => (
-                <View key={m.id} style={{ borderBottomWidth: idx < membersPreview.length - 1 ? StyleSheet.hairlineWidth : 0, borderColor: Colors.outlineVariant + '40' }}>
-                  <MemberCard member={m as any} showSwipeActions={false} onActionPress={() => {}} />
+                <View key={m.uid} style={{ borderBottomWidth: idx < membersPreview.length - 1 ? StyleSheet.hairlineWidth : 0, borderColor: Colors.outlineVariant + '40' }}>
+                  <MemberCard 
+                    member={{
+                      id: m.uid,
+                      fullName: m.full_name ?? m.uid,
+                      phone: m.phone ?? '',
+                      role: m.role as any,
+                      status: m.status as any,
+                      paymentStatus: m.paymentStatus as any,
+                    } as any} 
+                    showSwipeActions={false} 
+                    onActionPress={() => {}} 
+                  />
                 </View>
               ))}
               
@@ -322,7 +333,7 @@ export default function GroupDetailsScreen({ navigation, route }: any) {
       <BottomSheet visible={showAllMembersModal} title="Tous les membres" onClose={() => setShowAllMembersModal(false)}>
          <FlatList
            data={members}
-           keyExtractor={i => i.id}
+           keyExtractor={i => i.uid}
            style={{ maxHeight: Platform.OS === 'ios' ? 500 : 400 }}
            showsVerticalScrollIndicator={false}
            renderItem={({ item }) => {
@@ -330,7 +341,14 @@ export default function GroupDetailsScreen({ navigation, route }: any) {
              return (
                <View style={{ borderBottomWidth: StyleSheet.hairlineWidth, borderColor: Colors.outlineVariant + '30', paddingHorizontal: 16 }}>
                  <MemberCard 
-                   member={{ ...item, paymentStatus: hidePaymentBadge ? null : item.paymentStatus } as any} 
+                   member={{
+                     id: item.uid,
+                     fullName: item.full_name ?? item.uid,
+                     phone: item.phone ?? '',
+                     role: item.role as any,
+                     status: item.status as any,
+                     paymentStatus: hidePaymentBadge ? null : (item.paymentStatus as any),
+                   } as any} 
                    showSwipeActions={false} 
                    onActionPress={() => {}} 
                  />
