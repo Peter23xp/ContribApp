@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image, Platform, StatusBar } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Clipboard from 'expo-clipboard';
 import { getMemberContributionStatus, submitContribution } from '../../services/contributionService';
@@ -12,11 +12,30 @@ import { AppInput } from '../../components/common/AppInput';
 import { LoadingOverlay } from '../../components/common/LoadingOverlay';
 import { OfflineBanner } from '../../components/common/OfflineBanner';
 import { Ionicons } from '@expo/vector-icons';
-import { db } from '../../config/firebase'; // needed for auth or get current user if needed, assumed passed via props or context
+import { db } from '../../config/firebase';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-// Mock/Hooks for demo (navigation, route, currentUser, etc. should be adapted to the actual app)
+import { useAuthStore } from '../../stores/authStore';
+import * as dbService from '../../services/database';
+
 export function SubmitContributionScreen({ route, navigation }: any) {
-  const { amount = 5000, includePenalty = false, groupId = 'testGroup', memberUid = 'user123', memberName = 'John Doe', periodMonth = '2026-04' } = route.params || {};
+  const insets = useSafeAreaInsets();
+
+  // ── Auth store ────────────────────────────────────────────────────────────
+  const storeUser  = useAuthStore(s => s.user);
+  const storeGroup = useAuthStore(s => s.groupId);
+
+  // ── Données chargées depuis Firestore ──────────────────────────────────────
+  const [resolvedData, setResolvedData] = useState<{
+    amount: number;
+    groupId: string;
+    memberUid: string;
+    memberName: string;
+    periodMonth: string;
+    treasurerName: string;
+    treasurerNumber: string;
+    operatorTreasurer: string;
+  } | null>(null);
 
   const [status, setStatus] = useState<any | null>(null);
   const [currentStep, setCurrentStep] = useState(1);
@@ -31,24 +50,87 @@ export function SubmitContributionScreen({ route, navigation }: any) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
 
-  const operatorTreasurer = 'mpesa'; // Mock treasurer operator
-  const treasurerName = 'Jeanne Trésorière';
-  const treasurerNumber = '0812345678';
-  
+  // ── Résolution des données (params > store + Firestore) ───────────────────
   useEffect(() => {
-    checkStatus();
+    initScreen();
   }, []);
 
-  const checkStatus = async () => {
+  const initScreen = async () => {
     try {
-      const currentStatus = await getMemberContributionStatus(groupId, memberUid, periodMonth);
-      setStatus(currentStatus);
-    } catch (e) {
-      console.log(e);
+      // 1. Paramètres reçus via navigation (priorité maximale)
+      const p = route?.params ?? {};
+
+      const uid        = p.memberUid   ?? storeUser?.id    ?? '';
+      const name       = p.memberName  ?? storeUser?.full_name ?? '';
+      const month      = p.periodMonth ?? dbService.getCurrentMonthKey();
+      const gIdParam   = p.groupId;
+
+      // 2. Charger le groupe depuis Firestore si pas fourni
+      let group: any = null;
+      if (gIdParam) {
+        group = await dbService.getGroupById(gIdParam);
+      } else {
+        // Récupérer le groupe du membre (via active_group_id)
+        group = uid ? await dbService.getGroupForMember(uid) : null;
+      }
+
+      const gId = group?.id ?? gIdParam ?? storeGroup ?? '';
+
+      // 3. Montant : params > contribution en cours > groupe
+      //    On utilise || (pas ??) pour que 0 tombe aussi sur le fallback suivant
+      const groupAmount = group?.contribution_amount || group?.monthly_amount || 0;
+      let finalAmount = p.amount ? Number(p.amount) : 0;
+      if (!finalAmount && gId && uid) {
+        const contrib = await dbService.getMemberContribution(uid, gId, month);
+        finalAmount = contrib?.amount || contrib?.amount_due || 0;
+      }
+      // Toujours utiliser le montant du groupe en dernier recours
+      if (!finalAmount) {
+        finalAmount = groupAmount;
+      }
+
+
+      // 4. Infos trésorière depuis le groupe
+      const treasurer = group?.treasurer_phone ?? group?.treasurerPhone ?? '';
+      const tName     = group?.treasurer_name  ?? group?.treasurerName  ?? 'Trésorière';
+      const tOp       = group?.operator        ?? group?.treasurer_operator ?? 'mobile_money';
+
+      // 5. Statut actuel de la contribution
+      if (gId && uid) {
+        try {
+          const currentStatus = await getMemberContributionStatus(gId, uid, month);
+          setStatus(currentStatus);
+        } catch (_) {}
+      }
+
+      setResolvedData({
+        amount: finalAmount,
+        groupId: gId,
+        memberUid: uid,
+        memberName: name,
+        periodMonth: month,
+        treasurerName: tName,
+        treasurerNumber: treasurer,
+        operatorTreasurer: tOp,
+      });
+    } catch (err) {
+      console.error('[SubmitContribution] initScreen error:', err);
     } finally {
       setIsInitializing(false);
     }
   };
+
+  // Raccourcis pour éviter les nullchecks répétés dans le JSX
+  const amount            = resolvedData?.amount            ?? 0;
+  const groupId           = resolvedData?.groupId           ?? '';
+  const memberUid         = resolvedData?.memberUid         ?? '';
+  const memberName        = resolvedData?.memberName        ?? '';
+  const periodMonth       = resolvedData?.periodMonth       ?? dbService.getCurrentMonthKey();
+  const treasurerName     = resolvedData?.treasurerName     ?? 'Trésorière';
+  const treasurerNumber   = resolvedData?.treasurerNumber   ?? '';
+  const operatorTreasurer = resolvedData?.operatorTreasurer ?? 'mobile_money';
+
+
 
   const copyToClipboard = async (text: string) => {
     await Clipboard.setStringAsync(text);
@@ -141,7 +223,7 @@ export function SubmitContributionScreen({ route, navigation }: any) {
       });
 
       Alert.alert("Succès", "Capture soumise ! En attente de validation par la trésorière.");
-      navigation.reset({ index: 0, routes: [{ name: 'MemberDashboard' }] });
+      navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
     } catch (error) {
       Alert.alert("Erreur", "Une erreur est survenue lors de la soumission.");
       console.log(error);
@@ -157,7 +239,7 @@ export function SubmitContributionScreen({ route, navigation }: any) {
   if (status?.status === 'paid') {
     return (
       <View style={styles.container}>
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
           <TouchableOpacity onPress={() => navigation.goBack()}><Ionicons name="arrow-back" size={24} color="#000" /></TouchableOpacity>
           <Text style={styles.headerTitle}>Soumettre ma contribution</Text>
           <View style={{width: 24}} />
@@ -165,7 +247,7 @@ export function SubmitContributionScreen({ route, navigation }: any) {
         <View style={styles.statusCardPaid}>
           <Ionicons name="checkmark-circle" size={48} color="#4CAF50" />
           <Text style={styles.statusTitle}>Déjà approuvée</Text>
-          <AppButton title="Voir le reçu" onPress={() => navigation.navigate('PaymentReceiptScreen')} variant="solid" />
+          <AppButton title="Voir le reçu" onPress={() => navigation.navigate('Receipt', { txId: '' })} variant="solid" />
         </View>
       </View>
     );
@@ -174,7 +256,7 @@ export function SubmitContributionScreen({ route, navigation }: any) {
   if (status?.status === 'pending_approval') {
     return (
       <View style={styles.container}>
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
           <TouchableOpacity onPress={() => navigation.goBack()}><Ionicons name="arrow-back" size={24} color="#000" /></TouchableOpacity>
           <Text style={styles.headerTitle}>Soumettre ma contribution</Text>
           <View style={{width: 24}} />
@@ -194,7 +276,7 @@ export function SubmitContributionScreen({ route, navigation }: any) {
       <OfflineBanner />
       {isSubmitting && <LoadingOverlay />}
       
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
         <TouchableOpacity onPress={() => navigation.goBack()}><Ionicons name="arrow-back" size={24} color="#000" /></TouchableOpacity>
         <Text style={styles.headerTitle}>Soumettre ma contribution</Text>
         <View style={{width: 24}} />
@@ -319,7 +401,15 @@ export function SubmitContributionScreen({ route, navigation }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f9f9f9' },
-  header: { flexDirection: 'row', alignItems: 'center', padding: 16, backgroundColor: '#fff', borderBottomColor: '#eee', borderBottomWidth: 1 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+    backgroundColor: '#fff',
+    borderBottomColor: '#eee',
+    borderBottomWidth: 1,
+  },
   headerTitle: { flex: 1, textAlign: 'center', fontSize: 18, fontWeight: 'bold' },
   scrollContent: { padding: 16, paddingBottom: 40 },
   

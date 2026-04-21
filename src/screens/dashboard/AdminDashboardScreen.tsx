@@ -21,7 +21,7 @@ function Avatar({ name, size = 40, bgColor }: { name: string; size?: number; bgC
 }
 
 export default function AdminDashboardScreen({ navigation }: any) {
-  const user = useAuthStore(s => s.user);
+  const { user, groupId: storeGroupId, role } = useAuthStore();
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [group, setGroup] = useState<any>(null);
@@ -32,7 +32,19 @@ export default function AdminDashboardScreen({ navigation }: any) {
 
   const loadData = useCallback(async () => {
     if (!user) return;
-    const g = await db.getGroupForAdmin(user.id);
+    
+    let g = null;
+    // Priorité au groupId du store s'il existe
+    if (storeGroupId) {
+      const snap = await db.getGroupById(storeGroupId);
+      if (snap) g = snap;
+    }
+    
+    // Fallback sur la recherche par admin_uid si non trouvé
+    if (!g) {
+      g = await db.getGroupForAdmin(user.id);
+    }
+
     setGroup(g);
     if (g) {
       const [contribs, mems] = await Promise.all([
@@ -43,15 +55,16 @@ export default function AdminDashboardScreen({ navigation }: any) {
       setMembers(mems);
     }
     setIsLoading(false);
-  }, [user]);
+  }, [user, storeGroupId]);
 
   useEffect(() => { loadData(); }, [loadData]);
   const handleRefresh = () => { setRefreshing(true); loadData().then(() => setRefreshing(false)); };
 
   const paidContribs = contributions.filter(c => c.status === 'PAYE');
-  const lateContribs = contributions.filter(c => c.status !== 'PAYE');
-  const totalBalance = paidContribs.reduce((s, c) => s + c.amount, 0);
-  const dueDate = group ? new Date(new Date().getFullYear(), new Date().getMonth(), group.due_day ?? 25) : null;
+  const lateContribs = contributions.filter(c => (c.status === 'EN_ATTENTE' || c.status === 'EN_RETARD'));
+  const totalBalance = group?.collected_amount || paidContribs.reduce((s, c) => s + c.amount, 0);
+  const currency = group?.currency || 'CDF';
+  const dueDate = group ? new Date(new Date().getFullYear(), new Date().getMonth(), group.payment_deadline_day ?? 25) : null;
 
   const handleSendReminders = () => {
     setSending(true);
@@ -105,9 +118,9 @@ export default function AdminDashboardScreen({ navigation }: any) {
           <Text style={styles.balLabel}>TOTAL GROUP BALANCE</Text>
           <View style={styles.balRow}>
             <Text style={styles.balAmount}>
-              {isLoading ? '—' : totalBalance.toLocaleString('fr-FR', { minimumFractionDigits: 3 })}
+              {isLoading ? '—' : totalBalance.toLocaleString('fr-FR')}
             </Text>
-            <Text style={styles.balCurrency}> CDF</Text>
+            <Text style={styles.balCurrency}> {currency}</Text>
           </View>
 
           <View style={styles.statusGrid}>

@@ -23,8 +23,13 @@ import GroupReadyScreen from '../screens/onboarding/GroupReadyScreen';
 import InviteHubScreen from '../screens/onboarding/InviteHubScreen';
 
 // ── Écrans "overlay" accessibles par dessus les tabs ──
-import PaymentConfirmationScreen from '../screens/payment/PaymentConfirmationScreen';
-import PaymentReceiptScreen      from '../screens/payment/PaymentReceiptScreen';
+import PaymentConfirmationScreen   from '../screens/payment/PaymentConfirmationScreen';
+import PaymentReceiptScreen        from '../screens/payment/PaymentReceiptScreen';
+
+// ── SCR-010-B : Nouveau flux paiement Manuel + Gemini (actif) ──
+import { SubmitContributionScreen }    from '../screens/payment/SubmitContributionScreen';
+import { ReviewCaptureScreen }         from '../screens/payment/ReviewCaptureScreen';
+import { ApprovalQueueScreen }         from '../screens/payment/ApprovalQueueScreen';
 
 // ── Écrans Groupe (Module 04) ──
 import GroupConfigScreen      from '../screens/group/GroupConfigScreen';
@@ -57,6 +62,11 @@ export type RootStackParamList = {
   Main:             undefined;
   PaymentConfirm:   { txId: string };
   Receipt:          { txId: string; receiptData?: any };
+
+  // SCR-010-B — Flux paiement Manuel + Gemini (actif)
+  SubmitContribution: { amount?: number; includePenalty?: boolean } | undefined;
+  ReviewCapture:      { contributionId: string } | undefined;
+  ApprovalQueue:      undefined;
 
   // Module 04
   GroupConfig:      { groupId?: string };
@@ -138,6 +148,23 @@ export default function AppNavigator() {
           <Stack.Screen
             name="Receipt"
             component={PaymentReceiptScreen}
+          />
+
+          {/* ─── SCR-010-B : Nouveau flux paiement Manuel + Gemini ─── */}
+          <Stack.Screen
+            name="SubmitContribution"
+            component={SubmitContributionScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="ReviewCapture"
+            component={ReviewCaptureScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="ApprovalQueue"
+            component={ApprovalQueueScreen}
+            options={{ headerShown: false }}
           />
 
           {/* ─── Module 04 : Gestion du Groupe ─── */}

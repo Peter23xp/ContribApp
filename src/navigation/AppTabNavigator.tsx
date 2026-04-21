@@ -9,9 +9,9 @@ import { Colors, Fonts, Radius } from '../constants/colors';
 import AdminDashboardScreen from '../screens/dashboard/AdminDashboardScreen';
 import TreasurerDashboardScreen from '../screens/dashboard/TreasurerDashboardScreen';
 import MemberDashboardScreen from '../screens/dashboard/MemberDashboardScreen';
-import PayContributionScreen         from '../screens/payment/PayContributionScreen';
+import { SubmitContributionScreen }   from '../screens/payment/SubmitContributionScreen';
+import { ApprovalQueueScreen }        from '../screens/payment/ApprovalQueueScreen';
 import AdminPaymentTrackingScreen    from '../screens/payment/AdminPaymentTrackingScreen';
-import TreasurerPaymentsScreen       from '../screens/payment/TreasurerPaymentsScreen';
 import GroupDetailsScreen            from '../screens/group/GroupDetailsScreen';
 import ProfileScreen                 from '../screens/profile/ProfileScreen';
 import * as db from '../services/database';
@@ -47,7 +47,7 @@ function HomeDashboard({ navigation, route }: any) {
   return <MemberDashboardScreen navigation={navigation} route={route} />;
 }
 
-/** Tab "Contributions" : SCR-008 Admin | SCR-009 Trésorière | SCR-010 Membre */
+/** Tab "Contributions" : SCR-008 Admin | SCR-009-B Trésorière (ApprovalQueue) | SCR-010-B Membre (SubmitContribution) */
 function ContributionsTab(props: any) {
   const role = useAuthStore(s => s.role);
   const user = useAuthStore(s => s.user);
@@ -59,12 +59,14 @@ function ContributionsTab(props: any) {
   }, [user, role]);
 
   if (role === 'admin')     return <AdminPaymentTrackingScreen {...props} />;
-  if (role === 'treasurer') return <TreasurerPaymentsScreen {...props} />;
+  // SCR-009-B : Trésorière → File d'approbation (actif)
+  if (role === 'treasurer') return <ApprovalQueueScreen {...props} />;
   
   if (hasGroup === null) return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.surface }}><ActivityIndicator color={Colors.primary} /></View>;
   if (!hasGroup) return <NoGroupPlaceholder navigation={props.navigation} title="Paiements inaccessibles" />;
   
-  return <PayContributionScreen {...props} />;
+  // SCR-010-B : Membre → Soumettre capture (actif)
+  return <SubmitContributionScreen {...props} />;
 }
 
 /** Tab "Groupe" */

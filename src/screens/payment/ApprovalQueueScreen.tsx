@@ -79,7 +79,7 @@ export function ApprovalQueueScreen({ navigation }: any) {
       const getConfidenceColor = (conf: number) => conf >= 85 ? '#4CAF50' : conf >= 60 ? '#FF9800' : '#F44336';
       
       return (
-        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('ReviewCaptureScreen', { contributionId: item.id })}>
+        <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('ReviewCapture', { contributionId: item.id })}>
           <View style={styles.cardContent}>
             <View style={{ flex: 1 }}>
               <Text style={styles.memberName}>{item.memberName}</Text>
@@ -108,7 +108,7 @@ export function ApprovalQueueScreen({ navigation }: any) {
 
     // Historique
     return (
-      <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('ReviewCaptureScreen', { contributionId: item.id, readOnly: true })}>
+      <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('ReviewCapture', { contributionId: item.id, readOnly: true })}>
         <View style={styles.cardContent}>
           <View style={{ flex: 1 }}>
             <Text style={styles.memberName}>{item.memberName || 'Inconnu'}</Text>

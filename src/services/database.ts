@@ -65,7 +65,7 @@ export const markUserAsVerified = async (phone: string): Promise<void> => {
 // ─── Groupes ──────────────────────────────────────────────────────────────────
 
 export const getGroupForAdmin = async (adminId: string): Promise<any | null> => {
-  const q = query(collection(db, 'groups'), where('admin_id', '==', adminId));
+  const q = query(collection(db, 'groups'), where('admin_uid', '==', adminId));
   const snap = await getDocs(q);
   if (snap.empty) return null;
   const docSnap = snap.docs[0];
@@ -73,27 +73,48 @@ export const getGroupForAdmin = async (adminId: string): Promise<any | null> => 
 };
 
 export const getGroupForMember = async (userId: string): Promise<any | null> => {
-  const q = query(collection(db, 'group_members'), where('user_id', '==', userId));
-  const snap = await getDocs(q);
-  if (snap.empty) return null;
-  const membership = snap.docs[0].data();
-  const groupDoc = await getDoc(doc(db, 'groups', membership.group_id));
+  const userDoc = await getDoc(doc(db, 'users', userId));
+  if (!userDoc.exists()) return null;
+  const userData = userDoc.data();
+  const groupId = userData?.active_group_id;
+  if (!groupId) return null;
+  
+  const groupDoc = await getDoc(doc(db, 'groups', groupId));
   if (!groupDoc.exists()) return null;
   return { id: groupDoc.id, ...groupDoc.data() };
 };
 
 export const getMembersOfGroup = async (groupId: string): Promise<any[]> => {
-  const q = query(collection(db, 'group_members'), where('group_id', '==', groupId));
-  const snap = await getDocs(q);
+  let membersSnap = await getDocs(collection(db, 'groups', groupId, 'members'));
+  const legacyMembers =
+    membersSnap.empty
+      ? await getDocs(
+          query(
+            collection(db, 'group_members'),
+            where('group_id', '==', groupId)
+          )
+        )
+      : null;
+
+  const sourceDocs = membersSnap.empty && legacyMembers ? legacyMembers.docs : membersSnap.docs;
   const members: any[] = [];
-  for (const memberDoc of snap.docs) {
+  for (const memberDoc of sourceDocs) {
     const data = memberDoc.data();
-    const userDoc = await getDoc(doc(db, 'users', data.user_id));
+    // Use user_id if present, else uid
+    const userId = data.user_id || data.uid;
+    if (!userId) continue;
+    const userDoc = await getDoc(doc(db, 'users', userId));
     if (userDoc.exists()) {
-      members.push({ id: data.user_id, ...userDoc.data(), member_role: data.role });
+      members.push({ id: userId, ...userDoc.data(), member_role: data.role });
     }
   }
   return members;
+};
+
+export const getGroupById = async (groupId: string): Promise<any | null> => {
+  const docSnap = await getDoc(doc(db, 'groups', groupId));
+  if (!docSnap.exists()) return null;
+  return { id: docSnap.id, ...docSnap.data() };
 };
 
 export const getAllGroups = async (): Promise<any[]> => {
@@ -110,23 +131,37 @@ export const getGroupByInviteCode = async (code: string): Promise<any | null> =>
 };
 
 export const isAlreadyMember = async (userId: string, groupId: string): Promise<boolean> => {
-  const q = query(
-    collection(db, 'group_members'),
-    where('user_id', '==', userId),
-    where('group_id', '==', groupId)
-  );
-  const snap = await getDocs(q);
-  return !snap.empty;
+  const memberDoc = await getDoc(doc(db, 'groups', groupId, 'members', userId));
+  return memberDoc.exists();
 };
 
 export const joinGroup = async (userId: string, groupId: string): Promise<void> => {
-  // Ajouter le membre
-  await addDoc(collection(db, 'group_members'), {
-    group_id: groupId,
-    user_id: userId,
+  const userDoc = await getDoc(doc(db, 'users', userId));
+  const userData = userDoc.exists() ? userDoc.data() : {};
+
+  await setDoc(doc(db, 'groups', groupId, 'members', userId), {
+    uid: userId,
     role: 'member',
+    status: 'active',
+    full_name: userData?.full_name ?? '',
+    phone: userData?.phone ?? '',
+    operator: userData?.operator ?? '',
     joined_at: serverTimestamp(),
   });
+
+  await updateDoc(doc(db, 'users', userId), {
+    active_group_id: groupId,
+    updated_at: serverTimestamp(),
+  });
+
+  const groupDoc = await getDoc(doc(db, 'groups', groupId));
+  const groupData = groupDoc.data();
+  if (groupDoc.exists()) {
+    await updateDoc(doc(db, 'groups', groupId), {
+      member_count: (groupData?.member_count ?? 0) + 1,
+      updated_at: serverTimestamp(),
+    });
+  }
 
   // Créer une contribution EN_ATTENTE pour le mois en cours
   const month = getCurrentMonthKey();
@@ -139,13 +174,11 @@ export const joinGroup = async (userId: string, groupId: string): Promise<void> 
   const existingSnap = await getDocs(existingQ);
   
   if (existingSnap.empty) {
-    const groupDoc = await getDoc(doc(db, 'groups', groupId));
-    const groupData = groupDoc.data();
     await addDoc(collection(db, 'contributions'), {
       group_id: groupId,
       user_id: userId,
       month,
-      amount: groupData?.monthly_amount ?? 0,
+      amount: groupData?.contribution_amount ?? groupData?.monthly_amount ?? 0,
       penalty_amount: 0,
       status: 'EN_ATTENTE',
       created_at: serverTimestamp(),
@@ -158,20 +191,44 @@ export const joinGroup = async (userId: string, groupId: string): Promise<void> 
 
 export const getContributionsForMonth = async (groupId: string, month?: string): Promise<any[]> => {
   const m = month ?? getCurrentMonthKey();
-  const q = query(
-    collection(db, 'contributions'),
-    where('group_id', '==', groupId),
-    where('month', '==', m)
-  );
-  const snap = await getDocs(q);
+  const [periodSnap, legacySnap] = await Promise.all([
+    getDocs(
+      query(
+        collection(db, 'contributions'),
+        where('group_id', '==', groupId),
+        where('period_month', '==', m)
+      )
+    ),
+    getDocs(
+      query(
+        collection(db, 'contributions'),
+        where('group_id', '==', groupId),
+        where('month', '==', m)
+      )
+    ),
+  ]);
+
+  const docsById = new Map<string, any>();
+  for (const docSnap of [...periodSnap.docs, ...legacySnap.docs]) {
+    docsById.set(docSnap.id, docSnap);
+  }
+
   const results: any[] = [];
-  for (const d of snap.docs) {
+  for (const d of docsById.values()) {
     const data = d.data();
-    const userDoc = await getDoc(doc(db, 'users', data.user_id));
+    const memberUid = data.member_uid ?? data.user_id;
+    if (!memberUid) continue;
+
+    const userDoc = await getDoc(doc(db, 'users', memberUid));
     const userData = userDoc.exists() ? userDoc.data() : {};
     results.push({
       id: d.id,
       ...data,
+      user_id: memberUid,
+      member_uid: memberUid,
+      month: data.period_month ?? data.month ?? m,
+      amount: data.amount_paid || data.amount_due || data.amount || 0,
+      status: data.status === 'paid' ? 'PAYE' : data.status === 'approved' ? 'PAYE' : data.status,
       full_name: userData?.full_name,
       phone: userData?.phone,
       user_operator: userData?.operator,
@@ -182,29 +239,69 @@ export const getContributionsForMonth = async (groupId: string, month?: string):
 
 export const getMemberContribution = async (userId: string, groupId: string, month?: string): Promise<any | null> => {
   const m = month ?? getCurrentMonthKey();
-  const q = query(
-    collection(db, 'contributions'),
-    where('user_id', '==', userId),
-    where('group_id', '==', groupId),
-    where('month', '==', m)
-  );
-  const snap = await getDocs(q);
-  if (snap.empty) return null;
-  const d = snap.docs[0];
-  return { id: d.id, ...d.data() };
+  const contributions = await getContributionsForMonth(groupId, m);
+  const match = contributions.find((d) => {
+    return (d.member_uid ?? d.user_id) === userId;
+  });
+  if (!match) return null;
+
+  return {
+    ...match,
+    user_id: match.member_uid ?? match.user_id ?? userId,
+    member_uid: match.member_uid ?? match.user_id ?? userId,
+    month: match.period_month ?? match.month ?? m,
+    // Utiliser || pour que 0 tombe aussi sur le fallback suivant
+    amount: match.amount_paid || match.amount_due || match.amount || 0,
+    paid_at: match.approved_at ?? match.paid_at ?? null,
+    status:
+      match.status === 'paid'
+        ? 'PAYE'
+        : match.status === 'pending_approval'
+          ? 'EN_VERIFICATION'
+          : match.status,
+  };
+
 };
 
 export const getRecentPaymentsForMember = async (userId: string, limitCount = 3): Promise<any[]> => {
-  const q = query(
-    collection(db, 'contributions'),
-    where('user_id', '==', userId),
-    where('status', '==', 'PAYE'),
-    orderBy('paid_at', 'desc'),
-    firestoreLimit(limitCount)
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  // Try member_uid field first (new schema), then user_id (legacy schema)
+  const [snapNew, snapLegacy] = await Promise.all([
+    getDocs(
+      query(
+        collection(db, 'contributions'),
+        where('member_uid', '==', userId),
+        where('status', 'in', ['paid', 'PAYE', 'approved']),
+        orderBy('approved_at', 'desc'),
+        firestoreLimit(limitCount)
+      )
+    ).catch(() => ({ docs: [] as any[] })),
+    getDocs(
+      query(
+        collection(db, 'contributions'),
+        where('user_id', '==', userId),
+        where('status', 'in', ['paid', 'PAYE', 'approved']),
+        orderBy('paid_at', 'desc'),
+        firestoreLimit(limitCount)
+      )
+    ).catch(() => ({ docs: [] as any[] })),
+  ]);
+
+  const docsById = new Map<string, any>();
+  for (const d of [...snapNew.docs, ...snapLegacy.docs]) {
+    docsById.set(d.id, d);
+  }
+
+  return Array.from(docsById.values())
+    .slice(0, limitCount)
+    .map((d) => ({
+      id: d.id,
+      ...d.data(),
+      user_id: d.data().member_uid ?? d.data().user_id ?? userId,
+      amount: d.data().amount_paid ?? d.data().amount_due ?? d.data().amount ?? 0,
+      paid_at: d.data().approved_at ?? d.data().paid_at ?? null,
+    }));
 };
+
 
 export const getRecentPaymentsForGroup = async (groupId: string, limitCount = 5): Promise<any[]> => {
   const q = query(

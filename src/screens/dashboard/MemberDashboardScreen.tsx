@@ -70,13 +70,13 @@ function HeroCardPaid({ contribution, checkAnim }: { contribution: any; checkAni
 }
 
 // ─── Hero Card : EN ATTENTE ───────────────────────────────────────────────────
-function HeroCardPending({ contribution, daysLeft, navigation }: { contribution: any; daysLeft: number; navigation: any }) {
+function HeroCardPending({ contribution, daysLeft, onPay }: { contribution: any; daysLeft: number; onPay: () => void }) {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const isUrgent = daysLeft <= 2;
   useEffect(() => {
     if (isUrgent) {
       Animated.loop(Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 0.4, duration: 600, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 0.5, duration: 600, useNativeDriver: true }),
         Animated.timing(pulseAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
       ])).start();
     }
@@ -95,7 +95,7 @@ function HeroCardPending({ contribution, daysLeft, navigation }: { contribution:
       <Animated.Text style={[s.heroCountdown, { color: isUrgent ? Colors.error : '#e65100', opacity: isUrgent ? pulseAnim : 1 }]}>
         Il vous reste {daysLeft} jour{daysLeft !== 1 ? 's' : ''}
       </Animated.Text>
-      <TouchableOpacity style={s.payNowBtn} activeOpacity={0.85} onPress={() => navigation?.navigate('SubmitContributionScreen')}>
+      <TouchableOpacity style={s.payNowBtn} activeOpacity={0.85} onPress={onPay}>
         <MaterialCommunityIcons name="cash-multiple" size={20} color="#FFF" />
         <Text style={s.payNowBtnText}>PAYER MAINTENANT</Text>
       </TouchableOpacity>
@@ -103,8 +103,9 @@ function HeroCardPending({ contribution, daysLeft, navigation }: { contribution:
   );
 }
 
+
 // ─── Hero Card : EN RETARD ────────────────────────────────────────────────────
-function HeroCardLate({ contribution, navigation }: { contribution: any; navigation: any }) {
+function HeroCardLate({ contribution, onPay }: { contribution: any; onPay: (withPenalty: boolean) => void }) {
   const base = contribution?.amount ?? 0;
   const penalty = contribution?.penalty_amount ?? 0;
   const total = base + penalty;
@@ -136,7 +137,7 @@ function HeroCardLate({ contribution, navigation }: { contribution: any; navigat
       <TouchableOpacity
         style={[s.payNowBtn, { backgroundColor: penalty > 0 ? Colors.error : Colors.warning }]}
         activeOpacity={0.85}
-        onPress={() => navigation?.navigate('SubmitContributionScreen')}
+        onPress={() => onPay(penalty > 0)}
       >
         <MaterialCommunityIcons name="cash-multiple" size={20} color="#FFF" />
         <Text style={s.payNowBtnText}>
@@ -148,7 +149,7 @@ function HeroCardLate({ contribution, navigation }: { contribution: any; navigat
 }
 
 // ─── Hero Card : EN VÉRIFICATION (pending_approval) ───────────────────────────
-function HeroCardVerification({ navigation }: { navigation: any }) {
+function HeroCardVerification({ onPay }: { onPay: () => void }) {
   const rotateAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -180,7 +181,7 @@ function HeroCardVerification({ navigation }: { navigation: any }) {
       <Text style={[s.heroDetail, { color: '#6A1B9A', textAlign: 'center' }]}>
         La trésorière examine votre capture. Vous serez notifié dès validation.
       </Text>
-      <TouchableOpacity style={s.heroLink} onPress={() => navigation?.navigate('SubmitContributionScreen')}>
+      <TouchableOpacity style={s.heroLink} onPress={onPay}>
         <Text style={[s.heroLinkText, { color: '#8E24AA', alignSelf: 'center' }]}>Voir ma soumission →</Text>
       </TouchableOpacity>
     </View>
@@ -188,7 +189,7 @@ function HeroCardVerification({ navigation }: { navigation: any }) {
 }
 
 // ─── Hero Card : REJETÉE ──────────────────────────────────────────────────────
-function HeroCardRejected({ contribution, navigation }: { contribution: any; navigation: any }) {
+function HeroCardRejected({ contribution, onPay }: { contribution: any; onPay: () => void }) {
   return (
     <View style={[s.heroCard, { backgroundColor: '#FFEBEE', borderColor: '#F44336' }]}>
       <View style={s.heroCardRow}>
@@ -204,7 +205,7 @@ function HeroCardRejected({ contribution, navigation }: { contribution: any; nav
       <TouchableOpacity
         style={[s.payNowBtn, { backgroundColor: '#F44336', marginTop: 16 }]}
         activeOpacity={0.85}
-        onPress={() => navigation?.navigate('SubmitContributionScreen')}
+        onPress={onPay}
       >
         <MaterialCommunityIcons name="camera-retake" size={20} color="#FFF" />
         <Text style={s.payNowBtnText}>Soumettre une nouvelle capture</Text>
@@ -216,6 +217,7 @@ function HeroCardRejected({ contribution, navigation }: { contribution: any; nav
 // ─── ÉCRAN PRINCIPAL ──────────────────────────────────────────────────────────
 export default function MemberDashboardScreen({ navigation }: any) {
   const user = useAuthStore(st => st.user);
+  const setGroupId = useAuthStore(st => st.setGroupId);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [group, setGroup] = useState<any>(null);
@@ -231,37 +233,77 @@ export default function MemberDashboardScreen({ navigation }: any) {
 
   const loadData = useCallback(async () => {
     if (!user) return;
-    const g = await db.getGroupForMember(user.id);
-    setGroup(g);
-    if (g) {
-      const c = await db.getMemberContribution(user.id, g.id);
-      setContribution(c);
-      const allC = await db.getContributionsForMonth(g.id);
-      setGroupProgress({ paid: allC.filter((x: any) => x.status === 'PAYE').length, total: allC.length });
-      const recent = await db.getRecentPaymentsForMember(user.id, 3);
-      setRecentPayments(recent);
-      const members = await db.getMembersOfGroup(g.id);
-      const ranking = members
-        .map((m: any) => {
-          const paid = allC.filter((x: any) => x.user_id === m.id && x.status === 'PAYE');
-          const totalPaid = paid.reduce((sum: number, row: any) => sum + Number(row.amount ?? 0), 0);
-          return {
-            id: m.id,
-            full_name: m.full_name,
-            totalPaid,
-            paidCount: paid.length,
-            isCurrentUser: m.id === user.id,
-          };
-        })
-        .sort((a: any, b: any) => {
-          if (b.totalPaid !== a.totalPaid) return b.totalPaid - a.totalPaid;
-          if (b.paidCount !== a.paidCount) return b.paidCount - a.paidCount;
-          return String(a.full_name).localeCompare(String(b.full_name), 'fr');
-        })
-        .slice(0, 5);
-      setTopMembers(ranking);
+    try {
+      const g = await db.getGroupForMember(user.id);
+      setGroup(g);
+      if (g) {
+        const [c, allC, recent, members] = await Promise.all([
+          db.getMemberContribution(user.id, g.id),
+          db.getContributionsForMonth(g.id),
+          db.getRecentPaymentsForMember(user.id, 3).catch(() => [] as any[]),
+          db.getMembersOfGroup(g.id).catch(() => [] as any[]),
+        ]);
+        // Normaliser le montant de la contribution :
+        // - Utiliser || (pas ??) pour que 0 tombe aussi sur le fallback
+        // - Si pas de document contribution (c=null), créer un placeholder EN_ATTENTE
+        const groupMonthlyAmount = g.contribution_amount || g.monthly_amount || 0;
+        const normalizedContribution = c
+          ? {
+              ...c,
+              amount:     c.amount     > 0 ? c.amount     : groupMonthlyAmount,
+              amount_due: c.amount_due > 0 ? c.amount_due : groupMonthlyAmount,
+            }
+          : groupMonthlyAmount > 0
+            ? {
+                // Contribution virtuelle : le membre n'a pas encore de doc Firestore
+                amount:     groupMonthlyAmount,
+                amount_due: groupMonthlyAmount,
+                penalty_amount: 0,
+                status: 'EN_ATTENTE',
+                user_id: user.id,
+                group_id: g.id,
+                month: db.getCurrentMonthKey(),
+              }
+            : null;
+        setContribution(normalizedContribution);
+
+
+        // Compter PAYE et paid (double format Firestore)
+        setGroupProgress({
+          paid: allC.filter((x: any) => x.status === 'PAYE' || x.status === 'paid').length,
+          total: allC.length,
+        });
+        setRecentPayments(recent);
+        const ranking = members
+          .map((m: any) => {
+            const paid = allC.filter(
+              (x: any) =>
+                (x.user_id === m.id || x.member_uid === m.id) &&
+                (x.status === 'PAYE' || x.status === 'paid')
+            );
+            const totalPaid = paid.reduce((sum: number, row: any) => sum + Number(row.amount ?? 0), 0);
+            return {
+              id: m.id,
+              full_name: m.full_name,
+              totalPaid,
+              paidCount: paid.length,
+              isCurrentUser: m.id === user.id,
+            };
+          })
+          .sort((a: any, b: any) => {
+            if (b.totalPaid !== a.totalPaid) return b.totalPaid - a.totalPaid;
+            if (b.paidCount !== a.paidCount) return b.paidCount - a.paidCount;
+            return String(a.full_name).localeCompare(String(b.full_name), 'fr');
+          })
+          .slice(0, 5);
+        setTopMembers(ranking);
+      }
+    } catch (err) {
+      console.error('[MemberDashboard] loadData error:', err);
+      Toast.show({ type: 'error', text1: 'Erreur de chargement', text2: 'Vérifiez votre connexion.' });
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   }, [user]);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -283,15 +325,30 @@ export default function MemberDashboardScreen({ navigation }: any) {
       const alreadyIn = await db.isAlreadyMember(user.id, foundGroup.id);
       if (alreadyIn) { setJoinError('Vous êtes déjà membre.'); setJoining(false); return; }
       await db.joinGroup(user.id, foundGroup.id);
+      setGroupId(foundGroup.id);
       setShowJoinModal(false); setInviteCode('');
       Toast.show({ type: 'success', text1: 'Bienvenue !', text2: `Vous avez rejoint "${foundGroup.name}".` });
-      loadData();
+      await loadData();
     } catch { setJoinError('Erreur. Réessayez.'); }
     finally { setJoining(false); }
   };
 
+  // ── Navigation vers le paiement avec les vrais paramètres ─────────────────
+  const goToPayment = (withPenalty = false) => {
+    const penalty = contribution?.penalty_amount ?? 0;
+    const base    = contribution?.amount ?? group?.contribution_amount ?? group?.monthly_amount ?? 0;
+    navigation?.navigate('SubmitContribution', {
+      amount:        withPenalty ? base + penalty : base,
+      includePenalty: withPenalty && penalty > 0,
+      groupId:       group?.id   ?? '',
+      memberUid:     user?.id    ?? '',
+      memberName:    user?.full_name ?? '',
+      periodMonth:   db.getCurrentMonthKey(),
+    });
+  };
+
   const status = contribution?.status ?? null;
-  const dueDay = group?.due_day ?? 25;
+  const dueDay = group?.payment_deadline_day ?? group?.due_day ?? 25;
   const dueMonthLabel = new Date().toLocaleDateString('fr-FR', { month: 'short' });
   const nextMonth = new Date(); nextMonth.setMonth(nextMonth.getMonth() + 1);
 
@@ -301,7 +358,8 @@ export default function MemberDashboardScreen({ navigation }: any) {
   // Couleur barre groupe selon %
   const paidPct = groupProgress.total > 0 ? groupProgress.paid / groupProgress.total : 0;
   const progressBarColor = paidPct >= 0.9 ? Colors.secondary : paidPct >= 0.5 ? Colors.tertiary : Colors.warning;
-  const totalBalance = groupProgress.paid * (group?.monthly_amount ?? 0);
+  const monthlyAmount = group?.contribution_amount ?? group?.monthly_amount ?? 0;
+  const totalBalance = groupProgress.paid * monthlyAmount;
 
   // ── EMPTY STATE ────────────────────────────────────────────────────────────
   if (!isLoading && !group) {
@@ -384,18 +442,18 @@ export default function MemberDashboardScreen({ navigation }: any) {
         ) : status === 'PAYE' || status === 'paid' || status === 'approved' ? (
           <HeroCardPaid contribution={contribution} checkAnim={checkAnim} />
         ) : status === 'pending_approval' || status === 'EN_VERIFICATION' ? (
-          <HeroCardVerification navigation={navigation} />
+          <HeroCardVerification onPay={() => goToPayment()} />
         ) : status === 'rejected' || status === 'REJETEE' ? (
-          <HeroCardRejected contribution={contribution} navigation={navigation} />
+          <HeroCardRejected contribution={contribution} onPay={() => goToPayment()} />
         ) : status === 'EN_RETARD' ? (
-          <HeroCardLate contribution={contribution} navigation={navigation} />
+          <HeroCardLate contribution={contribution} onPay={goToPayment} />
         ) : (
-          <HeroCardPending contribution={contribution} daysLeft={daysLeft} navigation={navigation} />
+          <HeroCardPending contribution={contribution} daysLeft={daysLeft} onPay={() => goToPayment()} />
         )}
 
         {/* ── Pay Now (quand EN_ATTENTE + pas de Hero Card déjà) ──────── */}
         {!status && (
-          <TouchableOpacity style={s.payBtn} activeOpacity={0.88} onPress={() => navigation?.navigate('SubmitContributionScreen')}>
+          <TouchableOpacity style={s.payBtn} activeOpacity={0.88} onPress={() => goToPayment()}>
             <MaterialCommunityIcons name="cash-multiple" size={22} color="#FFF" />
             <Text style={s.payBtnText}>Pay Now</Text>
           </TouchableOpacity>
@@ -500,7 +558,7 @@ export default function MemberDashboardScreen({ navigation }: any) {
                 À payer avant le {dueDay} {nextMonth.toLocaleDateString('fr-FR', { month: 'short' })}
               </Text>
             </View>
-            <Text style={s.nextAmount}>{(group.monthly_amount ?? 0).toLocaleString('fr-FR')} CDF</Text>
+            <Text style={s.nextAmount}>{monthlyAmount.toLocaleString('fr-FR')} CDF</Text>
           </View>
         )}
 
