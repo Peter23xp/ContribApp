@@ -27,11 +27,15 @@ async function getAuthToken(): Promise<string> {
     });
   });
 
-  if (!user) throw new Error('NOT_AUTHENTICATED');
+  if (!user) {
+    throw new Error('FIREBASE_SESSION_REQUIRED');
+  }
 
   // 2. Forcer le refresh du token JWT (évite les tokens expirés après 1 heure)
   const token = await user.getIdToken(true);
-  if (!token) throw new Error('NOT_AUTHENTICATED');
+  if (!token) {
+    throw new Error('FIREBASE_SESSION_REQUIRED');
+  }
 
   return token;
 }
@@ -54,6 +58,10 @@ async function getPresignedUrl(
   contentType: string,
   category: FileCategory
 ): Promise<{ uploadUrl: string; publicUrl: string; key: string }> {
+  if (!CLOUDFLARE_CONFIG.workerUrl) {
+    throw new Error('CLOUDFLARE_WORKER_URL_MISSING');
+  }
+
   // Utiliser le helper robuste (onAuthStateChanged + refresh forcé)
   const token = await getAuthToken();
 
@@ -107,6 +115,10 @@ export async function uploadFile(
     category
   );
 
+  if (!uploadUrl || !publicUrl) {
+    throw new Error('INVALID_PRESIGN_RESPONSE');
+  }
+
   // Upload direct vers R2 (PUT avec le fichier en body)
   const uploadResponse = await FileSystem.uploadAsync(uploadUrl, localUri, {
     httpMethod: 'PUT',
@@ -114,7 +126,9 @@ export async function uploadFile(
     uploadType: 1, // FileSystemUploadType.BINARY_CONTENT = 1
   });
 
-  if (uploadResponse.status !== 200) throw new Error('UPLOAD_FAILED');
+  if (uploadResponse.status !== 200) {
+    throw new Error(`UPLOAD_FAILED (${uploadResponse.status})`);
+  }
 
   return { url: publicUrl, key };
 }

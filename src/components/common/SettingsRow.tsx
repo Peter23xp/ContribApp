@@ -10,7 +10,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
-import { Colors, Fonts } from '../../constants/colors';
+import { Colors, Fonts, Radius } from '../../constants/colors';
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -46,6 +46,9 @@ export function SettingsRow({
         disabled={disabled}
         activeOpacity={0.6}
       >
+        <View style={s.destructiveIconWrap}>
+          <Ionicons name="log-out-outline" size={18} color={Colors.error} />
+        </View>
         <Text style={s.labelDestructive}>{label}</Text>
         <View style={s.separator} />
       </TouchableOpacity>
@@ -57,19 +60,23 @@ export function SettingsRow({
     return (
       <View style={[s.row, disabled && s.rowDisabled]}>
         {icon && (
-          <Ionicons
-            name={icon}
-            size={22}
-            color={disabled ? Colors.textMuted : Colors.onSurfaceVariant}
-            style={s.icon}
-          />
+          <View style={s.iconWrap}>
+            <Ionicons
+              name={icon}
+              size={19}
+              color={disabled ? Colors.textMuted : Colors.primary}
+              style={s.icon}
+            />
+          </View>
         )}
         <View style={s.textWrap}>
           <Text style={s.label}>{label}</Text>
           {subtitle && <Text style={s.subtitle}>{subtitle}</Text>}
         </View>
         {value && (
-          <Text style={s.valueText}>{String(value)}</Text>
+          <View style={s.valuePill}>
+            <Text style={s.valueText}>{String(value)}</Text>
+          </View>
         )}
         <View style={s.separator} />
       </View>
@@ -81,12 +88,14 @@ export function SettingsRow({
     return (
       <View style={[s.row, disabled && s.rowDisabled]}>
         {icon && (
-          <Ionicons
-            name={icon}
-            size={22}
-            color={disabled ? Colors.textMuted : Colors.onSurfaceVariant}
-            style={s.icon}
-          />
+          <View style={s.iconWrap}>
+            <Ionicons
+              name={icon}
+              size={19}
+              color={disabled ? Colors.textMuted : Colors.primary}
+              style={s.icon}
+            />
+          </View>
         )}
         <View style={s.textWrap}>
           <Text style={s.label}>{label}</Text>
@@ -114,22 +123,26 @@ export function SettingsRow({
       activeOpacity={0.6}
     >
       {icon && (
-        <Ionicons
-          name={icon}
-          size={22}
-          color={disabled ? Colors.textMuted : Colors.onSurfaceVariant}
-          style={s.icon}
-        />
+        <View style={s.iconWrap}>
+          <Ionicons
+            name={icon}
+            size={19}
+            color={disabled ? Colors.textMuted : Colors.primary}
+            style={s.icon}
+          />
+        </View>
       )}
       <View style={s.textWrap}>
         <Text style={s.label}>{label}</Text>
         {subtitle && <Text style={s.subtitle}>{subtitle}</Text>}
       </View>
-      <Ionicons
-        name="chevron-forward"
-        size={20}
-        color={Colors.textMuted}
-      />
+      <View style={s.chevronWrap}>
+        <Ionicons
+          name="chevron-forward"
+          size={18}
+          color={Colors.textMuted}
+        />
+      </View>
       <View style={s.separator} />
     </TouchableOpacity>
   );
@@ -141,10 +154,10 @@ const s = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 14,
+    paddingVertical: 15,
     paddingHorizontal: 16,
     backgroundColor: Colors.surfaceContainerLowest,
-    minHeight: 56,
+    minHeight: 64,
     gap: 12,
   },
   rowDisabled: { opacity: 0.4 },
@@ -153,13 +166,21 @@ const s = StyleSheet.create({
     paddingVertical: 16,
   },
 
+  iconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.surfaceContainerLow,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   icon: {
-    width: 24,
+    width: 19,
   },
 
   textWrap: {
     flex: 1,
-    gap: 3,
+    gap: 4,
   },
   label: {
     fontFamily: Fonts.headline,
@@ -178,18 +199,41 @@ const s = StyleSheet.create({
     fontSize: 15,
     color: Colors.error,
     textAlign: 'center',
+    flex: 1,
   },
 
+  destructiveIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.errorContainer,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  valuePill: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.surfaceContainerLow,
+  },
   valueText: {
-    fontFamily: Fonts.body,
-    fontSize: 14,
-    color: Colors.textMuted,
+    fontFamily: Fonts.title,
+    fontSize: 12,
+    color: Colors.textSecondary,
+  },
+  chevronWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.surfaceContainerLow,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 
   separator: {
     position: 'absolute',
     bottom: 0,
-    left: 16,
+    left: 72,
     right: 0,
     height: StyleSheet.hairlineWidth,
     backgroundColor: Colors.outlineVariant + '50',

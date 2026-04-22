@@ -142,9 +142,11 @@ export async function register(payload: RegisterPayload): Promise<void> {
 export async function verifyOTP(
   phone: string,
   otpCode: string,
-  isResetPhase = false
+  context: 'register' | 'reset_pin' | 'session_reauth' = 'register'
 ): Promise<AuthResponse> {
   let uid: string;
+  const isResetPhase = context === 'reset_pin';
+  const isSessionReauth = context === 'session_reauth';
 
   try {
     if (_pendingConfirmation) {
@@ -177,6 +179,24 @@ export async function verifyOTP(
       uid, fullName: d.full_name, phone: d.phone,
       operator: d.operator, role: d.role || 'member',
       groupId: d.active_group_id,
+    };
+  }
+
+  // Re-auth Firebase session after PIN login
+  if (isSessionReauth) {
+    const userDoc = await getDoc(doc(db, 'users', uid));
+    if (!userDoc.exists()) throw new Error('USER_NOT_FOUND');
+    const d = userDoc.data();
+    _pendingConfirmation = null;
+    _verificationId = null;
+    return {
+      uid,
+      fullName: d.full_name,
+      phone: d.phone,
+      operator: d.operator,
+      role: d.role || 'member',
+      groupId: d.active_group_id,
+      profilePhotoUrl: d.profile_photo_url ?? null,
     };
   }
 

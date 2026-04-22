@@ -72,15 +72,18 @@ export default function OTPScreen({ route, navigation }: Props) {
     setHasError(false);
     setError(null);
     try {
-      const isResetPhase = context === 'reset_pin';
-      const response = await authService.verifyOTP(phone, otpCode, isResetPhase);
+      const response = await authService.verifyOTP(phone, otpCode, context);
       
-      if (isResetPhase) {
+      if (context === 'reset_pin') {
         Toast.show({ type: 'success', text1: 'Code vérifié !', text2: 'Choisissez votre nouveau PIN' });
         navigation.replace('SetNewPIN', { phone });
       } else {
         await useAuthStore.getState().hydrateCurrentUserProfile(response.uid);
-        Toast.show({ type: 'success', text1: 'Téléphone vérifié !', text2: 'Bienvenue sur ContribApp' });
+        Toast.show({
+          type: 'success',
+          text1: context === 'session_reauth' ? 'Session Firebase active' : 'Téléphone vérifié !',
+          text2: context === 'session_reauth' ? 'Connexion finalisée sur ContribApp' : 'Bienvenue sur ContribApp',
+        });
       }
     } catch (err: any) {
       setHasError(true);

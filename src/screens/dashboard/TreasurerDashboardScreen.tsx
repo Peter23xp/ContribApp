@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, StyleSheet, ScrollView, RefreshControl,
   TouchableOpacity, Platform, StatusBar, Share,
@@ -52,7 +53,7 @@ export default function TreasurerDashboardScreen({ navigation }: any) {
     if (!group?.id) return;
     const q = query(
       collection(firestoreDb, 'contributions'),
-      where('groupId', '==', group.id),
+      where('group_id', '==', group.id),
       where('status', '==', 'pending_approval')
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -80,6 +81,11 @@ export default function TreasurerDashboardScreen({ navigation }: any) {
   }, [user]);
 
   useEffect(() => { loadData(); }, [loadData]);
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
   const handleRefresh = () => { setRefreshing(true); loadData().then(() => setRefreshing(false)); };
 
   const paidContribs = contributions.filter((c: any) => c.status === 'PAYE');

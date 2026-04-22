@@ -14,7 +14,7 @@ export type AuthStackParamList = {
   Register: undefined;
   OTP: { 
     phone: string; 
-    context: 'register' | 'reset_pin';
+    context: 'register' | 'reset_pin' | 'session_reauth';
   };
   SetNewPIN: {
     phone: string;

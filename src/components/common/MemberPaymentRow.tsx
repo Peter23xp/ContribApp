@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors, Radius } from '../../constants/colors';
 
-type PaymentStatus = 'PAYE' | 'EN_ATTENTE' | 'EN_RETARD' | 'PARTIEL';
+type PaymentStatus = 'PAYE' | 'EN_ATTENTE' | 'EN_RETARD' | 'PARTIEL' | 'EN_VERIFICATION' | 'pending_approval' | 'pending' | 'paid' | 'approved' | 'rejected';
 
 interface Member {
   id: string;
@@ -26,6 +26,12 @@ const STATUS_CONFIG: Record<PaymentStatus, { bg: string; text: string; label: st
   EN_ATTENTE: { bg: Colors.surfaceContainerHigh, text: Colors.onSurfaceVariant, label: 'En attente' },
   EN_RETARD:  { bg: Colors.errorContainer,       text: Colors.error,            label: 'En retard'  },
   PARTIEL:    { bg: Colors.tertiaryContainer,    text: Colors.tertiary,         label: 'Partiel'    },
+  EN_VERIFICATION: { bg: Colors.surfaceContainer, text: Colors.tertiary, label: 'En verification' },
+  pending_approval: { bg: Colors.surfaceContainer, text: Colors.tertiary, label: 'En verification' },
+  pending: { bg: Colors.surfaceContainerHigh, text: Colors.onSurfaceVariant, label: 'En attente' },
+  paid: { bg: Colors.secondaryContainer, text: Colors.secondary, label: 'Paye' },
+  approved: { bg: Colors.secondaryContainer, text: Colors.secondary, label: 'Paye' },
+  rejected: { bg: Colors.errorContainer, text: Colors.error, label: 'Rejetee' },
 };
 
 function Avatar({ name }: { name: string }) {
@@ -38,7 +44,7 @@ function Avatar({ name }: { name: string }) {
 }
 
 export function MemberPaymentRow({ member, onReminderPress, showReminder = false, reminderSent = false }: Props) {
-  const cfg = STATUS_CONFIG[member.paymentStatus];
+  const cfg = STATUS_CONFIG[member.paymentStatus] ?? STATUS_CONFIG.EN_ATTENTE;
   return (
     <View style={styles.row}>
       <Avatar name={member.fullName} />

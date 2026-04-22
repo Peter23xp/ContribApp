@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, StyleSheet, ScrollView, RefreshControl,
   TouchableOpacity, StatusBar, Platform
@@ -58,11 +59,17 @@ export default function AdminDashboardScreen({ navigation }: any) {
   }, [user, storeGroupId]);
 
   useEffect(() => { loadData(); }, [loadData]);
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
   const handleRefresh = () => { setRefreshing(true); loadData().then(() => setRefreshing(false)); };
 
   const paidContribs = contributions.filter(c => c.status === 'PAYE');
   const lateContribs = contributions.filter(c => (c.status === 'EN_ATTENTE' || c.status === 'EN_RETARD'));
-  const totalBalance = group?.collected_amount || paidContribs.reduce((s, c) => s + c.amount, 0);
+  const recomputedBalance = paidContribs.reduce((s, c) => s + Number(c.amount ?? 0), 0);
+  const totalBalance = recomputedBalance > 0 ? recomputedBalance : Number(group?.collected_amount ?? 0);
   const currency = group?.currency || 'CDF';
   const dueDate = group ? new Date(new Date().getFullYear(), new Date().getMonth(), group.payment_deadline_day ?? 25) : null;
 

@@ -144,6 +144,8 @@ export function ApprovalQueueScreen({ navigation }: any) {
   const pendingCount = grouped.pending.length;
   const approvedCount = grouped.approved.length;
   const rejectedCount = grouped.rejected.length;
+  const totalDetected = grouped.pending.reduce((sum, item) => sum + Number(item.detectedAmount ?? 0), 0);
+  const totalApproved = grouped.approved.reduce((sum, item) => sum + Number(item.amountPaid ?? 0), 0);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -219,23 +221,47 @@ export function ApprovalQueueScreen({ navigation }: any) {
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: Math.max(insets.top, 14) }]}>
-        <Text style={styles.headerTitle}>Contributions a valider</Text>
+        <View style={styles.headerTextBlock}>
+          <Text style={styles.headerEyebrow}>Validation des paiements</Text>
+          <Text style={styles.headerTitle}>Contributions a valider</Text>
+          <Text style={styles.headerSubtitle}>
+            Suivez les captures, priorisez les verifications et gardez une vue nette du pipeline.
+          </Text>
+        </View>
+
         <View style={styles.badgeCount}>
+          <Text style={styles.badgeLabel}>En attente</Text>
           <Text style={styles.badgeText}>{pendingCount}</Text>
         </View>
       </View>
 
       <OfflineBanner />
 
+      <View style={styles.summaryRow}>
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryLabel}>Flux a traiter</Text>
+          <Text style={styles.summaryValue}>{pendingCount}</Text>
+          <Text style={styles.summaryHint}>{totalDetected.toLocaleString('fr-FR')} CDF detectes</Text>
+        </View>
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryLabel}>Approuve ce mois</Text>
+          <Text style={styles.summaryValue}>{approvedCount}</Text>
+          <Text style={styles.summaryHint}>{totalApproved.toLocaleString('fr-FR')} CDF valides</Text>
+        </View>
+      </View>
+
       <View style={styles.tabsRow}>
         <TouchableOpacity style={[styles.tab, activeTab === 'pending' && styles.tabActive]} onPress={() => setActiveTab('pending')}>
-          <Text style={[styles.tabText, activeTab === 'pending' && styles.tabTextActive]}>En attente ({pendingCount})</Text>
+          <Text style={[styles.tabText, activeTab === 'pending' && styles.tabTextActive]}>En attente</Text>
+          <Text style={[styles.tabCount, activeTab === 'pending' && styles.tabCountActive]}>{pendingCount}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.tab, activeTab === 'approved' && styles.tabActive]} onPress={() => setActiveTab('approved')}>
-          <Text style={[styles.tabText, activeTab === 'approved' && styles.tabTextActive]}>Approuvees ({approvedCount})</Text>
+          <Text style={[styles.tabText, activeTab === 'approved' && styles.tabTextActive]}>Approuvees</Text>
+          <Text style={[styles.tabCount, activeTab === 'approved' && styles.tabCountActive]}>{approvedCount}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.tab, activeTab === 'rejected' && styles.tabActive]} onPress={() => setActiveTab('rejected')}>
-          <Text style={[styles.tabText, activeTab === 'rejected' && styles.tabTextActive]}>Rejetees ({rejectedCount})</Text>
+          <Text style={[styles.tabText, activeTab === 'rejected' && styles.tabTextActive]}>Rejetees</Text>
+          <Text style={[styles.tabCount, activeTab === 'rejected' && styles.tabCountActive]}>{rejectedCount}</Text>
         </TouchableOpacity>
       </View>
 
@@ -271,51 +297,113 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
   },
   header: {
-    paddingHorizontal: 16,
-    paddingBottom: 14,
+    paddingHorizontal: 18,
+    paddingBottom: 18,
     backgroundColor: Colors.surfaceContainerLowest,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  headerTextBlock: {
+    flex: 1,
+  },
+  headerEyebrow: {
+    fontSize: 11,
+    fontFamily: Fonts.label,
+    color: Colors.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 1.1,
+    marginBottom: 4,
   },
   headerTitle: {
-    fontSize: 22,
-    fontFamily: Fonts.headline,
+    fontSize: 24,
+    fontFamily: Fonts.display,
     color: Colors.onSurface,
+    lineHeight: 30,
+  },
+  headerSubtitle: {
+    marginTop: 6,
+    color: Colors.textSecondary,
+    fontFamily: Fonts.body,
+    lineHeight: 20,
   },
   badgeCount: {
-    marginLeft: 10,
-    minWidth: 26,
-    height: 26,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.error,
+    minWidth: 88,
+    borderRadius: Radius.xl,
+    backgroundColor: '#FFEBEE',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 7,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+  },
+  badgeLabel: {
+    color: Colors.error,
+    fontFamily: Fonts.label,
+    fontSize: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 2,
   },
   badgeText: {
-    color: '#FFFFFF',
-    fontFamily: Fonts.headline,
+    color: Colors.error,
+    fontFamily: Fonts.display,
+    fontSize: 20,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 16,
+    marginTop: 14,
+    marginBottom: 12,
+  },
+  summaryCard: {
+    flex: 1,
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderRadius: Radius.xl,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Shadow.card,
+  },
+  summaryLabel: {
+    color: Colors.textMuted,
+    fontFamily: Fonts.label,
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 6,
+  },
+  summaryValue: {
+    color: Colors.onSurface,
+    fontFamily: Fonts.display,
+    fontSize: 24,
+    marginBottom: 4,
+  },
+  summaryHint: {
+    color: Colors.textSecondary,
+    fontFamily: Fonts.body,
     fontSize: 12,
   },
   tabsRow: {
     flexDirection: 'row',
-    backgroundColor: Colors.surfaceContainerLowest,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    marginTop: 12,
+    backgroundColor: Colors.surfaceContainerLow,
+    borderRadius: Radius.full,
+    marginHorizontal: 16,
+    marginBottom: 10,
+    padding: 4,
   },
   tab: {
     flex: 1,
-    paddingVertical: 14,
+    paddingVertical: 12,
     alignItems: 'center',
-    borderBottomWidth: 3,
-    borderBottomColor: 'transparent',
+    borderRadius: Radius.full,
   },
   tabActive: {
-    borderBottomColor: Colors.primary,
+    backgroundColor: Colors.surfaceContainerLowest,
+    ...Shadow.card,
   },
   tabText: {
     color: Colors.textSecondary,
@@ -323,6 +411,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   tabTextActive: {
+    color: Colors.primary,
+  },
+  tabCount: {
+    marginTop: 3,
+    color: Colors.textMuted,
+    fontFamily: Fonts.title,
+    fontSize: 12,
+  },
+  tabCountActive: {
     color: Colors.primary,
   },
   loaderWrap: {
@@ -352,8 +449,8 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: Colors.surfaceContainerLowest,
-    borderRadius: Radius.xl,
-    padding: 14,
+    borderRadius: Radius.xxl,
+    padding: 16,
     marginBottom: 12,
     borderWidth: 1,
     borderColor: Colors.border,
@@ -368,7 +465,7 @@ const styles = StyleSheet.create({
   },
   memberName: {
     fontFamily: Fonts.headline,
-    fontSize: 16,
+    fontSize: 17,
     color: Colors.onSurface,
   },
   periodText: {
@@ -414,9 +511,9 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.body,
   },
   thumbnail: {
-    width: 60,
-    height: 60,
-    borderRadius: Radius.lg,
+    width: 72,
+    height: 72,
+    borderRadius: Radius.xl,
     marginLeft: 12,
     backgroundColor: Colors.surfaceContainerHigh,
   },

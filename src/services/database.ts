@@ -304,24 +304,48 @@ export const getRecentPaymentsForMember = async (userId: string, limitCount = 3)
 
 
 export const getRecentPaymentsForGroup = async (groupId: string, limitCount = 5): Promise<any[]> => {
-  const q = query(
-    collection(db, 'contributions'),
-    where('group_id', '==', groupId),
-    where('status', '==', 'PAYE'),
-    orderBy('paid_at', 'desc'),
-    firestoreLimit(limitCount)
-  );
-  const snap = await getDocs(q);
+  const [snapNew, snapLegacy] = await Promise.all([
+    getDocs(
+      query(
+        collection(db, 'contributions'),
+        where('group_id', '==', groupId),
+        where('status', 'in', ['paid', 'approved']),
+        orderBy('approved_at', 'desc'),
+        firestoreLimit(limitCount)
+      )
+    ).catch(() => ({ docs: [] as any[] })),
+    getDocs(
+      query(
+        collection(db, 'contributions'),
+        where('group_id', '==', groupId),
+        where('status', '==', 'PAYE'),
+        orderBy('paid_at', 'desc'),
+        firestoreLimit(limitCount)
+      )
+    ).catch(() => ({ docs: [] as any[] })),
+  ]);
+
+  const docsById = new Map<string, any>();
+  for (const d of [...snapNew.docs, ...snapLegacy.docs]) {
+    docsById.set(d.id, d);
+  }
+
   const results: any[] = [];
-  for (const d of snap.docs) {
+  for (const d of Array.from(docsById.values()).slice(0, limitCount)) {
     const data = d.data();
-    const userDoc = await getDoc(doc(db, 'users', data.user_id));
+    const userId = data.member_uid ?? data.user_id ?? data.userId;
+    const userDoc = userId ? await getDoc(doc(db, 'users', userId)) : null;
     results.push({
       id: d.id,
       ...data,
-      full_name: userDoc.exists() ? userDoc.data()?.full_name : '?',
+      user_id: userId ?? '',
+      amount: data.amount_paid ?? data.amount_due ?? data.amount ?? 0,
+      paid_at: data.approved_at ?? data.paid_at ?? null,
+      status: data.status === 'paid' || data.status === 'approved' ? 'PAYE' : data.status,
+      full_name: userDoc?.exists() ? userDoc.data()?.full_name : '?',
     });
   }
+
   return results;
 };
 

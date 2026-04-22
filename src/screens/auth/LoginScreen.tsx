@@ -21,6 +21,7 @@ import Toast from 'react-native-toast-message';
 import { AppButton } from '../../components/common/AppButton';
 import { AppInput } from '../../components/common/AppInput';
 import { Colors } from '../../constants/colors';
+import { auth } from '../../config/firebase';
 import * as authService from '../../services/authService';
 import { setVerificationId } from '../../services/authService';
 import { useAuthStore } from '../../stores/authStore';
@@ -109,18 +110,35 @@ export default function LoginScreen({ navigation }: Props) {
         phone: '+243' + phone,
         pin,
       });
-      await useAuthStore.getState().setAuthenticatedUser({
-        user: {
-          id: response.uid,
-          full_name: response.fullName,
-          phone: response.phone,
-          operator: response.operator,
-          profile_photo_url: response.profilePhotoUrl ?? null,
-        },
-        role: response.role,
-        groupId: response.groupId ?? null,
-      });
-      await AsyncStorage.setItem('last_phone', phone);
+
+      if (auth.currentUser?.uid === response.uid) {
+        await useAuthStore.getState().setAuthenticatedUser({
+          user: {
+            id: response.uid,
+            full_name: response.fullName,
+            phone: response.phone,
+            operator: response.operator,
+            profile_photo_url: response.profilePhotoUrl ?? null,
+          },
+          role: response.role,
+          groupId: response.groupId ?? null,
+        });
+        await AsyncStorage.setItem('last_phone', phone);
+      } else {
+        if (!recaptchaRef.current) {
+          throw new Error('Recaptcha non initialisé. Impossible d’ouvrir la session Firebase.');
+        }
+
+        const verificationId = await recaptchaRef.current.sendVerification('+243' + phone);
+        setVerificationId(verificationId);
+        await AsyncStorage.setItem('last_phone', phone);
+        Toast.show({
+          type: 'info',
+          text1: 'PIN valide',
+          text2: 'Entrez le code OTP pour finaliser la session Firebase.',
+        });
+        navigation.navigate('OTP', { phone: '+243' + phone, context: 'session_reauth' });
+      }
       // authStore se met à jour automatiquement via onAuthStateChanged
     } catch (err: any) {
       setPin('');
@@ -136,6 +154,8 @@ export default function LoginScreen({ navigation }: Props) {
         setError('Trop de tentatives. Patientez.');
       } else if (msg === 'USER_NOT_FOUND') {
         setError('Numéro non trouvé. Vérifiez ou inscrivez-vous.');
+      } else if (msg.includes('Recaptcha')) {
+        setError(msg);
       } else {
         setError(msg || 'Une erreur est survenue. Réessayez.');
       }

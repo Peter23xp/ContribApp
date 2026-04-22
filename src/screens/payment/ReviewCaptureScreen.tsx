@@ -246,7 +246,10 @@ export function ReviewCaptureScreen({ route, navigation }: any) {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerIconButton}>
           <Ionicons name="arrow-back" size={22} color={Colors.onSurface} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Verification de contribution</Text>
+        <View style={styles.headerTextBlock}>
+          <Text style={styles.headerEyebrow}>Revue de paiement</Text>
+          <Text style={styles.headerTitle}>Verification de contribution</Text>
+        </View>
         <View
           style={[
             styles.statusBadge,
@@ -264,6 +267,17 @@ export function ReviewCaptureScreen({ route, navigation }: any) {
       </View>
 
       <ScrollView contentContainerStyle={[styles.scrollContent, !readOnly && { paddingBottom: 180 }]}>
+        <View style={styles.summaryPanel}>
+          <View style={styles.summaryMetric}>
+            <Text style={styles.summaryLabel}>Montant attendu</Text>
+            <Text style={styles.summaryValue}>{contribution.amountDue.toLocaleString('fr-FR')} CDF</Text>
+          </View>
+          <View style={styles.summaryMetric}>
+            <Text style={styles.summaryLabel}>Confiance IA</Text>
+            <Text style={[styles.summaryValue, { color: confidenceColor }]}>{confidence}%</Text>
+          </View>
+        </View>
+
         <View style={styles.section}>
           <Text style={styles.sectionEyebrow}>Membre</Text>
           <Text style={styles.memberTitle}>{contribution.memberName}</Text>
@@ -431,7 +445,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingBottom: 14,
+    paddingBottom: 18,
     backgroundColor: Colors.surfaceContainerLowest,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
@@ -442,13 +456,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerTitle: {
+  headerTextBlock: {
     flex: 1,
-    textAlign: 'center',
-    fontSize: 18,
-    fontFamily: Fonts.headline,
-    color: Colors.onSurface,
     marginHorizontal: 8,
+  },
+  headerEyebrow: {
+    fontSize: 11,
+    fontFamily: Fonts.label,
+    color: Colors.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 3,
+  },
+  headerTitle: {
+    fontSize: 19,
+    fontFamily: Fonts.display,
+    color: Colors.onSurface,
   },
   statusBadge: {
     minWidth: 84,
@@ -474,10 +497,37 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
   },
+  summaryPanel: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+  },
+  summaryMetric: {
+    flex: 1,
+    backgroundColor: Colors.surfaceContainerLowest,
+    padding: 14,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Shadow.card,
+  },
+  summaryLabel: {
+    fontSize: 11,
+    fontFamily: Fonts.label,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    color: Colors.textMuted,
+    marginBottom: 6,
+  },
+  summaryValue: {
+    fontSize: 18,
+    fontFamily: Fonts.headline,
+    color: Colors.onSurface,
+  },
   section: {
     backgroundColor: Colors.surfaceContainerLowest,
-    padding: 16,
-    borderRadius: Radius.xl,
+    padding: 18,
+    borderRadius: Radius.xxl,
     marginBottom: 16,
     borderWidth: 1,
     borderColor: Colors.border,

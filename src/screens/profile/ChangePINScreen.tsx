@@ -1,32 +1,23 @@
-/**
- * ChangePINScreen.tsx — SCR-021 Module 06 (Prompt 3)
- * 
- * Sous-écran de changement de code PIN avec :
- *  - 3 champs PIN (ancien, nouveau, confirmation)
- *  - Validation en temps réel
- *  - Hachage SHA-256 côté client
- *  - Feedback utilisateur
- */
-
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Crypto from 'expo-crypto';
 import React, { useState } from 'react';
 import {
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Animated,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
 import { AppButton, LoadingOverlay, PINInputRow } from '../../components/common';
-import { Colors, Fonts, Radius } from '../../constants/colors';
+import { Colors, Fonts, Radius, Shadow } from '../../constants/colors';
+import { useCollapsibleHeader } from '../../hooks/useCollapsibleHeader';
 import * as userService from '../../services/userService';
-
-// ─── Composant principal ──────────────────────────────────────
 
 export default function ChangePINScreen({ navigation }: any) {
   const [oldPin, setOldPin] = useState('');
@@ -34,19 +25,37 @@ export default function ChangePINScreen({ navigation }: any) {
   const [confirmPin, setConfirmPin] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Erreurs
   const [oldPinError, setOldPinError] = useState<string | null>(null);
   const [newPinError, setNewPinError] = useState<string | null>(null);
   const [confirmPinError, setConfirmPinError] = useState<string | null>(null);
+  const { scrollY, headerHeight, onScroll } = useCollapsibleHeader({
+    expandedHeight: 260,
+    collapsedHeight: 126,
+    collapseDistance: 140,
+  });
 
-  // ── Validation ──
-  const isValid = 
+  const heroContentOpacity = scrollY.interpolate({
+    inputRange: [0, 70, 140],
+    outputRange: [1, 0.4, 0],
+    extrapolate: 'clamp',
+  });
+  const heroContentTranslateY = scrollY.interpolate({
+    inputRange: [0, 140],
+    outputRange: [0, -18],
+    extrapolate: 'clamp',
+  });
+  const heroIconScale = scrollY.interpolate({
+    inputRange: [0, 140],
+    outputRange: [1, 0.78],
+    extrapolate: 'clamp',
+  });
+
+  const isValid =
     oldPin.length === 4 &&
     newPin.length === 4 &&
     confirmPin.length === 4 &&
     newPin === confirmPin;
 
-  // ── Gestion des changements ──
   const handleOldPinChange = (value: string) => {
     setOldPin(value);
     setOldPinError(null);
@@ -71,55 +80,42 @@ export default function ChangePINScreen({ navigation }: any) {
     }
   };
 
-  // ── Hachage PIN ──
   const hashPIN = async (pin: string): Promise<string> => {
-    return await Crypto.digestStringAsync(
-      Crypto.CryptoDigestAlgorithm.SHA256,
-      pin
-    );
+    return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, pin);
   };
 
-  // ── Changement de PIN ──
   const handleChangePIN = async () => {
     if (!isValid) return;
 
     try {
       setIsLoading(true);
-
-      // Hacher les PINs
       const oldPinHash = await hashPIN(oldPin);
       const newPinHash = await hashPIN(newPin);
 
-      // Appeler l'API
       await userService.updatePIN({
         currentPin: oldPinHash,
         newPin: newPinHash,
       });
 
-      // Succès
       Toast.show({
         type: 'success',
-        text1: 'PIN modifié avec succès',
-        text2: 'Votre nouveau code PIN a été enregistré',
+        text1: 'PIN modifie avec succes',
+        text2: 'Votre nouveau code confidentiel a ete enregistre.',
       });
-
-      // Retour vers ProfileScreen
       navigation.goBack();
     } catch (error: any) {
       console.error('[ChangePINScreen] handleChangePIN error:', error);
 
       if (error.message === 'INVALID_CURRENT_PIN') {
-        // Ancien PIN incorrect
         setOldPinError('Ancien PIN incorrect');
         setOldPin('');
         setNewPin('');
         setConfirmPin('');
       } else {
-        // Erreur réseau ou autre
         Toast.show({
           type: 'error',
           text1: 'Erreur',
-          text2: 'Impossible de modifier le PIN. Réessayez.',
+          text2: 'Impossible de modifier le PIN. Reessayez.',
         });
       }
     } finally {
@@ -129,115 +125,153 @@ export default function ChangePINScreen({ navigation }: any) {
 
   return (
     <View style={s.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={Colors.surface} />
+      <StatusBar barStyle="light-content" backgroundColor={Colors.primary} />
 
-      {/* Header */}
-      <SafeAreaView edges={['top']} style={s.header}>
-        <TouchableOpacity
-          style={s.backButton}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
+      <Animated.View style={[s.heroShell, { height: headerHeight }]}>
+        <LinearGradient
+          colors={[Colors.primary, Colors.primaryContainer, '#0B5E55']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={s.hero}
         >
-          <Ionicons name="arrow-back" size={24} color={Colors.onSurface} />
-        </TouchableOpacity>
-        <Text style={s.headerTitle}>Modifier mon PIN</Text>
-        <View style={{ width: 40 }} />
-      </SafeAreaView>
+          <SafeAreaView edges={['top']} style={s.header}>
+            <TouchableOpacity style={s.backButton} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+              <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
+            </TouchableOpacity>
+            <Text style={s.headerTitle}>Modifier mon PIN</Text>
+            <View style={{ width: 40 }} />
+          </SafeAreaView>
 
-      {/* Contenu */}
-      <ScrollView
+          <Animated.View
+            style={[
+              s.heroContent,
+              {
+                opacity: heroContentOpacity,
+                transform: [{ translateY: heroContentTranslateY }],
+              },
+            ]}
+          >
+            <Animated.View style={[s.heroIconWrap, { transform: [{ scale: heroIconScale }] }]}>
+              <Ionicons name="shield-checkmark-outline" size={28} color="#FFFFFF" />
+            </Animated.View>
+            <Text style={s.heroTitle}>Renforcez la securite de votre compte</Text>
+            <Text style={s.heroSubtitle}>
+              Mettez a jour votre code confidentiel avec un parcours simple, clair et plus securise.
+            </Text>
+          </Animated.View>
+        </LinearGradient>
+      </Animated.View>
+
+      <Animated.ScrollView
         style={s.scrollView}
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        onScroll={onScroll}
+        scrollEventThrottle={16}
       >
-        {/* Instructions */}
+        <View style={s.summaryCard}>
+          <View style={s.summaryMetric}>
+            <Text style={s.summaryLabel}>Format</Text>
+            <Text style={s.summaryValue}>4 chiffres</Text>
+          </View>
+          <View style={s.summaryMetric}>
+            <Text style={s.summaryLabel}>Validation</Text>
+            <Text style={s.summaryValue}>{isValid ? 'Prete' : 'En attente'}</Text>
+          </View>
+          <View style={s.summaryMetric}>
+            <Text style={s.summaryLabel}>Protection</Text>
+            <Text style={s.summaryValue}>Chiffree</Text>
+          </View>
+        </View>
+
         <View style={s.instructionsBox}>
-          <Ionicons name="information-circle" size={24} color={Colors.tertiary} />
+          <Ionicons name="information-circle" size={22} color={Colors.tertiary} />
           <Text style={s.instructionsText}>
-            Votre code PIN doit contenir exactement 4 chiffres. Assurez-vous de le mémoriser.
+            Votre code PIN doit contenir exactement 4 chiffres. Choisissez une combinaison memorisable mais difficile a deviner.
           </Text>
         </View>
 
-        {/* Champs PIN */}
-        <View style={s.form}>
-          <PINInputRow
-            label="Ancien PIN"
-            value={oldPin}
-            onChange={handleOldPinChange}
-            error={oldPinError}
-            showToggle
-          />
+        <View style={s.formCard}>
+          <Text style={s.formTitle}>Modifier mon code confidentiel</Text>
+          <View style={s.form}>
+            <PINInputRow
+              label="Ancien PIN"
+              value={oldPin}
+              onChange={handleOldPinChange}
+              error={oldPinError}
+              showToggle
+            />
 
-          <PINInputRow
-            label="Nouveau PIN"
-            value={newPin}
-            onChange={handleNewPinChange}
-            error={newPinError}
-            showToggle
-          />
+            <PINInputRow
+              label="Nouveau PIN"
+              value={newPin}
+              onChange={handleNewPinChange}
+              error={newPinError}
+              showToggle
+            />
 
-          <PINInputRow
-            label="Confirmer le nouveau PIN"
-            value={confirmPin}
-            onChange={handleConfirmPinChange}
-            error={confirmPinError}
-            showToggle
-          />
+            <PINInputRow
+              label="Confirmer le nouveau PIN"
+              value={confirmPin}
+              onChange={handleConfirmPinChange}
+              error={confirmPinError}
+              showToggle
+            />
+          </View>
         </View>
 
-        {/* Conseils de sécurité */}
         <View style={s.tipsBox}>
-          <Text style={s.tipsTitle}>Conseils de sécurité</Text>
+          <Text style={s.tipsTitle}>Conseils de securite</Text>
           <View style={s.tipRow}>
             <Ionicons name="checkmark-circle" size={16} color={Colors.secondary} />
-            <Text style={s.tipText}>N'utilisez pas de dates de naissance</Text>
+            <Text style={s.tipText}>N'utilisez pas de dates de naissance.</Text>
           </View>
           <View style={s.tipRow}>
             <Ionicons name="checkmark-circle" size={16} color={Colors.secondary} />
-            <Text style={s.tipText}>Évitez les séquences simples (1234)</Text>
+            <Text style={s.tipText}>Evitez les sequences simples comme 1234.</Text>
           </View>
           <View style={s.tipRow}>
             <Ionicons name="checkmark-circle" size={16} color={Colors.secondary} />
-            <Text style={s.tipText}>Ne partagez jamais votre PIN</Text>
+            <Text style={s.tipText}>Ne partagez jamais votre PIN avec un tiers.</Text>
           </View>
         </View>
 
-        {/* Bouton */}
         <AppButton
           title="Changer mon PIN"
           onPress={handleChangePIN}
           disabled={!isValid || isLoading}
           loading={isLoading}
           loadingText="Modification..."
-          style={{ marginTop: 32 }}
+          style={{ marginTop: 28 }}
         />
-      </ScrollView>
+      </Animated.ScrollView>
 
-      {/* Loading overlay */}
-      {isLoading && <LoadingOverlay />}
+      {isLoading ? <LoadingOverlay /> : null}
     </View>
   );
 }
-
-// ─── Styles ───────────────────────────────────────────────────
 
 const s = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.surface,
   },
-
-  // Header
+  heroShell: {
+    overflow: 'hidden',
+    borderBottomLeftRadius: Radius.xxl,
+    borderBottomRightRadius: Radius.xxl,
+  },
+  hero: {
+    flex: 1,
+    paddingBottom: 30,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: Colors.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.outlineVariant + '50',
   },
   backButton: {
     width: 40,
@@ -248,26 +282,86 @@ const s = StyleSheet.create({
   headerTitle: {
     fontFamily: Fonts.headline,
     fontSize: 18,
-    color: Colors.onSurface,
+    color: '#FFFFFF',
   },
-
-  // Contenu
+  heroContent: {
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 8,
+  },
+  heroIconWrap: {
+    width: 58,
+    height: 58,
+    borderRadius: Radius.full,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  heroTitle: {
+    fontFamily: Fonts.display,
+    fontSize: 24,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  heroSubtitle: {
+    fontFamily: Fonts.body,
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.78)',
+    textAlign: 'center',
+    lineHeight: 19,
+  },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     padding: 20,
+    paddingTop: 18,
+    paddingBottom: 34,
   },
-
-  // Instructions
+  summaryCard: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: -38,
+    marginBottom: 20,
+    padding: 14,
+    borderRadius: Radius.xxl,
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant + '40',
+    ...Shadow.card,
+  },
+  summaryMetric: {
+    flex: 1,
+    backgroundColor: Colors.surfaceContainerLow,
+    borderRadius: Radius.lg,
+    padding: 12,
+  },
+  summaryLabel: {
+    fontFamily: Fonts.label,
+    fontSize: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    color: Colors.textMuted,
+    marginBottom: 4,
+  },
+  summaryValue: {
+    fontFamily: Fonts.headline,
+    fontSize: 13,
+    color: Colors.onSurface,
+  },
   instructionsBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
-    backgroundColor: Colors.tertiaryContainer + '30',
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant + '45',
     padding: 16,
-    borderRadius: Radius.lg,
-    marginBottom: 24,
+    borderRadius: Radius.xl,
+    marginBottom: 20,
+    ...Shadow.card,
   },
   instructionsText: {
     flex: 1,
@@ -276,22 +370,35 @@ const s = StyleSheet.create({
     color: Colors.onSurface,
     lineHeight: 20,
   },
-
-  // Formulaire
+  formCard: {
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderRadius: Radius.xxl,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant + '45',
+    ...Shadow.card,
+  },
+  formTitle: {
+    fontFamily: Fonts.headline,
+    fontSize: 16,
+    color: Colors.onSurface,
+    marginBottom: 10,
+  },
   form: {
     gap: 8,
   },
-
-  // Conseils
   tipsBox: {
-    marginTop: 24,
-    padding: 16,
-    backgroundColor: Colors.surfaceContainerLow,
-    borderRadius: Radius.lg,
+    marginTop: 20,
+    padding: 18,
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant + '45',
+    ...Shadow.card,
   },
   tipsTitle: {
     fontFamily: Fonts.headline,
-    fontSize: 15,
+    fontSize: 16,
     color: Colors.onSurface,
     marginBottom: 12,
   },

@@ -238,7 +238,25 @@ export function SubmitContributionScreen({ route, navigation }: any) {
       captureImageUrl = uploadResult.url;
       captureImagePath = fileName;
     } catch (uploadError: any) {
-      console.warn('[SubmitContribution] upload skipped:', uploadError?.message ?? uploadError);
+      const uploadMessage = uploadError?.message ?? String(uploadError);
+      console.warn('[SubmitContribution] upload skipped:', uploadMessage);
+
+      if (uploadMessage.includes('FIREBASE_SESSION_REQUIRED')) {
+        Alert.alert(
+          'Session Firebase requise',
+          "L'image ne peut pas etre envoyee vers R2 car cette connexion par PIN n'a pas cree de session Firebase active."
+        );
+      } else if (uploadMessage.includes('CLOUDFLARE_WORKER_URL_MISSING')) {
+        Alert.alert(
+          'Configuration Cloudflare incomplete',
+          "L'URL du Worker Cloudflare est absente de l'environnement charge par l'application."
+        );
+      } else if (uploadMessage.includes('PRESIGN_FAILED')) {
+        Alert.alert(
+          'Signature R2 refusee',
+          "Le Worker Cloudflare a refuse de signer l'upload. Verifiez le token Firebase, l'URL du Worker et la reponse du Worker."
+        );
+      }
     }
 
     try {
@@ -309,7 +327,10 @@ export function SubmitContributionScreen({ route, navigation }: any) {
           <TouchableOpacity onPress={() => navigation.goBack()}>
             <Ionicons name="arrow-back" size={24} color={Colors.onSurface} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Soumettre ma contribution</Text>
+          <View style={styles.headerTextBlock}>
+            <Text style={styles.headerEyebrow}>Paiement membre</Text>
+            <Text style={styles.headerTitle}>Soumettre ma contribution</Text>
+          </View>
           <View style={styles.headerSpacer} />
         </View>
 
@@ -332,7 +353,10 @@ export function SubmitContributionScreen({ route, navigation }: any) {
           <TouchableOpacity onPress={() => navigation.goBack()}>
             <Ionicons name="arrow-back" size={24} color={Colors.onSurface} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Soumettre ma contribution</Text>
+          <View style={styles.headerTextBlock}>
+            <Text style={styles.headerEyebrow}>Paiement membre</Text>
+            <Text style={styles.headerTitle}>Soumettre ma contribution</Text>
+          </View>
           <View style={styles.headerSpacer} />
         </View>
 
@@ -357,13 +381,31 @@ export function SubmitContributionScreen({ route, navigation }: any) {
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color={Colors.onSurface} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Soumettre ma contribution</Text>
+        <View style={styles.headerTextBlock}>
+          <Text style={styles.headerEyebrow}>Paiement membre</Text>
+          <Text style={styles.headerTitle}>Soumettre ma contribution</Text>
+        </View>
         <View style={styles.headerSpacer} />
       </View>
 
       <PaymentStepIndicator currentStep={currentStep as 1 | 2 | 3} steps={['Instructions', 'Capture', 'Envoi']} />
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.heroCard}>
+          <View style={styles.heroMetric}>
+            <Text style={styles.heroMetricLabel}>Montant</Text>
+            <Text style={styles.heroMetricValue}>{amount.toLocaleString('fr-FR')} CDF</Text>
+          </View>
+          <View style={styles.heroMetric}>
+            <Text style={styles.heroMetricLabel}>Periode</Text>
+            <Text style={styles.heroMetricValue}>{periodMonth}</Text>
+          </View>
+          <View style={styles.heroMetric}>
+            <Text style={styles.heroMetricLabel}>Operateur</Text>
+            <Text style={styles.heroMetricValue}>{operatorTreasurer.toUpperCase()}</Text>
+          </View>
+        </View>
+
         {currentStep === 1 ? (
           <View>
             <View style={styles.sectionIntro}>
@@ -557,11 +599,21 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
     borderBottomWidth: 1,
   },
-  headerTitle: {
+  headerTextBlock: {
     flex: 1,
-    textAlign: 'center',
+    marginHorizontal: 10,
+  },
+  headerEyebrow: {
+    fontSize: 11,
+    fontFamily: Fonts.label,
+    color: Colors.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 2,
+  },
+  headerTitle: {
     fontSize: 18,
-    fontFamily: Fonts.headline,
+    fontFamily: Fonts.display,
     color: Colors.onSurface,
   },
   headerSpacer: {
@@ -570,6 +622,36 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingBottom: 40,
+  },
+  heroCard: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 18,
+    padding: 14,
+    borderRadius: Radius.xxl,
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant + '45',
+    ...Shadow.card,
+  },
+  heroMetric: {
+    flex: 1,
+    backgroundColor: Colors.surfaceContainerLow,
+    borderRadius: Radius.lg,
+    padding: 12,
+  },
+  heroMetricLabel: {
+    fontSize: 10,
+    fontFamily: Fonts.label,
+    color: Colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 6,
+  },
+  heroMetricValue: {
+    fontSize: 13,
+    fontFamily: Fonts.headline,
+    color: Colors.onSurface,
   },
   sectionIntro: {
     marginBottom: 16,

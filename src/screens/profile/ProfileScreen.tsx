@@ -13,10 +13,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import * as ImagePicker from 'expo-image-picker';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as Notifications from 'expo-notifications';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
+    Animated,
     ActionSheetIOS,
     Alert,
     Image,
@@ -35,6 +37,7 @@ import Toast from 'react-native-toast-message';
 
 import { AppInput, LoadingOverlay, OperatorSelector, SettingsRow } from '../../components/common';
 import { Colors, Fonts, Radius, Shadow } from '../../constants/colors';
+import { useCollapsibleHeader } from '../../hooks/useCollapsibleHeader';
 import type { MobileOperator } from '../../services/authService';
 import type { UserProfile } from '../../services/userService';
 import * as userService from '../../services/userService';
@@ -59,6 +62,42 @@ export default function ProfileScreen({ navigation }: any) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
+  const { scrollY, headerHeight, onScroll } = useCollapsibleHeader({
+    expandedHeight: 400,
+    collapsedHeight: 176,
+    collapseDistance: 190,
+  });
+
+  const identityScale = scrollY.interpolate({
+    inputRange: [0, 190],
+    outputRange: [1, 0.82],
+    extrapolate: 'clamp',
+  });
+  const avatarScale = scrollY.interpolate({
+    inputRange: [0, 190],
+    outputRange: [1, 0.7],
+    extrapolate: 'clamp',
+  });
+  const subtitleOpacity = scrollY.interpolate({
+    inputRange: [0, 70, 150],
+    outputRange: [1, 0.45, 0],
+    extrapolate: 'clamp',
+  });
+  const headerMetaOpacity = scrollY.interpolate({
+    inputRange: [0, 90, 190],
+    outputRange: [1, 0.65, 0.15],
+    extrapolate: 'clamp',
+  });
+  const statsOpacity = scrollY.interpolate({
+    inputRange: [0, 70, 150],
+    outputRange: [1, 0.35, 0],
+    extrapolate: 'clamp',
+  });
+  const statsTranslateY = scrollY.interpolate({
+    inputRange: [0, 190],
+    outputRange: [0, -16],
+    extrapolate: 'clamp',
+  });
 
   // BottomSheets states
   const [showNameModal, setShowNameModal] = useState(false);
@@ -498,57 +537,123 @@ export default function ProfileScreen({ navigation }: any) {
       <StatusBar barStyle="light-content" backgroundColor={Colors.primary} />
       
       {/* Header visuel */}
-      <View style={s.header}>
-        <SafeAreaView edges={['top']} style={s.headerContent}>
-          {/* Avatar */}
-          <View style={s.avatarContainer}>
-            {profile.avatar ? (
-              <Image source={{ uri: profile.avatar }} style={s.avatarImage} />
-            ) : (
-              <View style={s.avatarPlaceholder}>
-                <Text style={s.avatarInitials}>
-                  {profile.fullName
-                    .split(' ')
-                    .map(n => n[0])
-                    .slice(0, 2)
-                    .join('')
-                    .toUpperCase()}
+      <Animated.View style={[s.headerShell, { height: headerHeight }]}>
+        <LinearGradient
+          colors={[Colors.primary, Colors.primaryContainer, '#0B5E55']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={s.header}
+        >
+          <View style={s.headerGlowLeft} />
+          <View style={s.headerGlowRight} />
+          <SafeAreaView edges={['top']} style={s.headerContent}>
+            <Animated.View style={[s.headerEyebrowRow, { opacity: headerMetaOpacity }]}>
+              <Text style={s.headerEyebrow}>Espace personnel</Text>
+              <View style={s.headerPill}>
+                <Ionicons name="shield-checkmark-outline" size={14} color="#D7FFF5" />
+                <Text style={s.headerPillText}>Compte actif</Text>
+              </View>
+            </Animated.View>
+
+            <Animated.View style={[s.headerIdentity, { transform: [{ scale: identityScale }] }]}>
+              <Animated.View style={[s.avatarContainer, { transform: [{ scale: avatarScale }] }]}>
+                {profile.avatar ? (
+                  <Image source={{ uri: profile.avatar }} style={s.avatarImage} />
+                ) : (
+                  <View style={s.avatarPlaceholder}>
+                    <Text style={s.avatarInitials}>
+                      {profile.fullName
+                        .split(' ')
+                        .map(n => n[0])
+                        .slice(0, 2)
+                        .join('')
+                        .toUpperCase()}
+                    </Text>
+                  </View>
+                )}
+                
+                <TouchableOpacity
+                  style={s.cameraButton}
+                  onPress={handlePhotoPress}
+                  activeOpacity={0.8}
+                  disabled={isUpdating}
+                >
+                  <Ionicons name="camera" size={16} color={Colors.onSurfaceVariant} />
+                </TouchableOpacity>
+              </Animated.View>
+
+              <Text style={s.headerName}>{profile.fullName}</Text>
+              <Animated.Text style={[s.headerSubtitle, { opacity: subtitleOpacity }]}>
+                Gerez vos reglages, votre securite et vos preferences depuis un seul espace.
+              </Animated.Text>
+
+              <View style={[s.roleBadge, { backgroundColor: roleConfig.bg }]}>
+                <Text style={[s.roleBadgeText, { color: roleConfig.color }]}>
+                  {roleConfig.label}
                 </Text>
               </View>
-            )}
-            
-            {/* Bouton appareil photo */}
-            <TouchableOpacity
-              style={s.cameraButton}
-              onPress={handlePhotoPress}
-              activeOpacity={0.8}
-              disabled={isUpdating}
+
+              <Animated.Text style={[s.headerPhone, { opacity: headerMetaOpacity }]}>
+                {profile.phone}
+              </Animated.Text>
+            </Animated.View>
+
+            <Animated.View
+              style={[
+                s.heroStatsRow,
+                {
+                  opacity: statsOpacity,
+                  transform: [{ translateY: statsTranslateY }],
+                },
+              ]}
             >
-              <Ionicons name="camera" size={16} color={Colors.onSurfaceVariant} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Nom */}
-          <Text style={s.headerName}>{profile.fullName}</Text>
-
-          {/* Badge rôle */}
-          <View style={[s.roleBadge, { backgroundColor: roleConfig.bg }]}>
-            <Text style={[s.roleBadgeText, { color: roleConfig.color }]}>
-              {roleConfig.label}
-            </Text>
-          </View>
-
-          {/* Téléphone */}
-          <Text style={s.headerPhone}>{profile.phone}</Text>
-        </SafeAreaView>
-      </View>
+              <View style={s.heroStatCard}>
+                <Text style={s.heroStatLabel}>Operateur</Text>
+                <Text style={s.heroStatValue}>{profile.operator.toUpperCase()}</Text>
+              </View>
+              <View style={s.heroStatCard}>
+                <Text style={s.heroStatLabel}>Securite</Text>
+                <Text style={s.heroStatValue}>{profile.biometricEnabled ? 'Biometrie active' : 'PIN actif'}</Text>
+              </View>
+            </Animated.View>
+          </SafeAreaView>
+        </LinearGradient>
+      </Animated.View>
 
       {/* Contenu scrollable */}
-      <ScrollView
+      <Animated.ScrollView
         style={s.scrollView}
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
       >
+        <View style={s.highlightCard}>
+          <View style={s.highlightHeader}>
+            <View>
+              <Text style={s.highlightEyebrow}>Resume du compte</Text>
+              <Text style={s.highlightTitle}>Votre espace est pret pour les operations sensibles.</Text>
+            </View>
+            <View style={s.highlightBadge}>
+              <Text style={s.highlightBadgeText}>{profile.preferences.currency}</Text>
+            </View>
+          </View>
+          <View style={s.highlightMetrics}>
+            <View style={s.highlightMetric}>
+              <Text style={s.highlightMetricLabel}>Notifications</Text>
+              <Text style={s.highlightMetricValue}>{profile.preferences.pushEnabled ? 'Activees' : 'Desactivees'}</Text>
+            </View>
+            <View style={s.highlightMetric}>
+              <Text style={s.highlightMetricLabel}>Langue</Text>
+              <Text style={s.highlightMetricValue}>{profile.preferences.language === 'fr' ? 'Francais' : 'English'}</Text>
+            </View>
+            <View style={s.highlightMetric}>
+              <Text style={s.highlightMetricLabel}>Rapports</Text>
+              <Text style={s.highlightMetricValue}>{profile.preferences.monthlyReport ? 'Actifs' : 'Manuels'}</Text>
+            </View>
+          </View>
+        </View>
+
         {/* Section : Mon Profil */}
         <View style={s.section}>
           <Text style={s.sectionTitle}>Mon Profil</Text>
@@ -725,7 +830,7 @@ export default function ProfileScreen({ navigation }: any) {
             />
           </View>
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
 
       {/* Overlay de mise à jour */}
       {isUpdating && <LoadingOverlay />}
@@ -907,42 +1012,94 @@ const s = StyleSheet.create({
   },
 
   // Header visuel
-  header: {
-    backgroundColor: Colors.primary,
-    paddingBottom: 28,
+  headerShell: {
+    overflow: 'hidden',
     borderBottomLeftRadius: Radius.xxl,
     borderBottomRightRadius: Radius.xxl,
-    overflow: 'hidden',
+  },
+  header: {
+    flex: 1,
+    paddingBottom: 32,
+  },
+  headerGlowLeft: {
+    position: 'absolute',
+    width: 180,
+    height: 180,
+    borderRadius: 999,
+    backgroundColor: 'rgba(160, 242, 225, 0.14)',
+    top: 40,
+    left: -40,
+  },
+  headerGlowRight: {
+    position: 'absolute',
+    width: 220,
+    height: 220,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    top: -20,
+    right: -70,
   },
   headerContent: {
     alignItems: 'center',
     paddingHorizontal: 20,
   },
+  headerIdentity: {
+    alignItems: 'center',
+  },
+  headerEyebrowRow: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  headerEyebrow: {
+    color: 'rgba(255,255,255,0.76)',
+    fontFamily: Fonts.label,
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+  },
+  headerPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: Radius.full,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+  headerPillText: {
+    color: '#EFFFFB',
+    fontFamily: Fonts.title,
+    fontSize: 12,
+  },
   avatarContainer: {
-    marginTop: 20,
+    marginTop: 12,
     marginBottom: 16,
     position: 'relative',
   },
   avatarImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    borderWidth: 3,
-    borderColor: '#FFF',
+    width: 92,
+    height: 92,
+    borderRadius: 46,
+    borderWidth: 4,
+    borderColor: 'rgba(255,255,255,0.92)',
   },
   avatarPlaceholder: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 92,
+    height: 92,
+    borderRadius: 46,
     backgroundColor: '#004D43',
-    borderWidth: 3,
-    borderColor: '#FFF',
+    borderWidth: 4,
+    borderColor: 'rgba(255,255,255,0.92)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatarInitials: {
     fontFamily: Fonts.display,
-    fontSize: 32,
+    fontSize: 34,
     color: '#FFF',
   },
   cameraButton: {
@@ -959,10 +1116,19 @@ const s = StyleSheet.create({
   },
   headerName: {
     fontFamily: Fonts.display,
-    fontSize: 21,
+    fontSize: 24,
     color: '#FFF',
     marginBottom: 6,
     textAlign: 'center',
+  },
+  headerSubtitle: {
+    fontFamily: Fonts.body,
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.78)',
+    textAlign: 'center',
+    lineHeight: 19,
+    paddingHorizontal: 24,
+    marginBottom: 10,
   },
   roleBadge: {
     paddingHorizontal: 16,
@@ -980,6 +1146,32 @@ const s = StyleSheet.create({
     fontSize: 14,
     color: 'rgba(255, 255, 255, 0.8)',
   },
+  heroStatsRow: {
+    width: '100%',
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 18,
+  },
+  heroStatCard: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: Radius.xl,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+  },
+  heroStatLabel: {
+    fontFamily: Fonts.label,
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: 0.9,
+    color: 'rgba(255,255,255,0.68)',
+    marginBottom: 5,
+  },
+  heroStatValue: {
+    fontFamily: Fonts.headline,
+    fontSize: 13,
+    color: '#FFFFFF',
+  },
 
   // Contenu scrollable
   scrollView: {
@@ -989,23 +1181,90 @@ const s = StyleSheet.create({
     paddingTop: 18,
     paddingBottom: 36,
   },
+  highlightCard: {
+    marginHorizontal: 16,
+    marginTop: -18,
+    marginBottom: 18,
+    padding: 18,
+    borderRadius: Radius.xxl,
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant + '46',
+    ...Shadow.card,
+  },
+  highlightHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+    gap: 12,
+  },
+  highlightEyebrow: {
+    fontFamily: Fonts.label,
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    color: Colors.primary,
+    marginBottom: 4,
+  },
+  highlightTitle: {
+    fontFamily: Fonts.headline,
+    fontSize: 16,
+    lineHeight: 22,
+    color: Colors.onSurface,
+    maxWidth: 240,
+  },
+  highlightBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.primaryFixed + '65',
+  },
+  highlightBadgeText: {
+    fontFamily: Fonts.headline,
+    fontSize: 12,
+    color: Colors.primary,
+  },
+  highlightMetrics: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  highlightMetric: {
+    flex: 1,
+    backgroundColor: Colors.surfaceContainerLow,
+    borderRadius: Radius.lg,
+    padding: 12,
+  },
+  highlightMetricLabel: {
+    fontFamily: Fonts.body,
+    fontSize: 11,
+    color: Colors.textMuted,
+    marginBottom: 4,
+  },
+  highlightMetricValue: {
+    fontFamily: Fonts.headline,
+    fontSize: 13,
+    color: Colors.onSurface,
+  },
 
   // Sections
   section: {
-    marginBottom: 16,
+    marginBottom: 18,
   },
   sectionTitle: {
-    fontFamily: Fonts.headline,
-    fontSize: 16,
-    color: Colors.onSurface,
-    marginBottom: 8,
+    fontFamily: Fonts.label,
+    fontSize: 12,
+    color: Colors.primary,
+    marginBottom: 10,
     paddingHorizontal: 16,
+    textTransform: 'uppercase',
+    letterSpacing: 1.1,
   },
   sectionContent: {
     backgroundColor: Colors.surfaceContainerLowest,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors.outlineVariant + '60',
-    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant + '50',
+    borderRadius: Radius.xxl,
     marginHorizontal: 16,
     overflow: 'hidden',
     ...Shadow.card,
@@ -1023,6 +1282,8 @@ const s = StyleSheet.create({
     borderTopRightRadius: Radius.xxl,
     padding: 24,
     paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    borderTopWidth: 1,
+    borderTopColor: Colors.outlineVariant + '45',
   },
   modalTitle: {
     fontFamily: Fonts.headline,
