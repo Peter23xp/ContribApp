@@ -199,15 +199,25 @@ export function SubmitContributionScreen({ route, navigation }: any) {
     if (!captureImage) return;
 
     setIsSubmitting(true);
-    setLoadingMessage("Upload de la capture en cours...");
+    setLoadingMessage('Upload de la capture en cours...');
 
+    let captureImageUrl: string | undefined;
+    let captureImagePath: string | undefined;
+
+    // ── Upload R2 (optionnel : si indisponible, on continue sans image) ──────
     try {
       const fileName = `${groupId}_${memberUid}_${periodMonth}_${Date.now()}.jpg`;
       const uploadResult = await uploadFile(captureImage.uri, 'receipts' as any, fileName);
-      const urlR2 = uploadResult.url;
+      captureImageUrl  = uploadResult.url;
+      captureImagePath = fileName;
+    } catch (uploadError: any) {
+      console.warn('[SubmitContribution] Upload R2 échoué, on continue sans image :', uploadError?.message ?? uploadError);
+      // On ne bloque pas la soumission — la trésorière sera informée via member_note
+    }
 
-      setLoadingMessage("Enregistrement de la contribution...");
+    setLoadingMessage('Enregistrement de la contribution...');
 
+    try {
       await submitContribution({
         groupId,
         memberUid,
@@ -215,22 +225,50 @@ export function SubmitContributionScreen({ route, navigation }: any) {
         periodMonth,
         amountDue: amount,
         currency: 'CDF',
-        captureImageUrl: urlR2,
-        captureImagePath: fileName,
-        geminiAnalysis: geminiResult || { confidence: 0, warningFlags: ['analyse_echouee'], rawText: '', isPaymentProof: true, amount: null, currency: null, operator: null, transactionRef: null, detectedDate: null, recipientPhone: null, senderPhone: null },
+        captureImageUrl,
+        captureImagePath,
+        memberNote: captureImageUrl
+          ? memberNote
+          : `[Image non uploadée] ${memberNote}`.trim(),
+        geminiAnalysis: geminiResult || {
+          confidence: 0,
+          warningFlags: ['analyse_echouee'],
+          rawText: '',
+          isPaymentProof: true,
+          amount: null,
+          currency: null,
+          operator: null,
+          transactionRef: null,
+          detectedDate: null,
+          recipientPhone: null,
+          senderPhone: null,
+        },
         submittedAt: new Date(),
-        status: 'pending_approval'
+        status: 'pending_approval',
       });
 
-      Alert.alert("Succès", "Capture soumise ! En attente de validation par la trésorière.");
+      Alert.alert(
+        'Succès',
+        captureImageUrl
+          ? 'Capture soumise ! En attente de validation par la trésorière.'
+          : 'Soumission enregistrée (image en attente). La trésorière examinera votre dossier.'
+      );
       navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
-    } catch (error) {
-      Alert.alert("Erreur", "Une erreur est survenue lors de la soumission.");
-      console.log(error);
+    } catch (error: any) {
+      const code = error?.message ?? '';
+      if (code === 'ALREADY_PAID') {
+        Alert.alert('Déjà validée', 'Votre contribution de ce mois a déjà été approuvée.');
+      } else if (code === 'ALREADY_PENDING') {
+        Alert.alert('Déjà soumise', 'Une capture est déjà en cours de vérification pour ce mois.');
+      } else {
+        Alert.alert('Erreur', 'Impossible d\'enregistrer la soumission. Vérifiez votre connexion et réessayez.');
+        console.error('[SubmitContribution] submitCapture error:', code, error);
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
+
 
   if (isInitializing) {
     return <LoadingOverlay />;

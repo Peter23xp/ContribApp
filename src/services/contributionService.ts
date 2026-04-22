@@ -233,14 +233,25 @@ export async function sendGroupRemindAll(groupId: string): Promise<void> {}
 export async function checkAlreadyPaid(
   groupId: string, memberUid: string, month: string
 ): Promise<{ status: string; id: string } | null> {
-  const snap = await getDocs(
-    query(collection(db, 'contributions'),
-      where('group_id', '==', groupId),
-      where('member_uid', '==', memberUid),
-      where('period_month', '==', month))
-  );
-  if (snap.empty) return null;
-  return { status: snap.docs[0].data().status, id: snap.docs[0].id };
+  // Chercher avec les deux noms de champ possibles (nouveau: member_uid, ancien: user_id)
+  const [snapNew, snapLegacy] = await Promise.all([
+    getDocs(
+      query(collection(db, 'contributions'),
+        where('group_id', '==', groupId),
+        where('member_uid', '==', memberUid),
+        where('period_month', '==', month))
+    ),
+    getDocs(
+      query(collection(db, 'contributions'),
+        where('group_id', '==', groupId),
+        where('user_id', '==', memberUid),
+        where('month', '==', month))
+    ),
+  ]);
+
+  const doc = snapNew.docs[0] ?? snapLegacy.docs[0];
+  if (!doc) return null;
+  return { status: doc.data().status, id: doc.id };
 }
 
 // Alias utilisé dans les écrans
@@ -263,8 +274,9 @@ export async function submitContribution(data: ContributionSubmission): Promise<
     amount_due: data.amountDue,
     currency: data.currency,
     status: 'pending_approval',
-    capture_image_url: data.captureImageUrl,
-    capture_uploaded_at: serverTimestamp(),
+    capture_image_url: data.captureImageUrl ?? null,      // null si R2 indisponible
+    capture_image_path: data.captureImagePath ?? null,    // null si R2 indisponible
+    capture_uploaded_at: data.captureImageUrl ? serverTimestamp() : null,
     member_note: data.memberNote ?? null,
     gemini_analysis: data.geminiAnalysis ?? null,
     is_late: false,
