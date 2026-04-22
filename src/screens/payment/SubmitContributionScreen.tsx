@@ -12,7 +12,8 @@ import { AppInput } from '../../components/common/AppInput';
 import { LoadingOverlay } from '../../components/common/LoadingOverlay';
 import { OfflineBanner } from '../../components/common/OfflineBanner';
 import { Ionicons } from '@expo/vector-icons';
-import { db } from '../../config/firebase';
+import { auth, db } from '../../config/firebase';
+import { onAuthStateChanged, User } from 'firebase/auth';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuthStore } from '../../stores/authStore';
@@ -36,6 +37,16 @@ export function SubmitContributionScreen({ route, navigation }: any) {
     treasurerNumber: string;
     operatorTreasurer: string;
   } | null>(null);
+
+  // ── État Auth Firebase (listener temps réel) ─────────────────────────────
+  const [currentUser, setCurrentUser] = useState<User | null>(auth.currentUser);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+    });
+    return unsubscribe; // nettoyage au démontage
+  }, []);
 
   const [status, setStatus] = useState<any | null>(null);
   const [currentStep, setCurrentStep] = useState(1);
@@ -260,6 +271,13 @@ export function SubmitContributionScreen({ route, navigation }: any) {
         Alert.alert('Déjà validée', 'Votre contribution de ce mois a déjà été approuvée.');
       } else if (code === 'ALREADY_PENDING') {
         Alert.alert('Déjà soumise', 'Une capture est déjà en cours de vérification pour ce mois.');
+      } else if (code.startsWith('NOT_AUTHENTICATED')) {
+        Alert.alert(
+          '🔒 Session expirée',
+          'Votre session a expiré. Veuillez vous déconnecter puis vous reconnecter pour soumettre votre contribution.',
+          [{ text: 'OK' }]
+        );
+        console.error('[SubmitContribution] submitCapture error — session expirée :', error);
       } else {
         Alert.alert('Erreur', 'Impossible d\'enregistrer la soumission. Vérifiez votre connexion et réessayez.');
         console.error('[SubmitContribution] submitCapture error:', code, error);
@@ -377,12 +395,21 @@ export function SubmitContributionScreen({ route, navigation }: any) {
               </View>
             )}
 
-            <View style={{ marginTop: 24 }}>
+            {!currentUser && (
+              <View style={styles.authWarningBanner}>
+                <Ionicons name="warning-outline" size={18} color="#7B3F00" />
+                <Text style={styles.authWarningText}>
+                  Session inactive. Reconnectez-vous pour pouvoir soumettre.
+                </Text>
+              </View>
+            )}
+
+            <View style={{ marginTop: 12 }}>
               <AppButton 
                 title="Continuer →" 
                 onPress={() => setCurrentStep(3)} 
                 variant="solid" 
-                disabled={!captureImage || isAnalyzing} 
+                disabled={!captureImage || isAnalyzing || !currentUser} 
               />
               <TouchableOpacity onPress={() => setCurrentStep(1)} style={{ marginTop: 12 }}>
                 <Text style={styles.changeImageText}>← Retour aux instructions</Text>
@@ -424,8 +451,22 @@ export function SubmitContributionScreen({ route, navigation }: any) {
               maxLength={200}
             />
 
-            <View style={{ marginTop: 24 }}>
-              <AppButton title="Soumettre la capture" onPress={submitCapture} variant="solid" />
+            {!currentUser && (
+              <View style={styles.authWarningBanner}>
+                <Ionicons name="warning-outline" size={18} color="#7B3F00" />
+                <Text style={styles.authWarningText}>
+                  Session inactive. Reconnectez-vous pour pouvoir soumettre.
+                </Text>
+              </View>
+            )}
+
+            <View style={{ marginTop: 12 }}>
+              <AppButton
+                title="Soumettre la capture"
+                onPress={submitCapture}
+                variant="solid"
+                disabled={isSubmitting || !currentUser}
+              />
               <TouchableOpacity onPress={() => setCurrentStep(2)} style={{ marginTop: 12 }}>
                 <Text style={styles.changeImageText}>← Modifier la capture</Text>
               </TouchableOpacity>
@@ -476,4 +517,21 @@ const styles = StyleSheet.create({
   
   matchCard: { padding: 12, borderRadius: 8, marginVertical: 12 },
   infoNoteCard: { flexDirection: 'row', backgroundColor: '#BBDEFB', padding: 12, borderRadius: 8, alignItems: 'center', marginBottom: 16 },
+  authWarningBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF3CD',
+    borderWidth: 1,
+    borderColor: '#FFCC80',
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 12,
+    gap: 8,
+  },
+  authWarningText: {
+    flex: 1,
+    color: '#7B3F00',
+    fontSize: 13,
+    fontWeight: '600',
+  },
 });

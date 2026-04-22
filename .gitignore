@@ -45,7 +45,7 @@ app-example
 
 # Variables d'environnement
 .env
-.env.development
 .env.production
+.env.development
 .env.example
 serviceAccountKey.json

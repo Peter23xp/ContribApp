@@ -1,16 +1,40 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { CLOUDFLARE_CONFIG } from '../config/cloudflare';
 import { auth } from '../config/firebase';
+import { User } from 'firebase/auth';
 
 /**
  * SERVICE DE STOCKAGE — Cloudflare R2
- * 
+ *
  * Architecture :
  * App mobile → Cloudflare Worker (génère URL pré-signée) → Upload direct vers R2
- * 
+ *
  * Le Cloudflare Worker vérifie le token Firebase avant de générer l'URL pré-signée.
  * Ainsi, seuls les utilisateurs authentifiés peuvent uploader.
  */
+
+/**
+ * Attend que Firebase Auth ait résolu son état de session (évite la race condition
+ * au démarrage où auth.currentUser est null avant l'hydratation).
+ * Ensuite force le refresh du token JWT pour éviter les tokens expirés (>1h).
+ */
+async function getAuthToken(): Promise<string> {
+  // 1. Attendre la résolution de l'état Auth (onAuthStateChanged wrappé en Promise)
+  const user = await new Promise<User | null>((resolve) => {
+    const unsubscribe = auth.onAuthStateChanged((u) => {
+      unsubscribe();
+      resolve(u);
+    });
+  });
+
+  if (!user) throw new Error('NOT_AUTHENTICATED');
+
+  // 2. Forcer le refresh du token JWT (évite les tokens expirés après 1 heure)
+  const token = await user.getIdToken(true);
+  if (!token) throw new Error('NOT_AUTHENTICATED');
+
+  return token;
+}
 
 // Types de fichiers autorisés
 type FileCategory = 'profile_photos' | 'group_photos' | 'receipts' | 'reports';
@@ -30,8 +54,8 @@ async function getPresignedUrl(
   contentType: string,
   category: FileCategory
 ): Promise<{ uploadUrl: string; publicUrl: string; key: string }> {
-  const token = await auth.currentUser?.getIdToken();
-  if (!token) throw new Error('NOT_AUTHENTICATED');
+  // Utiliser le helper robuste (onAuthStateChanged + refresh forcé)
+  const token = await getAuthToken();
 
   const response = await fetch(`${CLOUDFLARE_CONFIG.workerUrl}/presign`, {
     method: 'POST',
@@ -42,7 +66,10 @@ async function getPresignedUrl(
     body: JSON.stringify({ fileName, contentType, category }),
   });
 
-  if (!response.ok) throw new Error('PRESIGN_FAILED');
+  if (!response.ok) {
+    const errBody = await response.text().catch(() => response.statusText);
+    throw new Error(`PRESIGN_FAILED (${response.status}): ${errBody}`);
+  }
   return response.json();
 }
 
@@ -96,8 +123,7 @@ export async function uploadFile(
  * Supprimer un fichier de R2 (via le Worker)
  */
 export async function deleteFile(key: string): Promise<void> {
-  const token = await auth.currentUser?.getIdToken();
-  if (!token) throw new Error('NOT_AUTHENTICATED');
+  const token = await getAuthToken();
 
   await fetch(`${CLOUDFLARE_CONFIG.workerUrl}/delete`, {
     method: 'DELETE',
