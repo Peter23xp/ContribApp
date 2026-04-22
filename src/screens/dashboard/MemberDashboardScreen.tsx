@@ -1,4 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     Animated,
@@ -16,6 +17,29 @@ import { ProgressBar } from '../../components/common/ProgressBar';
 import { Colors, Fonts, Radius, Shadow } from '../../constants/colors';
 import * as db from '../../services/database';
 import { useAuthStore } from '../../stores/authStore';
+
+function normalizeContributionStatus(status?: string | null) {
+  switch (status) {
+    case 'PAYE':
+    case 'paid':
+    case 'approved':
+      return 'paid';
+    case 'EN_ATTENTE':
+    case 'pending':
+      return 'pending';
+    case 'pending_approval':
+    case 'EN_VERIFICATION':
+      return 'verifying';
+    case 'EN_RETARD':
+    case 'late':
+      return 'late';
+    case 'rejected':
+    case 'REJETEE':
+      return 'rejected';
+    default:
+      return 'none';
+  }
+}
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
 function Avatar({ name, size = 40, bg }: { name: string; size?: number; bg?: string }) {
@@ -236,6 +260,13 @@ export default function MemberDashboardScreen({ navigation }: any) {
     try {
       const g = await db.getGroupForMember(user.id);
       setGroup(g);
+      if (!g) {
+        setContribution(null);
+        setGroupProgress({ paid: 0, total: 0 });
+        setRecentPayments([]);
+        setTopMembers([]);
+        return;
+      }
       if (g) {
         const [c, allC, recent, members] = await Promise.all([
           db.getMemberContribution(user.id, g.id),
@@ -307,9 +338,14 @@ export default function MemberDashboardScreen({ navigation }: any) {
   }, [user]);
 
   useEffect(() => { loadData(); }, [loadData]);
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
 
   useEffect(() => {
-    if (contribution?.status === 'PAYE') {
+    if (normalizeContributionStatus(contribution?.status) === 'paid') {
       Animated.spring(checkAnim, { toValue: 1, useNativeDriver: true, bounciness: 12 }).start();
     }
   }, [contribution?.status]);
@@ -348,6 +384,7 @@ export default function MemberDashboardScreen({ navigation }: any) {
   };
 
   const status = contribution?.status ?? null;
+  const normalizedStatus = normalizeContributionStatus(status);
   const dueDay = group?.payment_deadline_day ?? group?.due_day ?? 25;
   const dueMonthLabel = new Date().toLocaleDateString('fr-FR', { month: 'short' });
   const nextMonth = new Date(); nextMonth.setMonth(nextMonth.getMonth() + 1);
@@ -360,6 +397,18 @@ export default function MemberDashboardScreen({ navigation }: any) {
   const progressBarColor = paidPct >= 0.9 ? Colors.secondary : paidPct >= 0.5 ? Colors.tertiary : Colors.warning;
   const monthlyAmount = group?.contribution_amount ?? group?.monthly_amount ?? 0;
   const totalBalance = groupProgress.paid * monthlyAmount;
+  const statusLabel =
+    normalizedStatus === 'paid'
+      ? 'Payee'
+      : normalizedStatus === 'pending'
+        ? 'En attente'
+        : normalizedStatus === 'verifying'
+          ? 'Verification'
+          : normalizedStatus === 'late'
+            ? 'En retard'
+            : normalizedStatus === 'rejected'
+              ? 'A reprendre'
+              : 'A payer';
 
   // ── EMPTY STATE ────────────────────────────────────────────────────────────
   if (!isLoading && !group) {
@@ -407,7 +456,7 @@ export default function MemberDashboardScreen({ navigation }: any) {
           <Text style={s.balLabel}>TOTAL GROUP BALANCE</Text>
           <View style={s.balRow}>
             <Text style={s.balAmount}>
-              {isLoading ? '—' : totalBalance.toLocaleString('fr-FR', { minimumFractionDigits: 3 })}
+              {isLoading ? '...' : totalBalance.toLocaleString('fr-FR')}
             </Text>
             <Text style={s.balCurrency}> CDF</Text>
           </View>
@@ -418,19 +467,19 @@ export default function MemberDashboardScreen({ navigation }: any) {
               <MaterialCommunityIcons
                 name="check-circle"
                 size={24}
-                color={status === 'PAYE' ? Colors.secondary : status === 'EN_RETARD' ? Colors.error : Colors.warning}
+                color={normalizedStatus === 'paid' ? Colors.secondary : normalizedStatus === 'late' ? Colors.error : Colors.warning}
                 style={{ marginBottom: 12 }}
               />
-              <Text style={s.statusLabel}>YOUR STATUS</Text>
+              <Text style={s.statusLabel}>VOTRE STATUT</Text>
               <Text style={[s.statusValue, {
-                color: status === 'PAYE' ? Colors.secondary : status === 'EN_RETARD' ? Colors.error : Colors.warning
+                color: normalizedStatus === 'paid' ? Colors.secondary : normalizedStatus === 'late' ? Colors.error : Colors.warning
               }]}>
-                {status === 'PAYE' ? 'Paid' : status === 'EN_ATTENTE' ? 'Pending' : status === 'EN_RETARD' ? 'Late' : '—'}
+                {statusLabel}
               </Text>
             </View>
             <View style={s.statusCard}>
               <MaterialCommunityIcons name="calendar-today" size={24} color={Colors.tertiary} style={{ marginBottom: 12 }} />
-              <Text style={s.statusLabel}>NEXT DEADLINE</Text>
+              <Text style={s.statusLabel}>PROCHAINE ECHEANCE</Text>
               <Text style={[s.statusValue, { color: Colors.onSurface }]}>{dueDay} {dueMonthLabel}</Text>
             </View>
           </View>
@@ -439,13 +488,13 @@ export default function MemberDashboardScreen({ navigation }: any) {
         {/* ── HERO CARD selon statut ─────────────────────────────────── */}
         {isLoading ? (
           <View style={[s.skeleton, { height: 180, marginBottom: 24 }]} />
-        ) : status === 'PAYE' || status === 'paid' || status === 'approved' ? (
+        ) : normalizedStatus === 'paid' ? (
           <HeroCardPaid contribution={contribution} checkAnim={checkAnim} />
-        ) : status === 'pending_approval' || status === 'EN_VERIFICATION' ? (
+        ) : normalizedStatus === 'verifying' ? (
           <HeroCardVerification onPay={() => goToPayment()} />
-        ) : status === 'rejected' || status === 'REJETEE' ? (
+        ) : normalizedStatus === 'rejected' ? (
           <HeroCardRejected contribution={contribution} onPay={() => goToPayment()} />
-        ) : status === 'EN_RETARD' ? (
+        ) : normalizedStatus === 'late' ? (
           <HeroCardLate contribution={contribution} onPay={goToPayment} />
         ) : (
           <HeroCardPending contribution={contribution} daysLeft={daysLeft} onPay={() => goToPayment()} />
@@ -481,8 +530,8 @@ export default function MemberDashboardScreen({ navigation }: any) {
         {/* ── Latest Activity ─────────────────────────────────────────── */}
         <View style={s.section}>
           <View style={s.sectionHeader}>
-            <Text style={s.sectionTitle}>Latest Activity</Text>
-            <TouchableOpacity><Text style={s.seeAll}>View All</Text></TouchableOpacity>
+            <Text style={s.sectionTitle}>Activite recente</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Historique')}><Text style={s.seeAll}>Voir tout</Text></TouchableOpacity>
           </View>
           <View style={s.activityContainer}>
             {isLoading ? (
@@ -497,7 +546,7 @@ export default function MemberDashboardScreen({ navigation }: any) {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={s.actName}>{p.full_name ?? user?.full_name ?? '—'}</Text>
-                    <Text style={s.actSub}>Paid full contribution</Text>
+                    <Text style={s.actSub}>Contribution confirmee</Text>
                   </View>
                   <View style={{ alignItems: 'flex-end' }}>
                     <Text style={s.actAmount}>+{Math.round((p.amount ?? 0) / 1000)}k</Text>
@@ -514,11 +563,11 @@ export default function MemberDashboardScreen({ navigation }: any) {
 
         {/* ── Top Members ─────────────────────────────────────────────── */}
         <View style={{ marginBottom: 24 }}>
-          <Text style={[s.sectionTitle, { marginBottom: 16 }]}>Top Members</Text>
+          <Text style={[s.sectionTitle, { marginBottom: 16 }]}>Meilleurs cotisants</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20 }} contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}>
             {topMembers.length === 0 ? (
               <View style={s.memberCard}>
-                <Text style={s.memberName}>Aucune donnée</Text>
+                <Text style={s.memberName}>Aucune donnee</Text>
               </View>
             ) : (
               topMembers.map((member: any, index: number) => (
@@ -545,7 +594,7 @@ export default function MemberDashboardScreen({ navigation }: any) {
         </View>
 
         {/* ── Prochaine échéance (masqué si EN_RETARD) ─────────────── */}
-        {group && status !== 'EN_RETARD' && (
+        {group && normalizedStatus !== 'late' && (
           <View style={s.nextCard}>
             <View style={s.nextCardIcon}>
               <MaterialCommunityIcons name="calendar-month-outline" size={22} color={Colors.primary} />
@@ -565,7 +614,7 @@ export default function MemberDashboardScreen({ navigation }: any) {
         {/* Rejoindre un groupe si QUAND MÊME pas de groupe */}
         <TouchableOpacity style={s.joinGroupBtn} onPress={() => setShowJoinModal(true)}>
           <MaterialCommunityIcons name="account-group" size={18} color={Colors.primary} />
-          <Text style={s.joinGroupBtnText}>Rejoindre un autre groupe</Text>
+          <Text style={s.joinGroupBtnText}>Entrer un autre code</Text>
         </TouchableOpacity>
 
         <View style={{ height: 12 }} />

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform, ActivityIndicator } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { useFocusEffect } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuthStore } from '../stores/authStore';
 import { Colors, Fonts, Radius } from '../constants/colors';
@@ -51,12 +52,32 @@ function HomeDashboard({ navigation, route }: any) {
 function ContributionsTab(props: any) {
   const role = useAuthStore(s => s.role);
   const user = useAuthStore(s => s.user);
+  const groupId = useAuthStore(s => s.groupId);
   const [hasGroup, setHasGroup] = useState<boolean | null>(null);
-  
-  useEffect(() => {
-    if (role !== 'member' || !user) { setHasGroup(true); return; }
+
+  const refreshMembership = React.useCallback(() => {
+    if (role !== 'member' || !user) {
+      setHasGroup(true);
+      return;
+    }
+
+    if (groupId) {
+      setHasGroup(true);
+      return;
+    }
+
     db.getGroupForMember(user.id).then(g => setHasGroup(!!g));
-  }, [user, role]);
+  }, [groupId, role, user]);
+
+  useEffect(() => {
+    refreshMembership();
+  }, [refreshMembership]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      refreshMembership();
+    }, [refreshMembership])
+  );
 
   if (role === 'admin')     return <AdminPaymentTrackingScreen {...props} />;
   // SCR-009-B : Trésorière → File d'approbation (actif)
@@ -73,12 +94,32 @@ function ContributionsTab(props: any) {
 function GroupTab(props: any) {
   const role = useAuthStore(s => s.role);
   const user = useAuthStore(s => s.user);
+  const groupId = useAuthStore(s => s.groupId);
   const [hasGroup, setHasGroup] = useState<boolean | null>(null);
 
-  useEffect(() => {
-    if (role !== 'member' || !user) { setHasGroup(true); return; }
+  const refreshMembership = React.useCallback(() => {
+    if (role !== 'member' || !user) {
+      setHasGroup(true);
+      return;
+    }
+
+    if (groupId) {
+      setHasGroup(true);
+      return;
+    }
+
     db.getGroupForMember(user.id).then(g => setHasGroup(!!g));
-  }, [user, role]);
+  }, [groupId, role, user]);
+
+  useEffect(() => {
+    refreshMembership();
+  }, [refreshMembership]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      refreshMembership();
+    }, [refreshMembership])
+  );
 
   if (hasGroup === null) return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.surface }}><ActivityIndicator color={Colors.primary} /></View>;
   if (!hasGroup) return <NoGroupPlaceholder navigation={props.navigation} title="Aucun groupe" />;
@@ -88,10 +129,10 @@ function GroupTab(props: any) {
 
 // ─── Tab items config ──────────────────────────────────────────────────────────
 const TAB_ITEMS = [
-  { name: 'Accueil',  label: 'Dashboard',      icon: 'view-grid',          iconActive: 'view-grid'        },
-  { name: 'Payer',    label: 'Contributions',  icon: 'cash-multiple',      iconActive: 'cash-multiple'    },
-  { name: 'Groupe',   label: 'Members',        icon: 'account-group-outline', iconActive: 'account-group' },
-  { name: 'Profil',   label: 'Profil',         icon: 'account-circle-outline',  iconActive: 'account-circle' },
+  { name: 'Accueil',  label: 'Accueil',      icon: 'view-grid',             iconActive: 'view-grid'        },
+  { name: 'Payer',    label: 'Cotisations',  icon: 'cash-multiple',         iconActive: 'cash-multiple'    },
+  { name: 'Groupe',   label: 'Membres',      icon: 'account-group-outline', iconActive: 'account-group'    },
+  { name: 'Profil',   label: 'Profil',       icon: 'account-circle-outline', iconActive: 'account-circle'  },
 ] as const;
 
 // ─── Custom Tab Bar ────────────────────────────────────────────────────────────

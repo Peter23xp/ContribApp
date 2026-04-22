@@ -1,5 +1,8 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { Colors, Fonts, Radius, Shadow } from '../../constants/colors';
 
 interface ApprovalActionBarProps {
   onApprove: () => void;
@@ -16,40 +19,30 @@ export function ApprovalActionBar({
   isLoading,
   geminiConfidence,
 }: ApprovalActionBarProps) {
-  
+  const insets = useSafeAreaInsets();
   const showWarning = geminiConfidence < 60;
 
   return (
-    <View style={styles.container}>
-      {showWarning && (
+    <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+      {showWarning ? (
         <View style={styles.warningBanner}>
-          <Text style={styles.warningText}>⚠ Confiance IA faible — vérifiez manuellement la capture avant d'approuver</Text>
+          <Text style={styles.warningText}>
+            Confiance IA faible. Verifiez la capture manuellement avant d'approuver.
+          </Text>
         </View>
-      )}
-      
+      ) : null}
+
       <View style={styles.actionRow}>
-        <TouchableOpacity 
-          style={[styles.button, styles.rejectButton]} 
-          onPress={onReject}
-          disabled={isLoading}
-        >
-          {isLoading ? <ActivityIndicator color="#F44336" /> : <Text style={styles.rejectText}>✗ Rejeter</Text>}
+        <TouchableOpacity style={[styles.button, styles.rejectButton]} onPress={onReject} disabled={isLoading} activeOpacity={0.85}>
+          {isLoading ? <ActivityIndicator color={Colors.error} /> : <Text style={styles.rejectText}>Rejeter</Text>}
         </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={[styles.button, styles.infoButton]} 
-          onPress={onRequestInfo}
-          disabled={isLoading}
-        >
-          {isLoading ? <ActivityIndicator color="#666666" /> : <Text style={styles.infoText}>? Info</Text>}
+        <TouchableOpacity style={[styles.button, styles.infoButton]} onPress={onRequestInfo} disabled={isLoading} activeOpacity={0.85}>
+          {isLoading ? <ActivityIndicator color={Colors.textSecondary} /> : <Text style={styles.infoText}>Demander info</Text>}
         </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={[styles.button, styles.approveButton]} 
-          onPress={onApprove}
-          disabled={isLoading}
-        >
-          {isLoading ? <ActivityIndicator color="#ffffff" /> : <Text style={styles.approveText}>✓ Approuver</Text>}
+        <TouchableOpacity style={[styles.button, styles.approveButton]} onPress={onApprove} disabled={isLoading} activeOpacity={0.85}>
+          {isLoading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.approveText}>Approuver</Text>}
         </TouchableOpacity>
       </View>
     </View>
@@ -62,69 +55,67 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#ffffff',
+    backgroundColor: Colors.surfaceContainerLowest,
     borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 10,
-    paddingBottom: 20, // To account for safe area
+    borderTopColor: Colors.border,
+    paddingTop: 10,
+    paddingHorizontal: 12,
+    ...Shadow.card,
   },
   warningBanner: {
     backgroundColor: '#FFF3E0',
-    padding: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#FFE0B2',
+    borderRadius: Radius.lg,
+    marginBottom: 10,
   },
   warningText: {
     color: '#E65100',
     fontSize: 12,
-    fontWeight: 'bold',
+    fontFamily: Fonts.headline,
     textAlign: 'center',
+    lineHeight: 18,
   },
   actionRow: {
     flexDirection: 'row',
-    padding: 12,
     gap: 8,
   },
   button: {
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingVertical: 13,
+    borderRadius: Radius.lg,
   },
   rejectButton: {
     flex: 1,
     borderWidth: 1,
-    borderColor: '#F44336',
-    backgroundColor: 'transparent',
+    borderColor: Colors.error,
+    backgroundColor: Colors.surfaceContainerLowest,
   },
   rejectText: {
-    color: '#F44336',
-    fontWeight: 'bold',
+    color: Colors.error,
+    fontFamily: Fonts.headline,
     fontSize: 14,
   },
   infoButton: {
-    flex: 1,
+    flex: 1.2,
     borderWidth: 1,
-    borderColor: '#9E9E9E',
-    backgroundColor: 'transparent',
+    borderColor: Colors.border,
+    backgroundColor: Colors.surfaceContainerLow,
   },
   infoText: {
-    color: '#616161',
-    fontWeight: 'bold',
+    color: Colors.textSecondary,
+    fontFamily: Fonts.headline,
     fontSize: 14,
   },
   approveButton: {
-    flex: 2,
-    backgroundColor: '#4CAF50',
+    flex: 1.4,
+    backgroundColor: Colors.primary,
   },
   approveText: {
-    color: '#ffffff',
-    fontWeight: 'bold',
-    fontSize: 16,
-  }
+    color: '#FFFFFF',
+    fontFamily: Fonts.headline,
+    fontSize: 15,
+  },
 });

@@ -8,7 +8,7 @@ import {
   where, orderBy, limit, startAfter, serverTimestamp, onSnapshot,
   runTransaction, Timestamp, getCountFromServer,
 } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { auth, db } from '../config/firebase';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -59,6 +59,24 @@ export interface ReceiptDetail {
 
 export interface PdfUrlResponse {
   downloadUrl: string;
+}
+
+function normalizeContributionStatus(status?: string | null): string {
+  const normalized = (status ?? '').toString().trim().toLowerCase();
+
+  if (['paid', 'paye', 'paye_partiel', 'payé', 'approuve', 'approuvée', 'approved'].includes(normalized)) {
+    return 'paid';
+  }
+
+  if (['pending_approval', 'pending', 'en_attente', 'en attente', 'submitted'].includes(normalized)) {
+    return 'pending_approval';
+  }
+
+  if (['rejected', 'rejete', 'rejetee', 'échoué', 'echec', 'failed'].includes(normalized)) {
+    return 'rejected';
+  }
+
+  return normalized;
 }
 
 export async function fetchReceiptPdfUrl(txId: string): Promise<PdfUrlResponse> {
@@ -251,7 +269,7 @@ export async function checkAlreadyPaid(
 
   const doc = snapNew.docs[0] ?? snapLegacy.docs[0];
   if (!doc) return null;
-  return { status: doc.data().status, id: doc.id };
+  return { status: normalizeContributionStatus(doc.data().status), id: doc.id };
 }
 
 // Alias utilisé dans les écrans
@@ -307,43 +325,51 @@ export async function submitContribution(data: ContributionSubmission): Promise<
 
 export async function approveContribution(approval: ContributionApproval): Promise<void> {
   const contribRef = doc(db, 'contributions', approval.contributionId);
+  const snapBeforeUpdate = await getDoc(contribRef);
+  if (!snapBeforeUpdate.exists()) throw new Error('CONTRIBUTION_NOT_FOUND');
 
-  await runTransaction(db, async (tx) => {
-    const snap = await tx.get(contribRef);
-    if (!snap.exists()) throw new Error('CONTRIBUTION_NOT_FOUND');
-    const cd = snap.data();
+  const contributionData = snapBeforeUpdate.data();
+  const groupId = contributionData.group_id ?? contributionData.groupId ?? '';
 
-    tx.update(contribRef, {
-      status: 'paid',
-      amount_paid: approval.amountPaid,
-      approved_by: approval.approvedBy,
-      approved_at: serverTimestamp(),
-      treasurer_notes: approval.treasurerNotes ?? null,
-      updated_at: serverTimestamp(),
-    });
-
-    // Incrémenter le solde du groupe
-    const groupRef = doc(db, 'groups', cd.group_id);
-    const groupSnap = await tx.get(groupRef);
-    if (groupSnap.exists()) {
-      const current = groupSnap.data().collected_amount || 0;
-      tx.update(groupRef, { collected_amount: current + approval.amountPaid, updated_at: serverTimestamp() });
-    }
+  await updateDoc(contribRef, {
+    status: 'paid',
+    amount_paid: approval.amountPaid,
+    approved_by: approval.approvedBy,
+    approved_at: serverTimestamp(),
+    treasurer_notes: approval.treasurerNotes ?? null,
+    updated_at: serverTimestamp(),
   });
 
-  // Notifier le membre
+  if (groupId && auth.currentUser?.uid) {
+    const groupRef = doc(db, 'groups', groupId);
+    const groupSnap = await getDoc(groupRef);
+    if (groupSnap.exists() && groupSnap.data().admin_uid === auth.currentUser.uid) {
+      const current = groupSnap.data().collected_amount || 0;
+      await updateDoc(groupRef, {
+        collected_amount: current + approval.amountPaid,
+        updated_at: serverTimestamp(),
+      });
+    }
+  }
+
   const snap = await getDoc(contribRef);
   if (snap.exists()) {
     const cd = snap.data();
-    await addDoc(collection(db, 'notifications'), {
-      recipient_uid: cd.member_uid,
-      type: 'payment_confirmed',
-      title: '✅ Contribution validée !',
-      body: `Votre paiement de ${approval.amountPaid.toLocaleString('fr-FR')} ${cd.currency} a été approuvé.`,
-      data: { contribution_id: approval.contributionId, group_id: cd.group_id, month: cd.period_month },
-      is_read: false,
-      created_at: serverTimestamp(),
-    });
+    const memberUid = cd.member_uid ?? cd.memberUid ?? cd.user_id ?? cd.userId ?? '';
+    const notifiedGroupId = cd.group_id ?? cd.groupId ?? '';
+    const periodMonth = cd.period_month ?? cd.periodMonth ?? cd.month ?? '';
+
+    if (memberUid) {
+      await addDoc(collection(db, 'notifications'), {
+        recipient_uid: memberUid,
+        type: 'payment_confirmed',
+        title: 'Contribution validee',
+        body: `Votre paiement de ${approval.amountPaid.toLocaleString('fr-FR')} ${cd.currency} a ete approuve.`,
+        data: { contribution_id: approval.contributionId, group_id: notifiedGroupId, month: periodMonth },
+        is_read: false,
+        created_at: serverTimestamp(),
+      });
+    }
   }
 }
 
@@ -361,12 +387,14 @@ export async function rejectContribution(contributionId: string, reason: string,
   const snap = await getDoc(contribRef);
   if (snap.exists()) {
     const cd = snap.data();
+    const rejectRecipient = cd.member_uid ?? cd.memberUid ?? cd.user_id ?? cd.userId ?? '';
+    if (!rejectRecipient) return;
     await addDoc(collection(db, 'notifications'), {
-      recipient_uid: cd.member_uid,
+      recipient_uid: rejectRecipient,
       type: 'payment_rejected',
       title: '❌ Contribution rejetée',
       body: `Raison : ${reason}`,
-      data: { contribution_id: contributionId, group_id: cd.group_id, month: cd.period_month },
+      data: { contribution_id: contributionId, group_id: cd.group_id ?? cd.groupId ?? '', month: cd.period_month ?? cd.periodMonth ?? cd.month ?? '' },
       is_read: false,
       created_at: serverTimestamp(),
     });

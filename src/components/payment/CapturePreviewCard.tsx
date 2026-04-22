@@ -15,6 +15,7 @@ export function CapturePreviewCard({
   isAnalyzing,
   status,
 }: CapturePreviewCardProps) {
+  const hasImage = !!imageUrl;
   
   const getStatusBadge = () => {
     switch (status) {
@@ -47,11 +48,17 @@ export function CapturePreviewCard({
   return (
     <View style={styles.container}>
       <View style={styles.imageContainer}>
-        <Image 
-          source={{ uri: imageUrl }} 
-          style={styles.image} 
-          resizeMode="cover" 
-        />
+        {hasImage ? (
+          <Image
+            source={{ uri: imageUrl }}
+            style={styles.image}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={styles.emptyImageState}>
+            <Text style={styles.emptyImageText}>Aucune capture disponible</Text>
+          </View>
+        )}
         
         {getStatusBadge()}
 
@@ -126,6 +133,21 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 12,
     borderTopRightRadius: 12,
     // if no resultCard below, also round bottom
+  },
+  emptyImageState: {
+    width: '100%',
+    height: '100%',
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    backgroundColor: '#F5F5F5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  emptyImageText: {
+    color: '#666',
+    fontWeight: '600',
+    textAlign: 'center',
   },
   overlay: {
     position: 'absolute',
