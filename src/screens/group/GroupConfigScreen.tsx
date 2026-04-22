@@ -500,9 +500,10 @@ const s = StyleSheet.create({
   
   header: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingHorizontal: 16, paddingTop: Platform.OS === 'ios' ? 56 : 40, paddingBottom: 14,
+    paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 52 : 36, paddingBottom: 12,
     backgroundColor: Colors.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.outlineVariant + '40',
+    shadowColor: Colors.onSurface, shadowOpacity: 0.05, shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 }, elevation: 2,
   },
   backBtn: {
     width: 36, height: 36, borderRadius: Radius.full,

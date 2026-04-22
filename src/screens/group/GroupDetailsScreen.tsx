@@ -370,9 +370,10 @@ const s = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     backgroundColor: Colors.surface,
     paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 52 : 36, paddingBottom: 12,
-    ...Shadow.card, elevation: 2, zIndex: 10,
+    shadowColor: Colors.onSurface, shadowOpacity: 0.05, shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 }, elevation: 2, zIndex: 10,
   },
-  topBarTitle: { fontFamily: Fonts.display, fontSize: 20, color: Colors.primary },
+  topBarTitle: { fontFamily: Fonts.display, fontSize: 20, color: Colors.onSurface },
   editBtnIcon: { padding: 8, backgroundColor: Colors.surfaceContainerHigh, borderRadius: Radius.full },
 
   // Hero Card Profile

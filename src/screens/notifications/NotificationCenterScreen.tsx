@@ -15,6 +15,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     Alert,
     FlatList,
+    Platform,
     RefreshControl,
     StatusBar,
     StyleSheet,
@@ -388,16 +389,14 @@ export default function NotificationCenterScreen({ navigation }: any) {
     <View style={s.container}>
       <StatusBar barStyle="dark-content" backgroundColor={Colors.surface} />
 
-      {/* Header */}
-      <SafeAreaView edges={['top']} style={s.header}>
-        <TouchableOpacity
-          style={s.backButton}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="arrow-back" size={24} color={Colors.onSurface} />
-        </TouchableOpacity>
-        <Text style={s.headerTitle}>Notifications</Text>
+      {/* ── Top App Bar ── */}
+      <View style={s.topBar}>
+        <View style={s.topBarLeft}>
+          <TouchableOpacity style={s.topBarBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+            <Ionicons name="arrow-back" size={22} color={Colors.onSurface} />
+          </TouchableOpacity>
+          <Text style={s.topBarTitle}>Notifications</Text>
+        </View>
         {unreadCount > 0 && (
           <TouchableOpacity
             style={s.markAllButton}
@@ -407,8 +406,7 @@ export default function NotificationCenterScreen({ navigation }: any) {
             <Text style={s.markAllButtonText}>Tout lire</Text>
           </TouchableOpacity>
         )}
-        {unreadCount === 0 && <View style={{ width: 80 }} />}
-      </SafeAreaView>
+      </View>
 
       {/* Filtres */}
       <View style={s.filtersContainer}>
@@ -471,28 +469,17 @@ const s = StyleSheet.create({
     backgroundColor: Colors.surface,
   },
 
-  // Header
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: Colors.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.outlineVariant + '50',
+  // ── Top App Bar (référence AdminDashboard) ──
+  topBar: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: Colors.surface, paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 52 : 36, paddingBottom: 12,
+    shadowColor: Colors.onSurface, shadowOpacity: 0.05, shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 }, elevation: 2,
   },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontFamily: Fonts.headline,
-    fontSize: 18,
-    color: Colors.onSurface,
-  },
+  topBarLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  topBarTitle: { fontFamily: Fonts.display, fontSize: 20, color: Colors.onSurface },
+  topBarBtn: { padding: 8, borderRadius: Radius.full },
   markAllButton: {
     paddingHorizontal: 12,
     paddingVertical: 8,

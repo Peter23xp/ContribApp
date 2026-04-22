@@ -4,8 +4,10 @@ import {
   Dimensions,
   FlatList,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -241,8 +243,12 @@ export default function ReportsScreen({ route, navigation }: any) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Rapports financiers</Text>
+      <StatusBar barStyle="dark-content" backgroundColor={Colors.surface} />
+      <View style={styles.topBar}>
+        <View style={styles.topBarLeft}>
+          <MaterialCommunityIcons name="bank" size={22} color="#004d40" />
+          <Text style={styles.topBarTitle}>Rapports</Text>
+        </View>
       </View>
 
       {isOffline && (
@@ -485,8 +491,15 @@ export default function ReportsScreen({ route, navigation }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.surface },
-  header: { paddingHorizontal: 16, paddingTop: 42, paddingBottom: 10 },
-  headerTitle: { fontFamily: Fonts.headline, fontSize: 22, color: Colors.onSurface },
+  topBar: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: Colors.surface, paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 52 : 36, paddingBottom: 12,
+    shadowColor: Colors.onSurface, shadowOpacity: 0.05, shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 }, elevation: 2,
+  },
+  topBarLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  topBarTitle: { fontFamily: Fonts.display, fontSize: 20, color: '#004d40' },
   offlineBanner: {
     marginHorizontal: 16,
     marginBottom: 8,

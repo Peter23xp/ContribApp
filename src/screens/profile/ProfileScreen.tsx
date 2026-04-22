@@ -13,12 +13,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import * as ImagePicker from 'expo-image-picker';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as Notifications from 'expo-notifications';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-    Animated,
     ActionSheetIOS,
     Alert,
     Image,
@@ -32,12 +30,10 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
 import { AppInput, LoadingOverlay, OperatorSelector, SettingsRow } from '../../components/common';
 import { Colors, Fonts, Radius, Shadow } from '../../constants/colors';
-import { useCollapsibleHeader } from '../../hooks/useCollapsibleHeader';
 import type { MobileOperator } from '../../services/authService';
 import type { UserProfile } from '../../services/userService';
 import * as userService from '../../services/userService';
@@ -62,42 +58,7 @@ export default function ProfileScreen({ navigation }: any) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
-  const { scrollY, headerHeight, onScroll } = useCollapsibleHeader({
-    expandedHeight: 400,
-    collapsedHeight: 176,
-    collapseDistance: 190,
-  });
 
-  const identityScale = scrollY.interpolate({
-    inputRange: [0, 190],
-    outputRange: [1, 0.82],
-    extrapolate: 'clamp',
-  });
-  const avatarScale = scrollY.interpolate({
-    inputRange: [0, 190],
-    outputRange: [1, 0.7],
-    extrapolate: 'clamp',
-  });
-  const subtitleOpacity = scrollY.interpolate({
-    inputRange: [0, 70, 150],
-    outputRange: [1, 0.45, 0],
-    extrapolate: 'clamp',
-  });
-  const headerMetaOpacity = scrollY.interpolate({
-    inputRange: [0, 90, 190],
-    outputRange: [1, 0.65, 0.15],
-    extrapolate: 'clamp',
-  });
-  const statsOpacity = scrollY.interpolate({
-    inputRange: [0, 70, 150],
-    outputRange: [1, 0.35, 0],
-    extrapolate: 'clamp',
-  });
-  const statsTranslateY = scrollY.interpolate({
-    inputRange: [0, 190],
-    outputRange: [0, -16],
-    extrapolate: 'clamp',
-  });
 
   // BottomSheets states
   const [showNameModal, setShowNameModal] = useState(false);
@@ -534,100 +495,55 @@ export default function ProfileScreen({ navigation }: any) {
 
   return (
     <View style={s.container}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.primary} />
-      
-      {/* Header visuel */}
-      <Animated.View style={[s.headerShell, { height: headerHeight }]}>
-        <LinearGradient
-          colors={[Colors.primary, Colors.primaryContainer, '#0B5E55']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={s.header}
-        >
-          <View style={s.headerGlowLeft} />
-          <View style={s.headerGlowRight} />
-          <SafeAreaView edges={['top']} style={s.headerContent}>
-            <Animated.View style={[s.headerEyebrowRow, { opacity: headerMetaOpacity }]}>
-              <Text style={s.headerEyebrow}>Espace personnel</Text>
-              <View style={s.headerPill}>
-                <Ionicons name="shield-checkmark-outline" size={14} color="#D7FFF5" />
-                <Text style={s.headerPillText}>Compte actif</Text>
-              </View>
-            </Animated.View>
+      <StatusBar barStyle="dark-content" backgroundColor={Colors.surface} />
 
-            <Animated.View style={[s.headerIdentity, { transform: [{ scale: identityScale }] }]}>
-              <Animated.View style={[s.avatarContainer, { transform: [{ scale: avatarScale }] }]}>
-                {profile.avatar ? (
-                  <Image source={{ uri: profile.avatar }} style={s.avatarImage} />
-                ) : (
-                  <View style={s.avatarPlaceholder}>
-                    <Text style={s.avatarInitials}>
-                      {profile.fullName
-                        .split(' ')
-                        .map(n => n[0])
-                        .slice(0, 2)
-                        .join('')
-                        .toUpperCase()}
-                    </Text>
-                  </View>
-                )}
-                
-                <TouchableOpacity
-                  style={s.cameraButton}
-                  onPress={handlePhotoPress}
-                  activeOpacity={0.8}
-                  disabled={isUpdating}
-                >
-                  <Ionicons name="camera" size={16} color={Colors.onSurfaceVariant} />
-                </TouchableOpacity>
-              </Animated.View>
-
-              <Text style={s.headerName}>{profile.fullName}</Text>
-              <Animated.Text style={[s.headerSubtitle, { opacity: subtitleOpacity }]}>
-                Gerez vos reglages, votre securite et vos preferences depuis un seul espace.
-              </Animated.Text>
-
-              <View style={[s.roleBadge, { backgroundColor: roleConfig.bg }]}>
-                <Text style={[s.roleBadgeText, { color: roleConfig.color }]}>
-                  {roleConfig.label}
-                </Text>
-              </View>
-
-              <Animated.Text style={[s.headerPhone, { opacity: headerMetaOpacity }]}>
-                {profile.phone}
-              </Animated.Text>
-            </Animated.View>
-
-            <Animated.View
-              style={[
-                s.heroStatsRow,
-                {
-                  opacity: statsOpacity,
-                  transform: [{ translateY: statsTranslateY }],
-                },
-              ]}
-            >
-              <View style={s.heroStatCard}>
-                <Text style={s.heroStatLabel}>Operateur</Text>
-                <Text style={s.heroStatValue}>{profile.operator.toUpperCase()}</Text>
-              </View>
-              <View style={s.heroStatCard}>
-                <Text style={s.heroStatLabel}>Securite</Text>
-                <Text style={s.heroStatValue}>{profile.biometricEnabled ? 'Biometrie active' : 'PIN actif'}</Text>
-              </View>
-            </Animated.View>
-          </SafeAreaView>
-        </LinearGradient>
-      </Animated.View>
+      {/* ── Top App Bar (référence AdminDashboard) ── */}
+      <View style={s.topBar}>
+        <View style={s.topBarLeft}><TouchableOpacity style={s.topBarBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+            <Ionicons name="arrow-back" size={22} color={Colors.onSurface} />
+          </TouchableOpacity>
+          <Text style={s.topBarTitle}>Mon Profil</Text>
+        </View>
+      </View>
 
       {/* Contenu scrollable */}
-      <Animated.ScrollView
+      <ScrollView
         style={s.scrollView}
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
-        onScroll={onScroll}
-        scrollEventThrottle={16}
       >
+        {/* ── Carte Identité ── */}
+        <View style={s.profileHeroCard}>
+          <TouchableOpacity style={s.avatarContainer} onPress={handlePhotoPress} activeOpacity={0.8} disabled={isUpdating}>
+            {profile.avatar ? (
+              <Image source={{ uri: profile.avatar }} style={s.avatarImage} />
+            ) : (
+              <View style={s.avatarPlaceholder}>
+                <Text style={s.avatarInitials}>
+                  {profile.fullName.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase()}
+                </Text>
+              </View>
+            )}
+            <View style={s.cameraButton}>
+              <Ionicons name="camera" size={16} color={Colors.onSurfaceVariant} />
+            </View>
+          </TouchableOpacity>
+          <Text style={s.profileHeroName}>{profile.fullName}</Text>
+          <View style={[s.roleBadge, { backgroundColor: roleConfig.bg }]}>
+            <Text style={[s.roleBadgeText, { color: roleConfig.color }]}>{roleConfig.label}</Text>
+          </View>
+          <Text style={s.profileHeroPhone}>{profile.phone}</Text>
+          <View style={s.heroStatsRow}>
+            <View style={s.heroStatCard}>
+              <Text style={s.heroStatLabel}>Opérateur</Text>
+              <Text style={s.heroStatValue}>{profile.operator.toUpperCase()}</Text>
+            </View>
+            <View style={s.heroStatCard}>
+              <Text style={s.heroStatLabel}>Sécurité</Text>
+              <Text style={s.heroStatValue}>{profile.biometricEnabled ? 'Biométrie' : 'PIN actif'}</Text>
+            </View>
+          </View>
+        </View>
         <View style={s.highlightCard}>
           <View style={s.highlightHeader}>
             <View>
@@ -830,7 +746,7 @@ export default function ProfileScreen({ navigation }: any) {
             />
           </View>
         </View>
-      </Animated.ScrollView>
+      </ScrollView>
 
       {/* Overlay de mise à jour */}
       {isUpdating && <LoadingOverlay />}
@@ -1011,179 +927,68 @@ const s = StyleSheet.create({
     backgroundColor: Colors.surface,
   },
 
-  // Header visuel
-  headerShell: {
-    overflow: 'hidden',
-    borderBottomLeftRadius: Radius.xxl,
-    borderBottomRightRadius: Radius.xxl,
+  // ── Top App Bar (référence AdminDashboard) ──
+  topBar: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: Colors.surface, paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 52 : 36, paddingBottom: 12,
+    shadowColor: Colors.onSurface, shadowOpacity: 0.05, shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 }, elevation: 2,
   },
-  header: {
-    flex: 1,
-    paddingBottom: 32,
+  topBarLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  topBarTitle: { fontFamily: Fonts.display, fontSize: 20, color: Colors.onSurface },
+  topBarBtn: {
+    width: 36, height: 36, borderRadius: Radius.full,
+    justifyContent: 'center', alignItems: 'center',
+    backgroundColor: Colors.surfaceContainerHigh,
   },
-  headerGlowLeft: {
-    position: 'absolute',
-    width: 180,
-    height: 180,
-    borderRadius: 999,
-    backgroundColor: 'rgba(160, 242, 225, 0.14)',
-    top: 40,
-    left: -40,
+
+  // ── Carte Identité Profile ──
+  profileHeroCard: {
+    marginHorizontal: 16, marginBottom: 16, padding: 20,
+    borderRadius: Radius.xxl, backgroundColor: Colors.surfaceContainerLowest,
+    borderWidth: 1, borderColor: Colors.outlineVariant + '46',
+    alignItems: 'center', ...Shadow.card,
   },
-  headerGlowRight: {
-    position: 'absolute',
-    width: 220,
-    height: 220,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    top: -20,
-    right: -70,
-  },
-  headerContent: {
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  headerIdentity: {
-    alignItems: 'center',
-  },
-  headerEyebrowRow: {
-    width: '100%',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 10,
-    marginBottom: 10,
-  },
-  headerEyebrow: {
-    color: 'rgba(255,255,255,0.76)',
-    fontFamily: Fonts.label,
-    fontSize: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 1.2,
-  },
-  headerPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: Radius.full,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-  },
-  headerPillText: {
-    color: '#EFFFFB',
-    fontFamily: Fonts.title,
-    fontSize: 12,
-  },
-  avatarContainer: {
-    marginTop: 12,
-    marginBottom: 16,
-    position: 'relative',
-  },
-  avatarImage: {
-    width: 92,
-    height: 92,
-    borderRadius: 46,
-    borderWidth: 4,
-    borderColor: 'rgba(255,255,255,0.92)',
-  },
+  avatarContainer: { marginBottom: 12, position: 'relative' },
+  avatarImage: { width: 88, height: 88, borderRadius: 44, borderWidth: 3, borderColor: Colors.surface },
   avatarPlaceholder: {
-    width: 92,
-    height: 92,
-    borderRadius: 46,
-    backgroundColor: '#004D43',
-    borderWidth: 4,
-    borderColor: 'rgba(255,255,255,0.92)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: 88, height: 88, borderRadius: 44, backgroundColor: Colors.primary,
+    borderWidth: 3, borderColor: Colors.surface, justifyContent: 'center', alignItems: 'center',
   },
-  avatarInitials: {
-    fontFamily: Fonts.display,
-    fontSize: 34,
-    color: '#FFF',
-  },
+  avatarInitials: { fontFamily: Fonts.display, fontSize: 30, color: '#FFF' },
   cameraButton: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#FFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...Shadow.card,
+    position: 'absolute', bottom: 0, right: 0, width: 30, height: 30, borderRadius: 15,
+    backgroundColor: Colors.surfaceContainerHighest, borderWidth: 2, borderColor: Colors.surface,
+    justifyContent: 'center', alignItems: 'center', ...Shadow.card,
   },
-  headerName: {
-    fontFamily: Fonts.display,
-    fontSize: 24,
-    color: '#FFF',
-    marginBottom: 6,
-    textAlign: 'center',
+  profileHeroName: {
+    fontFamily: Fonts.display, fontSize: 22, color: Colors.onSurface, marginBottom: 8, textAlign: 'center',
   },
-  headerSubtitle: {
-    fontFamily: Fonts.body,
-    fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.78)',
-    textAlign: 'center',
-    lineHeight: 19,
-    paddingHorizontal: 24,
-    marginBottom: 10,
-  },
-  roleBadge: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: Radius.full,
-    marginBottom: 8,
-  },
-  roleBadgeText: {
-    fontFamily: Fonts.headline,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  headerPhone: {
-    fontFamily: Fonts.body,
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
-  },
-  heroStatsRow: {
-    width: '100%',
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 18,
-  },
+  roleBadge: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: Radius.full, marginBottom: 8 },
+  roleBadgeText: { fontFamily: Fonts.headline, fontSize: 13, fontWeight: '700' },
+  profileHeroPhone: { fontFamily: Fonts.body, fontSize: 14, color: Colors.onSurfaceVariant, marginBottom: 16 },
+  heroStatsRow: { width: '100%', flexDirection: 'row', gap: 10 },
   heroStatCard: {
-    flex: 1,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    borderRadius: Radius.xl,
-    paddingVertical: 14,
-    paddingHorizontal: 14,
+    flex: 1, backgroundColor: Colors.surfaceContainerLow,
+    borderRadius: Radius.xl, paddingVertical: 12, paddingHorizontal: 12,
   },
   heroStatLabel: {
-    fontFamily: Fonts.label,
-    fontSize: 11,
-    textTransform: 'uppercase',
-    letterSpacing: 0.9,
-    color: 'rgba(255,255,255,0.68)',
-    marginBottom: 5,
+    fontFamily: Fonts.label, fontSize: 11, textTransform: 'uppercase',
+    letterSpacing: 0.9, color: Colors.textMuted, marginBottom: 4,
   },
-  heroStatValue: {
-    fontFamily: Fonts.headline,
-    fontSize: 13,
-    color: '#FFFFFF',
-  },
+  heroStatValue: { fontFamily: Fonts.headline, fontSize: 13, color: Colors.onSurface },
 
   // Contenu scrollable
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingTop: 18,
+    paddingTop: 12,
     paddingBottom: 36,
   },
   highlightCard: {
     marginHorizontal: 16,
-    marginTop: -18,
     marginBottom: 18,
     padding: 18,
     borderRadius: Radius.xxl,

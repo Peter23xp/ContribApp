@@ -338,8 +338,11 @@ export default function FullHistoryScreen({ navigation, route }: any) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Historique des contributions</Text>
+      <View style={styles.topBar}>
+        <View style={styles.topBarLeft}>
+          <MaterialCommunityIcons name="bank" size={22} color="#004d40" />
+          <Text style={styles.topBarTitle}>Historique</Text>
+        </View>
         <TouchableOpacity
           style={[styles.exportBtn, (isOffline || isExporting) && styles.exportBtnDisabled]}
           onPress={handleExport}
@@ -508,19 +511,15 @@ export default function FullHistoryScreen({ navigation, route }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.surface },
-  header: {
-    paddingTop: Platform.OS === 'ios' ? 56 : 34,
-    paddingHorizontal: 16,
-    paddingBottom: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
+  topBar: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: Colors.surface, paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 52 : 36, paddingBottom: 12,
+    shadowColor: Colors.onSurface, shadowOpacity: 0.05, shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 }, elevation: 2,
   },
-  headerTitle: {
-    flex: 1,
-    fontSize: 19,
-    fontFamily: Fonts.headline,
-    color: Colors.onSurface,
-  },
+  topBarLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  topBarTitle: { fontFamily: Fonts.display, fontSize: 20, color: '#004d40' },
   exportBtn: {
     width: 38,
     height: 38,

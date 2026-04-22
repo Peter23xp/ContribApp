@@ -1,9 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Crypto from 'expo-crypto';
 import React, { useState } from 'react';
 import {
-  Animated,
+  Platform,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -11,12 +10,10 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
 import { AppButton, LoadingOverlay, PINInputRow } from '../../components/common';
 import { Colors, Fonts, Radius, Shadow } from '../../constants/colors';
-import { useCollapsibleHeader } from '../../hooks/useCollapsibleHeader';
 import * as userService from '../../services/userService';
 
 export default function ChangePINScreen({ navigation }: any) {
@@ -28,27 +25,6 @@ export default function ChangePINScreen({ navigation }: any) {
   const [oldPinError, setOldPinError] = useState<string | null>(null);
   const [newPinError, setNewPinError] = useState<string | null>(null);
   const [confirmPinError, setConfirmPinError] = useState<string | null>(null);
-  const { scrollY, headerHeight, onScroll } = useCollapsibleHeader({
-    expandedHeight: 260,
-    collapsedHeight: 126,
-    collapseDistance: 140,
-  });
-
-  const heroContentOpacity = scrollY.interpolate({
-    inputRange: [0, 70, 140],
-    outputRange: [1, 0.4, 0],
-    extrapolate: 'clamp',
-  });
-  const heroContentTranslateY = scrollY.interpolate({
-    inputRange: [0, 140],
-    outputRange: [0, -18],
-    extrapolate: 'clamp',
-  });
-  const heroIconScale = scrollY.interpolate({
-    inputRange: [0, 140],
-    outputRange: [1, 0.78],
-    extrapolate: 'clamp',
-  });
 
   const isValid =
     oldPin.length === 4 &&
@@ -125,70 +101,29 @@ export default function ChangePINScreen({ navigation }: any) {
 
   return (
     <View style={s.container}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.primary} />
+      <StatusBar barStyle="dark-content" backgroundColor={Colors.surface} />
 
-      <Animated.View style={[s.heroShell, { height: headerHeight }]}>
-        <LinearGradient
-          colors={[Colors.primary, Colors.primaryContainer, '#0B5E55']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={s.hero}
-        >
-          <SafeAreaView edges={['top']} style={s.header}>
-            <TouchableOpacity style={s.backButton} onPress={() => navigation.goBack()} activeOpacity={0.7}>
-              <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
-            </TouchableOpacity>
-            <Text style={s.headerTitle}>Modifier mon PIN</Text>
-            <View style={{ width: 40 }} />
-          </SafeAreaView>
+      {/* ── Top App Bar (référence AdminDashboard) ── */}
+      <View style={s.topBar}>
+        <View style={s.topBarLeft}>
+          <TouchableOpacity style={s.topBarBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+            <Ionicons name="arrow-back" size={22} color={Colors.onSurface} />
+          </TouchableOpacity>
+          <Text style={s.topBarTitle}>Modifier mon PIN</Text>
+        </View>
+      </View>
 
-          <Animated.View
-            style={[
-              s.heroContent,
-              {
-                opacity: heroContentOpacity,
-                transform: [{ translateY: heroContentTranslateY }],
-              },
-            ]}
-          >
-            <Animated.View style={[s.heroIconWrap, { transform: [{ scale: heroIconScale }] }]}>
-              <Ionicons name="shield-checkmark-outline" size={28} color="#FFFFFF" />
-            </Animated.View>
-            <Text style={s.heroTitle}>Renforcez la securite de votre compte</Text>
-            <Text style={s.heroSubtitle}>
-              Mettez a jour votre code confidentiel avec un parcours simple, clair et plus securise.
-            </Text>
-          </Animated.View>
-        </LinearGradient>
-      </Animated.View>
-
-      <Animated.ScrollView
+      <ScrollView
         style={s.scrollView}
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        onScroll={onScroll}
-        scrollEventThrottle={16}
       >
-        <View style={s.summaryCard}>
-          <View style={s.summaryMetric}>
-            <Text style={s.summaryLabel}>Format</Text>
-            <Text style={s.summaryValue}>4 chiffres</Text>
-          </View>
-          <View style={s.summaryMetric}>
-            <Text style={s.summaryLabel}>Validation</Text>
-            <Text style={s.summaryValue}>{isValid ? 'Prete' : 'En attente'}</Text>
-          </View>
-          <View style={s.summaryMetric}>
-            <Text style={s.summaryLabel}>Protection</Text>
-            <Text style={s.summaryValue}>Chiffree</Text>
-          </View>
-        </View>
-
+        {/* Info banner */}
         <View style={s.instructionsBox}>
-          <Ionicons name="information-circle" size={22} color={Colors.tertiary} />
+          <Ionicons name="shield-checkmark-outline" size={22} color={Colors.tertiary} />
           <Text style={s.instructionsText}>
-            Votre code PIN doit contenir exactement 4 chiffres. Choisissez une combinaison memorisable mais difficile a deviner.
+            Votre code PIN doit contenir exactement 4 chiffres. Choisissez une combinaison mémorisable mais difficile à deviner.
           </Text>
         </View>
 
@@ -222,14 +157,14 @@ export default function ChangePINScreen({ navigation }: any) {
         </View>
 
         <View style={s.tipsBox}>
-          <Text style={s.tipsTitle}>Conseils de securite</Text>
+          <Text style={s.tipsTitle}>Conseils de sécurité</Text>
           <View style={s.tipRow}>
             <Ionicons name="checkmark-circle" size={16} color={Colors.secondary} />
             <Text style={s.tipText}>N'utilisez pas de dates de naissance.</Text>
           </View>
           <View style={s.tipRow}>
             <Ionicons name="checkmark-circle" size={16} color={Colors.secondary} />
-            <Text style={s.tipText}>Evitez les sequences simples comme 1234.</Text>
+            <Text style={s.tipText}>Évitez les séquences simples comme 1234.</Text>
           </View>
           <View style={s.tipRow}>
             <Ionicons name="checkmark-circle" size={16} color={Colors.secondary} />
@@ -245,7 +180,7 @@ export default function ChangePINScreen({ navigation }: any) {
           loadingText="Modification..."
           style={{ marginTop: 28 }}
         />
-      </Animated.ScrollView>
+      </ScrollView>
 
       {isLoading ? <LoadingOverlay /> : null}
     </View>
@@ -257,100 +192,30 @@ const s = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.surface,
   },
-  heroShell: {
-    overflow: 'hidden',
-    borderBottomLeftRadius: Radius.xxl,
-    borderBottomRightRadius: Radius.xxl,
+
+  // ── Top App Bar (référence AdminDashboard) ──
+  topBar: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: Colors.surface, paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 52 : 36, paddingBottom: 12,
+    shadowColor: Colors.onSurface, shadowOpacity: 0.05, shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 }, elevation: 2,
   },
-  hero: {
-    flex: 1,
-    paddingBottom: 30,
+  topBarLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  topBarTitle: { fontFamily: Fonts.display, fontSize: 20, color: Colors.onSurface },
+  topBarBtn: {
+    width: 36, height: 36, borderRadius: Radius.full,
+    justifyContent: 'center', alignItems: 'center',
+    backgroundColor: Colors.surfaceContainerHigh,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontFamily: Fonts.headline,
-    fontSize: 18,
-    color: '#FFFFFF',
-  },
-  heroContent: {
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingTop: 8,
-  },
-  heroIconWrap: {
-    width: 58,
-    height: 58,
-    borderRadius: Radius.full,
-    backgroundColor: 'rgba(255,255,255,0.14)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 14,
-  },
-  heroTitle: {
-    fontFamily: Fonts.display,
-    fontSize: 24,
-    color: '#FFFFFF',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  heroSubtitle: {
-    fontFamily: Fonts.body,
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.78)',
-    textAlign: 'center',
-    lineHeight: 19,
-  },
-  scrollView: {
-    flex: 1,
-  },
+
+  scrollView: { flex: 1 },
   scrollContent: {
     padding: 20,
     paddingTop: 18,
     paddingBottom: 34,
   },
-  summaryCard: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: -38,
-    marginBottom: 20,
-    padding: 14,
-    borderRadius: Radius.xxl,
-    backgroundColor: Colors.surfaceContainerLowest,
-    borderWidth: 1,
-    borderColor: Colors.outlineVariant + '40',
-    ...Shadow.card,
-  },
-  summaryMetric: {
-    flex: 1,
-    backgroundColor: Colors.surfaceContainerLow,
-    borderRadius: Radius.lg,
-    padding: 12,
-  },
-  summaryLabel: {
-    fontFamily: Fonts.label,
-    fontSize: 10,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    color: Colors.textMuted,
-    marginBottom: 4,
-  },
-  summaryValue: {
-    fontFamily: Fonts.headline,
-    fontSize: 13,
-    color: Colors.onSurface,
-  },
+
   instructionsBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -370,6 +235,7 @@ const s = StyleSheet.create({
     color: Colors.onSurface,
     lineHeight: 20,
   },
+
   formCard: {
     backgroundColor: Colors.surfaceContainerLowest,
     borderRadius: Radius.xxl,
@@ -384,9 +250,8 @@ const s = StyleSheet.create({
     color: Colors.onSurface,
     marginBottom: 10,
   },
-  form: {
-    gap: 8,
-  },
+  form: { gap: 8 },
+
   tipsBox: {
     marginTop: 20,
     padding: 18,

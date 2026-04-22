@@ -562,10 +562,12 @@ const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.surface },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingTop: Platform.OS === 'ios' ? 60 : 40, paddingBottom: 16,
+    paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 52 : 36, paddingBottom: 12,
     backgroundColor: Colors.surfaceContainerLowest,
+    shadowColor: Colors.onSurface, shadowOpacity: 0.05, shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 }, elevation: 2,
   },
-  headerTitle: { fontFamily: Fonts.display, fontSize: 24, color: Colors.onSurface, letterSpacing: -0.5 },
+  headerTitle: { fontFamily: Fonts.display, fontSize: 20, color: Colors.onSurface, letterSpacing: -0.3 },
   counter: { fontFamily: Fonts.body, fontSize: 13, color: Colors.textMuted, marginTop: 4 },
   fabBtn: {
     width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.primary,
