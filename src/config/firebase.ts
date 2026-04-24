@@ -35,10 +35,10 @@ export const auth = isNewApp
     })
   : getAuth(app);
 
-// Utilise le long polling pour éviter l'erreur de timeout de 10s sur Android/Expo
+// Utilise la détection auto du long polling pour éviter les erreurs de timeout ou de stream RPC sur Expo
 export const db = isNewApp
   ? initializeFirestore(app, {
-      experimentalForceLongPolling: true,
+      experimentalAutoDetectLongPolling: true,
     })
   : getFirestore(app);
 
