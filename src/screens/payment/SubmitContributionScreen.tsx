@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, StatusBar, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
@@ -323,22 +323,21 @@ export function SubmitContributionScreen({ route, navigation }: any) {
   if (normalizedStatus === 'paid') {
     return (
       <View style={styles.container}>
-        <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Ionicons name="arrow-back" size={24} color={Colors.onSurface} />
-          </TouchableOpacity>
-          <View style={styles.headerTextBlock}>
-            <Text style={styles.headerEyebrow}>Paiement membre</Text>
-            <Text style={styles.headerTitle}>Soumettre ma contribution</Text>
+        <StatusBar barStyle="dark-content" backgroundColor={Colors.surface} />
+        <View style={styles.topBar}>
+          <View style={styles.topBarLeft}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.topBarBtn} activeOpacity={0.7}>
+              <Ionicons name="arrow-back" size={22} color={Colors.onSurface} />
+            </TouchableOpacity>
+            <Text style={styles.topBarTitle}>Contribution Validée</Text>
           </View>
-          <View style={styles.headerSpacer} />
         </View>
 
         <View style={styles.statusCardPaid}>
           <Ionicons name="checkmark-circle" size={48} color={Colors.statusPaid} />
-          <Text style={styles.statusTitle}>Contribution deja approuvee</Text>
+          <Text style={styles.statusTitle}>Contribution déjà approuvée</Text>
           <Text style={styles.statusDesc}>
-            Votre paiement de ce mois est deja valide. Aucun nouvel envoi n'est necessaire.
+            Votre paiement de ce mois est déjà validé. Aucun nouvel envoi n'est nécessaire.
           </Text>
           <AppButton title="Retour au tableau de bord" onPress={() => navigation.navigate('Accueil')} variant="solid" />
         </View>
@@ -349,22 +348,21 @@ export function SubmitContributionScreen({ route, navigation }: any) {
   if (normalizedStatus === 'pending_approval') {
     return (
       <View style={styles.container}>
-        <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Ionicons name="arrow-back" size={24} color={Colors.onSurface} />
-          </TouchableOpacity>
-          <View style={styles.headerTextBlock}>
-            <Text style={styles.headerEyebrow}>Paiement membre</Text>
-            <Text style={styles.headerTitle}>Soumettre ma contribution</Text>
+        <StatusBar barStyle="dark-content" backgroundColor={Colors.surface} />
+        <View style={styles.topBar}>
+          <View style={styles.topBarLeft}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.topBarBtn} activeOpacity={0.7}>
+              <Ionicons name="arrow-back" size={22} color={Colors.onSurface} />
+            </TouchableOpacity>
+            <Text style={styles.topBarTitle}>En Attente</Text>
           </View>
-          <View style={styles.headerSpacer} />
         </View>
 
         <View style={styles.statusCardPending}>
           <Ionicons name="time" size={48} color={Colors.statusPending} />
-          <Text style={styles.statusTitle}>Capture deja soumise</Text>
+          <Text style={styles.statusTitle}>Capture déjà soumise</Text>
           <Text style={styles.statusDesc}>
-            Votre capture est en cours de verification par la tresoriere.
+            Votre capture est en cours de vérification par la trésorière.
           </Text>
           <AppButton title="Soumettre une nouvelle capture" onPress={() => setStatus(null)} variant="outline" />
         </View>
@@ -374,18 +372,18 @@ export function SubmitContributionScreen({ route, navigation }: any) {
 
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor={Colors.surface} />
       <OfflineBanner />
       {isSubmitting ? <LoadingOverlay /> : null}
 
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color={Colors.onSurface} />
-        </TouchableOpacity>
-        <View style={styles.headerTextBlock}>
-          <Text style={styles.headerEyebrow}>Paiement membre</Text>
-          <Text style={styles.headerTitle}>Soumettre ma contribution</Text>
+      {/* ── Top App Bar (référence AdminDashboard) ── */}
+      <View style={styles.topBar}>
+        <View style={styles.topBarLeft}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.topBarBtn} activeOpacity={0.7}>
+            <Ionicons name="arrow-back" size={22} color={Colors.onSurface} />
+          </TouchableOpacity>
+          <Text style={styles.topBarTitle}>Soumettre ma contribution</Text>
         </View>
-        <View style={styles.headerSpacer} />
       </View>
 
       <PaymentStepIndicator currentStep={currentStep as 1 | 2 | 3} steps={['Instructions', 'Capture', 'Envoi']} />
@@ -590,19 +588,18 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.surface,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingBottom: 14,
-    backgroundColor: Colors.surfaceContainerLowest,
-    borderBottomColor: Colors.border,
-    borderBottomWidth: 1,
+  // ── Top App Bar (référence AdminDashboard) ──
+  topBar: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: Colors.surface, paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 52 : 36, paddingBottom: 12,
+    shadowColor: Colors.onSurface, shadowOpacity: 0.05, shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 }, elevation: 2,
   },
-  headerTextBlock: {
-    flex: 1,
-    marginHorizontal: 10,
-  },
+  topBarLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  topBarTitle: { fontFamily: Fonts.display, fontSize: 20, color: Colors.onSurface },
+  topBarBtn: { padding: 8, borderRadius: Radius.full },
+  
   headerEyebrow: {
     fontSize: 11,
     fontFamily: Fonts.label,
@@ -610,14 +607,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 1,
     marginBottom: 2,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontFamily: Fonts.display,
-    color: Colors.onSurface,
-  },
-  headerSpacer: {
-    width: 24,
   },
   scrollContent: {
     padding: 16,

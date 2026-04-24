@@ -149,6 +149,41 @@ export interface ContributionSummary {
   failedCount: number;
 }
 
+function toMillis(value: any): number {
+  if (!value) return 0;
+  if (typeof value === 'number') return value;
+  if (typeof value?.toMillis === 'function') return value.toMillis();
+  if (typeof value?.seconds === 'number') return value.seconds * 1000;
+  const parsed = new Date(value).getTime();
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function mapContributionStatus(rawStatus?: string | null, isLate?: boolean): ContributionFilter {
+  const normalized = (rawStatus ?? '').toString().trim().toLowerCase();
+
+  if (isLate || ['late', 'en_retard', 'en retard'].includes(normalized)) {
+    return 'EN_RETARD';
+  }
+  if (['paid', 'paye', 'payé', 'approved', 'approuve', 'approuvé', 'paye_partiel'].includes(normalized)) {
+    return 'PAYE';
+  }
+  if (['pending_approval', 'pending', 'en_attente', 'en attente', 'submitted'].includes(normalized)) {
+    return 'EN_ATTENTE';
+  }
+  if (['rejected', 'rejete', 'rejetee', 'échec', 'echec', 'failed', 'failure'].includes(normalized)) {
+    return 'ECHEC';
+  }
+  return 'EN_ATTENTE';
+}
+
+function normalizeOperator(value?: string | null): ContributionItem['operator'] {
+  const normalized = (value ?? '').toString().trim().toLowerCase();
+  if (['airtel', 'orange', 'mpesa', 'mtn'].includes(normalized)) {
+    return normalized as ContributionItem['operator'];
+  }
+  return undefined;
+}
+
 export async function fetchGroupContributions(
   groupId: string,
   month: string,
@@ -157,8 +192,157 @@ export async function fetchGroupContributions(
   pageSize = 20,
   options?: any
 ): Promise<{ items: ContributionItem[], summary: ContributionSummary, hasMore: boolean, total: number, page: number }> {
-  // TODO: implement real firestore connection
-  return { items: [], summary: { collectedAmount: 0, expectedAmount: 0, totalMembers: 0, paidCount: 0, pendingCount: 0, lateCount: 0, failedCount: 0 }, hasMore: false, total: 0, page };
+  const safePage = Math.max(1, page || 1);
+  const safePageSize = Math.max(1, pageSize || 20);
+  const selectedMemberId = options?.memberId ? String(options.memberId) : null;
+  const sort = (options?.sort ?? 'date_desc') as ContributionSort;
+
+  const [groupSnap, membersSnap, currentSnap, legacySnap] = await Promise.all([
+    getDoc(doc(db, 'groups', groupId)),
+    getDocs(collection(db, 'groups', groupId, 'members')).catch(() => ({ docs: [] as any[] })),
+    getDocs(
+      query(
+        collection(db, 'contributions'),
+        where('group_id', '==', groupId),
+        where('period_month', '==', month),
+      )
+    ).catch(() => ({ docs: [] as any[] })),
+    getDocs(
+      query(
+        collection(db, 'contributions'),
+        where('group_id', '==', groupId),
+        where('month', '==', month),
+      )
+    ).catch(() => ({ docs: [] as any[] })),
+  ]);
+
+  const membersById = new Map<string, any>();
+  for (const memberDoc of membersSnap.docs) {
+    const memberData = memberDoc.data();
+    const memberUid = memberData.uid ?? memberDoc.id;
+    membersById.set(memberUid, memberData);
+  }
+
+  const docsById = new Map<string, any>();
+  for (const snap of [...currentSnap.docs, ...legacySnap.docs]) {
+    docsById.set(snap.id, snap);
+  }
+
+  let items = Array.from(docsById.values()).map((snap) => {
+    const raw = snap.data();
+    const memberId = raw.member_uid ?? raw.memberUid ?? raw.user_id ?? raw.userId ?? '';
+    const memberData = membersById.get(memberId) ?? {};
+    const amountPaid = Number(raw.amount_paid ?? raw.amountPaid ?? 0);
+    const amountDue = Number(raw.amount_due ?? raw.amountDue ?? raw.amount ?? 0);
+    const amount = amountPaid > 0 ? amountPaid : amountDue;
+    const paidAtValue = raw.approved_at ?? raw.approvedAt ?? raw.paid_at ?? raw.paidAt ?? raw.created_at ?? raw.createdAt ?? null;
+    const detectedOperator =
+      raw.operator ??
+      raw.payment_operator ??
+      raw.user_operator ??
+      raw.gemini_analysis?.operator ??
+      memberData.operator;
+
+    return {
+      id: snap.id,
+      memberId,
+      memberName:
+        raw.member_name ??
+        raw.memberName ??
+        memberData.full_name ??
+        memberData.name ??
+        'Membre inconnu',
+      memberAvatar:
+        raw.member_avatar ??
+        raw.memberAvatar ??
+        memberData.profile_photo_url ??
+        memberData.photo_url ??
+        undefined,
+      memberPhone: raw.member_phone ?? raw.memberPhone ?? memberData.phone ?? undefined,
+      amount,
+      currency: (raw.currency ?? groupSnap.data()?.currency ?? 'CDF') as 'CDF' | 'USD',
+      operator: normalizeOperator(detectedOperator),
+      paidAt: paidAtValue ? new Date(toMillis(paidAtValue)).toISOString() : undefined,
+      status: mapContributionStatus(raw.status, Boolean(raw.is_late ?? raw.isLate)),
+      txReference:
+        raw.transaction_ref ??
+        raw.tx_reference ??
+        raw.txReference ??
+        raw.gemini_analysis?.transaction_ref ??
+        snap.id,
+      errorMessage: raw.rejection_reason ?? raw.error_message ?? raw.errorMessage ?? undefined,
+    } satisfies ContributionItem;
+  });
+
+  const summary = items.reduce<ContributionSummary>((acc, item) => {
+    if (item.status === 'PAYE') {
+      acc.paidCount += 1;
+      acc.collectedAmount += Number(item.amount || 0);
+    } else if (item.status === 'EN_ATTENTE') {
+      acc.pendingCount += 1;
+    } else if (item.status === 'EN_RETARD') {
+      acc.lateCount += 1;
+    } else if (item.status === 'ECHEC') {
+      acc.failedCount += 1;
+    }
+    return acc;
+  }, {
+    collectedAmount: 0,
+    expectedAmount: 0,
+    totalMembers: 0,
+    paidCount: 0,
+    pendingCount: 0,
+    lateCount: 0,
+    failedCount: 0,
+  });
+
+  const activeMembers = membersSnap.docs.filter((memberDoc) => {
+    const statusValue = memberDoc.data()?.status ?? 'active';
+    return statusValue !== 'removed';
+  });
+  const groupData = groupSnap.exists() ? groupSnap.data() : {};
+  const contributionAmount = Number(
+    groupData?.contribution_amount ??
+    groupData?.monthly_amount ??
+    groupData?.amount ??
+    0
+  );
+  summary.totalMembers = activeMembers.length || Number(groupData?.member_count ?? 0);
+  summary.expectedAmount = contributionAmount * summary.totalMembers;
+
+  if (selectedMemberId) {
+    items = items.filter((item) => item.memberId === selectedMemberId);
+  }
+
+  if (filter !== 'all') {
+    items = items.filter((item) => item.status === filter);
+  }
+
+  items.sort((a, b) => {
+    switch (sort) {
+      case 'date_asc':
+        return toMillis(a.paidAt) - toMillis(b.paidAt);
+      case 'name_asc':
+        return a.memberName.localeCompare(b.memberName, 'fr', { sensitivity: 'base' });
+      case 'amount_desc':
+        return Number(b.amount) - Number(a.amount);
+      case 'date_desc':
+      default:
+        return toMillis(b.paidAt) - toMillis(a.paidAt);
+    }
+  });
+
+  const total = items.length;
+  const startIndex = (safePage - 1) * safePageSize;
+  const pagedItems = items.slice(startIndex, startIndex + safePageSize);
+
+  return {
+    items: pagedItems,
+    summary,
+    hasMore: startIndex + safePageSize < total,
+    total,
+    page: safePage,
+  };
 }
 
 export async function fetchPaidContributions(

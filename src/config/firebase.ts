@@ -6,7 +6,7 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 // @ts-ignore
 import { initializeAuth, getAuth, getReactNativePersistence } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore, getFirestore } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
@@ -19,15 +19,27 @@ const firebaseConfig = {
 };
 
 // Évite la double initialisation en hot-reload Expo
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+let app;
+let isNewApp = false;
+if (getApps().length === 0) {
+  app = initializeApp(firebaseConfig);
+  isNewApp = true;
+} else {
+  app = getApp();
+}
 
 // Auth avec persistance AsyncStorage — évite la reconnexion après fermeture
-// initializeAuth est appelé une seule fois (si app est neuf), sinon getAuth()
-export const auth = getApps().length === 1
+export const auth = isNewApp
   ? initializeAuth(app, {
       persistence: getReactNativePersistence(AsyncStorage),
     })
   : getAuth(app);
 
-export const db = getFirestore(app);
+// Utilise le long polling pour éviter l'erreur de timeout de 10s sur Android/Expo
+export const db = isNewApp
+  ? initializeFirestore(app, {
+      experimentalForceLongPolling: true,
+    })
+  : getFirestore(app);
+
 export default app;

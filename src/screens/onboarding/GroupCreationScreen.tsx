@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { 
   View, Text, StyleSheet, KeyboardAvoidingView, ScrollView, Platform, 
-  TouchableOpacity, Alert, BackHandler 
+  TouchableOpacity, Alert, BackHandler, StatusBar
 } from 'react-native';
 import { CommonActions, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 
-import { Colors } from '../../constants/colors';
+import { Colors, Fonts, Radius } from '../../constants/colors';
 import { AppButton } from '../../components/common/AppButton';
 import { AppInput } from '../../components/common/AppInput';
 import GroupCreationStepIndicator from '../../components/common/GroupCreationStepIndicator';
@@ -206,24 +206,26 @@ export default function GroupCreationScreen({ navigation }: any) {
     }
 
     return (
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton} 
-          onPress={() => {
-            if (currentStep === 1) {
-              Alert.alert("Annuler", "Annuler la création du groupe ?", [
-                { text: "Non", style: 'cancel' },
-                { text: "Oui", style: 'destructive', onPress: () => navigation.goBack() }
-              ]);
-            } else {
-              handlePrev();
-            }
-          }}
-        >
-          <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>{title}</Text>
-        <View style={{ width: 24 }} />
+      <View style={styles.topBar}>
+        <View style={styles.topBarLeft}>
+          <TouchableOpacity 
+            style={styles.topBarBtn} 
+            activeOpacity={0.7}
+            onPress={() => {
+              if (currentStep === 1) {
+                Alert.alert("Annuler", "Annuler la création du groupe ?", [
+                  { text: "Non", style: 'cancel' },
+                  { text: "Oui", style: 'destructive', onPress: () => navigation.goBack() }
+                ]);
+              } else {
+                handlePrev();
+              }
+            }}
+          >
+            <Ionicons name="arrow-back" size={22} color={Colors.onSurface} />
+          </TouchableOpacity>
+          <Text style={styles.topBarTitle}>{title}</Text>
+        </View>
       </View>
     );
   };
@@ -516,24 +518,18 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    paddingTop: Platform.OS === 'android' ? 60 : 40,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    marginBottom: 8,
+  // ── Top App Bar (référence AdminDashboard) ──
+  topBar: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: Colors.surface, paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 52 : 36, paddingBottom: 12,
+    shadowColor: Colors.onSurface, shadowOpacity: 0.05, shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 }, elevation: 2,
   },
-  backButton: {
-    padding: 8,
-    marginLeft: -8,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: Colors.textPrimary,
-  },
+  topBarLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  topBarTitle: { fontFamily: Fonts.display, fontSize: 20, color: Colors.onSurface },
+  topBarBtn: { padding: 8, borderRadius: Radius.full },
   scrollContent: {
     flex: 1,
   },

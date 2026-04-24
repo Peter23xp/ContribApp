@@ -1,26 +1,31 @@
 /**
  * SCR-008 — Suivi des Paiements (Vue Administrateur)
  * AdminPaymentTrackingScreen.tsx
- *
- * Rôle : Admin uniquement
- * Position : Tab 2 "Contributions" de la Bottom Tab Bar
  */
-import React, {
-  useState, useCallback, useRef, useEffect,
-} from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity,
-  ScrollView, RefreshControl, ActivityIndicator,
-  StatusBar, Platform, Linking, Animated,
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  ScrollView,
+  RefreshControl,
+  ActivityIndicator,
+  StatusBar,
+  Platform,
+  Linking,
+  Animated,
+  useWindowDimensions,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import NetInfo from '@react-native-community/netinfo';
 import Toast from 'react-native-toast-message';
 
 import { Colors, Fonts, Radius, Shadow } from '../../constants/colors';
-import { ProgressBar }    from '../../components/common/ProgressBar';
-import { TransactionRow } from '../../components/payment/TransactionRow';
-
+import { ProgressBar } from '../../components/common/ProgressBar';
+import { StatusBadge } from '../../components/common/StatusBadge';
+import { OPERATORS } from '../../constants/operators';
 import {
   fetchGroupContributions,
   sendMemberReminder,
@@ -31,26 +36,28 @@ import {
 } from '../../services/contributionService';
 import { useAuthStore } from '../../stores/authStore';
 
-// ─── Constantes ──────────────────────────────────────────────
-
 const MONTHS_FR = [
   'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
   'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre',
 ];
 
-type FilterOption = { key: ContributionFilter; label: string; countKey: keyof ContributionSummary | null };
+type FilterOption = {
+  key: ContributionFilter;
+  label: string;
+  countKey: keyof ContributionSummary | null;
+};
 
 const FILTER_OPTIONS: FilterOption[] = [
-  { key: 'all',        label: 'Tous',       countKey: null          },
-  { key: 'PAYE',       label: 'Payés',      countKey: 'paidCount'   },
+  { key: 'all', label: 'Tous', countKey: null },
+  { key: 'PAYE', label: 'Payés', countKey: 'paidCount' },
   { key: 'EN_ATTENTE', label: 'En attente', countKey: 'pendingCount' },
-  { key: 'EN_RETARD',  label: 'En retard',  countKey: 'lateCount'   },
-  { key: 'ECHEC',      label: 'Échecs',     countKey: 'failedCount'  },
+  { key: 'EN_RETARD', label: 'En retard', countKey: 'lateCount' },
+  { key: 'ECHEC', label: 'Échecs', countKey: 'failedCount' },
 ];
 
 function toYearMonth(date: Date): string {
-  const y  = date.getFullYear();
-  const m  = String(date.getMonth() + 1).padStart(2, '0');
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
   return `${y}-${m}`;
 }
 
@@ -59,9 +66,34 @@ function parseYearMonth(ym: string): Date {
   return new Date(y, m - 1, 1);
 }
 
-// ─── Sous-composants ─────────────────────────────────────────
+function formatContributionDate(iso?: string): string {
+  if (!iso) return 'Date indisponible';
+  try {
+    return new Date(iso).toLocaleDateString('fr-FR', {
+      day: '2-digit', month: 'short', year: 'numeric',
+    });
+  } catch {
+    return iso;
+  }
+}
 
-/** Bandeau hors-ligne */
+function getOperatorMeta(operator?: string) {
+  return OPERATORS.find((item) => item.id === operator);
+}
+
+function getStatusTone(status: ContributionItem['status']) {
+  switch (status) {
+    case 'PAYE':
+      return { backgroundColor: Colors.secondaryContainer, borderColor: Colors.secondary + '25', textColor: Colors.onSecondaryContainer };
+    case 'EN_RETARD':
+      return { backgroundColor: Colors.errorContainer, borderColor: Colors.error + '20', textColor: Colors.onErrorContainer };
+    case 'ECHEC':
+      return { backgroundColor: Colors.errorContainer, borderColor: Colors.error + '18', textColor: Colors.error };
+    default:
+      return { backgroundColor: Colors.surfaceContainerHigh, borderColor: Colors.outlineVariant, textColor: Colors.onSurfaceVariant };
+  }
+}
+
 function OfflineBannerLocal() {
   return (
     <View style={styles.offlineBanner}>
@@ -71,17 +103,17 @@ function OfflineBannerLocal() {
   );
 }
 
-/** Skeleton d'une ligne de transaction */
 function SkeletonRow() {
   const opacity = useRef(new Animated.Value(0.4)).current;
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
-        Animated.timing(opacity, { toValue: 1,   duration: 700, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 1, duration: 700, useNativeDriver: true }),
         Animated.timing(opacity, { toValue: 0.4, duration: 700, useNativeDriver: true }),
       ])
     ).start();
-  }, []);
+  }, [opacity]);
+
   return (
     <Animated.View style={[styles.skeletonRow, { opacity }]}>
       <View style={styles.skeletonAvatar} />
@@ -94,7 +126,6 @@ function SkeletonRow() {
   );
 }
 
-/** BottomSheet contextuel pour les actions sur une transaction */
 interface ActionSheetProps {
   item: ContributionItem;
   onClose: () => void;
@@ -103,12 +134,12 @@ interface ActionSheetProps {
   navigation: any;
 }
 
-function ActionBottomSheet({ item, onClose, onRemind, onNavigateProfile, navigation }: ActionSheetProps) {
+function ActionBottomSheet({ item, onClose, onRemind, onNavigateProfile }: ActionSheetProps) {
   const slideAnim = useRef(new Animated.Value(300)).current;
 
   useEffect(() => {
     Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, tension: 80, friction: 10 }).start();
-  }, []);
+  }, [slideAnim]);
 
   const close = (callback?: () => void) => {
     Animated.timing(slideAnim, { toValue: 300, duration: 200, useNativeDriver: true }).start(() => {
@@ -118,31 +149,26 @@ function ActionBottomSheet({ item, onClose, onRemind, onNavigateProfile, navigat
   };
 
   const statusLabel: Record<string, string> = {
-    PAYE: 'Payé', EN_ATTENTE: 'En attente', EN_RETARD: 'En retard', ECHEC: 'Échec', PARTIEL: 'Partiel',
+    PAYE: 'Payé',
+    EN_ATTENTE: 'En attente',
+    EN_RETARD: 'En retard',
+    ECHEC: 'Échec',
+    PARTIEL: 'Partiel',
   };
 
   return (
     <TouchableOpacity style={styles.sheetOverlay} activeOpacity={1} onPress={() => close()}>
-      <Animated.View
-        style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}
-      >
+      <Animated.View style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}>
         <TouchableOpacity activeOpacity={1}>
-          {/* Handle */}
           <View style={styles.sheetHandle} />
-
-          {/* Header */}
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetMemberName}>{item.memberName}</Text>
             <Text style={styles.sheetStatus}>{statusLabel[item.status] ?? item.status}</Text>
           </View>
 
-          {/* Actions selon statut */}
           {(item.status === 'EN_ATTENTE' || item.status === 'EN_RETARD') && (
             <>
-              <TouchableOpacity
-                style={styles.sheetAction}
-                onPress={() => close(() => onRemind(item))}
-              >
+              <TouchableOpacity style={styles.sheetAction} onPress={() => close(() => onRemind(item))}>
                 <View style={[styles.sheetActionIcon, { backgroundColor: Colors.secondaryContainer }]}>
                   <MaterialCommunityIcons name="bell-ring-outline" size={20} color={Colors.secondary} />
                 </View>
@@ -153,10 +179,7 @@ function ActionBottomSheet({ item, onClose, onRemind, onNavigateProfile, navigat
                 <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.textMuted} />
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.sheetAction}
-                onPress={() => close(() => onNavigateProfile(item))}
-              >
+              <TouchableOpacity style={styles.sheetAction} onPress={() => close(() => onNavigateProfile(item))}>
                 <View style={[styles.sheetActionIcon, { backgroundColor: Colors.surfaceContainer }]}>
                   <MaterialCommunityIcons name="account-outline" size={20} color={Colors.primary} />
                 </View>
@@ -196,7 +219,6 @@ function ActionBottomSheet({ item, onClose, onRemind, onNavigateProfile, navigat
             </>
           )}
 
-          {/* Bouton fermer */}
           <TouchableOpacity style={styles.sheetCloseBtn} onPress={() => close()}>
             <Text style={styles.sheetCloseBtnText}>Fermer</Text>
           </TouchableOpacity>
@@ -206,55 +228,124 @@ function ActionBottomSheet({ item, onClose, onRemind, onNavigateProfile, navigat
   );
 }
 
-// ─── Écran principal ─────────────────────────────────────────
+function ContributionCard({ item, onPress }: { item: ContributionItem; onPress: () => void }) {
+  const operator = getOperatorMeta(item.operator);
+  const tone = getStatusTone(item.status);
+  return (
+    <TouchableOpacity style={styles.contributionCard} activeOpacity={0.88} onPress={onPress}>
+      <View style={styles.cardTopRow}>
+        <View style={styles.cardIdentity}>
+          <View style={styles.cardAvatar}>
+            <Text style={styles.cardAvatarText}>
+              {(item.memberName ?? '?').split(' ').map((part) => part[0]).slice(0, 2).join('').toUpperCase()}
+            </Text>
+          </View>
+          <View style={styles.cardIdentityText}>
+            <Text style={styles.cardMemberName} numberOfLines={1}>{item.memberName}</Text>
+            <Text style={styles.cardMetaText} numberOfLines={1}>{formatContributionDate(item.paidAt)}</Text>
+          </View>
+        </View>
+        <View style={[styles.operatorPill, operator ? { backgroundColor: operator.color + '18' } : null]}>
+          <View style={[styles.operatorDot, { backgroundColor: operator?.color ?? Colors.outline }]} />
+          <Text style={styles.operatorPillText} numberOfLines={1}>{operator?.name ?? 'Opérateur'}</Text>
+        </View>
+      </View>
+
+      <View style={styles.cardAmountRow}>
+        <View>
+          <Text style={styles.cardAmountValue}>
+            {item.amount.toLocaleString('fr-FR')} <Text style={styles.cardAmountCurrency}>{item.currency}</Text>
+          </Text>
+          <Text style={styles.cardReference} numberOfLines={1}>{item.txReference}</Text>
+        </View>
+        <StatusBadge status={item.status as any} size="md" />
+      </View>
+
+      {(item.status === 'EN_ATTENTE' || item.status === 'EN_RETARD' || item.status === 'ECHEC') && (
+        <View style={[styles.cardStatusHint, { backgroundColor: tone.backgroundColor, borderColor: tone.borderColor }]}>
+          <MaterialCommunityIcons name={item.status === 'ECHEC' ? 'alert-circle-outline' : 'bell-ring-outline'} size={16} color={tone.textColor} />
+          <Text style={[styles.cardStatusHintText, { color: tone.textColor }]} numberOfLines={2}>
+            {item.status === 'ECHEC'
+              ? (item.errorMessage ?? 'Paiement échoué, vérifier le détail.')
+              : 'Touchez la carte pour afficher les actions disponibles.'}
+          </Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+}
+
+function DesktopContributionRow({ item, onPress }: { item: ContributionItem; onPress: () => void }) {
+  const operator = getOperatorMeta(item.operator);
+  return (
+    <TouchableOpacity style={styles.desktopRow} activeOpacity={0.82} onPress={onPress}>
+      <View style={styles.desktopMemberCol}>
+        <Text style={styles.desktopMemberName} numberOfLines={1}>{item.memberName}</Text>
+        <Text style={styles.desktopSubtle} numberOfLines={1}>{item.txReference}</Text>
+      </View>
+      <Text style={styles.desktopCell}>{formatContributionDate(item.paidAt)}</Text>
+      <Text style={styles.desktopCell} numberOfLines={1}>{operator?.name ?? 'Opérateur'}</Text>
+      <Text style={[styles.desktopAmount, item.status === 'PAYE' && { color: Colors.secondary }]}>
+        {item.amount.toLocaleString('fr-FR')} {item.currency}
+      </Text>
+      <View style={styles.desktopStatusCell}>
+        <StatusBadge status={item.status as any} size="md" />
+      </View>
+    </TouchableOpacity>
+  );
+}
 
 export default function AdminPaymentTrackingScreen({ navigation }: any) {
-  const user    = useAuthStore(s => s.user);
   const groupId = useAuthStore(s => s.groupId);
+  const { width } = useWindowDimensions();
+  const isLargeScreen = width >= 1024;
 
-  // ── État ──
   const [selectedMonth, setSelectedMonth] = useState<string>(toYearMonth(new Date()));
-  const [activeFilter,  setActiveFilter]  = useState<ContributionFilter>('all');
-  const [items,         setItems]         = useState<ContributionItem[]>([]);
-  const [summary,       setSummary]       = useState<ContributionSummary>({
-    collectedAmount: 0, expectedAmount: 0,
-    totalMembers: 0, paidCount: 0, pendingCount: 0, lateCount: 0, failedCount: 0,
+  const [activeFilter, setActiveFilter] = useState<ContributionFilter>('all');
+  const [items, setItems] = useState<ContributionItem[]>([]);
+  const [summary, setSummary] = useState<ContributionSummary>({
+    collectedAmount: 0,
+    expectedAmount: 0,
+    totalMembers: 0,
+    paidCount: 0,
+    pendingCount: 0,
+    lateCount: 0,
+    failedCount: 0,
   });
-  const [page,          setPage]          = useState(1);
-  const [hasMore,       setHasMore]       = useState(false);
-  const [isLoading,     setIsLoading]     = useState(true);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [refreshing,    setRefreshing]    = useState(false);
-  const [isOffline,     setIsOffline]     = useState(false);
-  const [actionItem,    setActionItem]    = useState<ContributionItem | null>(null);
-  const [showConfirm,   setShowConfirm]   = useState(false);
-  const [isSendingAll,  setIsSendingAll]  = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
+  const [actionItem, setActionItem] = useState<ContributionItem | null>(null);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [isSendingAll, setIsSendingAll] = useState(false);
 
-  // Compteur membres non-payés (pour FAB et modal)
   const unpaidCount = summary.pendingCount + summary.lateCount;
 
-  // ── Réseau ──
   useEffect(() => {
     const unsub = NetInfo.addEventListener(s => setIsOffline(!(s.isConnected ?? true)));
     return unsub;
   }, []);
 
-  // ── Chargement des données ──
   const loadContributions = useCallback(async (
-    p: number, filter: ContributionFilter, month: string, append = false,
+    p: number,
+    filter: ContributionFilter,
+    month: string,
+    append = false,
   ) => {
     if (!groupId) return;
     try {
       if (p === 1) setIsLoading(true);
-      else         setIsLoadingMore(true);
+      else setIsLoadingMore(true);
 
       const result = await fetchGroupContributions(groupId, month, filter, p);
-
-      setItems(prev => append ? [...prev, ...result.items] : result.items);
+      setItems(prev => (append ? [...prev, ...result.items] : result.items));
       setSummary(result.summary);
       setHasMore(result.hasMore);
       setPage(result.page);
-    } catch (err) {
+    } catch {
       Toast.show({
         type: 'error',
         text1: 'Erreur de chargement',
@@ -267,14 +358,11 @@ export default function AdminPaymentTrackingScreen({ navigation }: any) {
     }
   }, [groupId]);
 
-  // Initial + changement de mois/filtre
   useEffect(() => {
     setPage(1);
     setItems([]);
     loadContributions(1, activeFilter, selectedMonth);
-  }, [activeFilter, selectedMonth]);
-
-  // ── Handlers ──
+  }, [activeFilter, selectedMonth, loadContributions]);
 
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
@@ -283,34 +371,26 @@ export default function AdminPaymentTrackingScreen({ navigation }: any) {
 
   const handleLoadMore = useCallback(() => {
     if (hasMore && !isLoadingMore) {
-      const nextPage = page + 1;
-      loadContributions(nextPage, activeFilter, selectedMonth, true);
+      loadContributions(page + 1, activeFilter, selectedMonth, true);
     }
   }, [hasMore, isLoadingMore, page, activeFilter, selectedMonth, loadContributions]);
 
-  /** Navigation de mois */
   const navigateMonth = (dir: -1 | 1) => {
     const current = parseYearMonth(selectedMonth);
     current.setMonth(current.getMonth() + dir);
     setSelectedMonth(toYearMonth(current));
   };
 
-  /** Format du mois affiché */
   const displayMonth = () => {
     const d = parseYearMonth(selectedMonth);
     return `${MONTHS_FR[d.getMonth()]} ${d.getFullYear()}`;
   };
 
-  /** Tap sur une transaction */
   const handleRowPress = (item: ContributionItem) => {
-    if (item.status === 'PAYE') {
-      navigation.navigate('Receipt', { txId: item.txReference, receiptData: item });
-    } else {
-      setActionItem(item);
-    }
+    if (item.status === 'PAYE') navigation.navigate('Receipt', { txId: item.txReference, receiptData: item });
+    else setActionItem(item);
   };
 
-  /** Rappel individuel */
   const handleRemind = async (item: ContributionItem) => {
     try {
       await sendMemberReminder(item.memberId);
@@ -320,23 +400,17 @@ export default function AdminPaymentTrackingScreen({ navigation }: any) {
     }
   };
 
-  /** Navigation vers profil membre */
   const handleNavigateProfile = (item: ContributionItem) => {
     navigation.navigate('MemberProfile', { memberId: item.memberId });
   };
 
-  /** Rappel groupé */
   const handleRemindAll = async () => {
     if (!groupId) return;
     setIsSendingAll(true);
     try {
       await sendGroupRemindAll(groupId);
       setShowConfirm(false);
-      Toast.show({
-        type: 'success',
-        text1: 'Rappels envoyés',
-        text2: `${unpaidCount} membre(s) notifié(s).`,
-      });
+      Toast.show({ type: 'success', text1: 'Rappels envoyés', text2: `${unpaidCount} membre(s) notifié(s).` });
     } catch {
       Toast.show({ type: 'error', text1: 'Erreur', text2: 'Les rappels n\'ont pas pu être envoyés.' });
     } finally {
@@ -344,45 +418,38 @@ export default function AdminPaymentTrackingScreen({ navigation }: any) {
     }
   };
 
-  /** Effacer les filtres */
   const clearFilters = () => {
     setActiveFilter('all');
     setSelectedMonth(toYearMonth(new Date()));
   };
 
-  // ── Pourcentage collecté ──
-  const pct = summary.expectedAmount > 0
-    ? Math.round((summary.collectedAmount / summary.expectedAmount) * 100)
-    : 0;
+  const pct = summary.expectedAmount > 0 ? Math.round((summary.collectedAmount / summary.expectedAmount) * 100) : 0;
   const progressColor = pct >= 90 ? Colors.secondary : pct >= 50 ? Colors.tertiary : Colors.warning;
+  const statsData = [
+    { label: 'Payés', count: summary.paidCount, color: Colors.secondary },
+    { label: 'En attente', count: summary.pendingCount, color: Colors.warning },
+    { label: 'En retard', count: summary.lateCount, color: Colors.error },
+    { label: 'Échecs', count: summary.failedCount, color: Colors.tertiary },
+  ];
 
-  // ── Rendu des items ──
-  const renderItem = useCallback(({ item }: { item: ContributionItem }) => (
-    <TransactionRow
-      memberName={item.memberName}
-      memberAvatar={item.memberAvatar || null}
-      amount={item.amount}
-      currency={item.currency}
-      operator={item.operator as any}
-      date={item.paidAt as string}
-      status={item.status as any}
-      txReference={item.txReference}
-      onPress={() => handleRowPress(item)}
-    />
-  ), []);
+  const renderItem = ({ item }: { item: ContributionItem }) => (
+    isLargeScreen
+      ? <DesktopContributionRow item={item} onPress={() => handleRowPress(item)} />
+      : <ContributionCard item={item} onPress={() => handleRowPress(item)} />
+  );
 
   const renderFooter = () => {
-    if (isLoadingMore) return (
-      <View style={styles.footerLoader}>
-        <ActivityIndicator size="small" color={Colors.primary} />
-      </View>
-    );
-    if (!hasMore && items.length > 0) return (
-      <View style={styles.footerEnd}>
-        <MaterialCommunityIcons name="check-all" size={16} color={Colors.textMuted} />
-        <Text style={styles.footerEndText}>Toutes les contributions sont affichées</Text>
-      </View>
-    );
+    if (isLoadingMore) {
+      return <View style={styles.footerLoader}><ActivityIndicator size="small" color={Colors.primary} /></View>;
+    }
+    if (!hasMore && items.length > 0) {
+      return (
+        <View style={styles.footerEnd}>
+          <MaterialCommunityIcons name="check-all" size={16} color={Colors.textMuted} />
+          <Text style={styles.footerEndText}>Toutes les contributions sont affichées</Text>
+        </View>
+      );
+    }
     return null;
   };
 
@@ -400,75 +467,62 @@ export default function AdminPaymentTrackingScreen({ navigation }: any) {
     );
   };
 
-  // ─── Render ───────────────────────────────────────────────
+  const renderTableHeader = () => {
+    if (!isLargeScreen || items.length === 0) return null;
+    return (
+      <View style={styles.desktopTableHeader}>
+        <Text style={[styles.desktopHeaderText, styles.desktopMemberCol]}>Membre</Text>
+        <Text style={styles.desktopHeaderText}>Date</Text>
+        <Text style={styles.desktopHeaderText}>Opérateur</Text>
+        <Text style={[styles.desktopHeaderText, styles.desktopAmountHeader]}>Montant</Text>
+        <Text style={[styles.desktopHeaderText, styles.desktopStatusHeader]}>Statut</Text>
+      </View>
+    );
+  };
 
-  return (
-    <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={Colors.surface} />
-
-      {/* ── Hors-ligne ── */}
+  const renderScreenHeader = () => (
+    <>
       {isOffline && <OfflineBannerLocal />}
-
-      {/* ════════════════════════════════════════
-          HEADER
-      ════════════════════════════════════════ */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Suivi des paiements</Text>
-
-        {/* Sélecteur de mois */}
-        <View style={styles.monthSelector}>
-          <TouchableOpacity style={styles.monthArrow} onPress={() => navigateMonth(-1)}>
-            <MaterialCommunityIcons name="chevron-left" size={20} color={Colors.primary} />
-          </TouchableOpacity>
-          <Text style={styles.monthLabel}>{displayMonth()}</Text>
-          <TouchableOpacity style={styles.monthArrow} onPress={() => navigateMonth(1)}>
-            <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.primary} />
-          </TouchableOpacity>
+      <View style={styles.headerShell}>
+        <View style={styles.topBar}>
+          <View style={styles.topBarLeft}>
+            <Text style={styles.topBarEyebrow}>Contributions</Text>
+            <Text style={styles.topBarTitle}>Suivi des paiements</Text>
+            <Text style={styles.topBarSubtitle}>Vue administrateur avec rappels, filtres et statut de collecte.</Text>
+          </View>
+          <View style={styles.monthSelector}>
+            <TouchableOpacity style={styles.monthArrow} onPress={() => navigateMonth(-1)} activeOpacity={0.8}>
+              <MaterialCommunityIcons name="chevron-left" size={20} color={Colors.primary} />
+            </TouchableOpacity>
+            <Text style={styles.monthLabel}>{displayMonth()}</Text>
+            <TouchableOpacity style={styles.monthArrow} onPress={() => navigateMonth(1)} activeOpacity={0.8}>
+              <MaterialCommunityIcons name="chevron-right" size={20} color={Colors.primary} />
+            </TouchableOpacity>
+          </View>
+        </View>
+        <View style={styles.filtersSection}>
+          <Text style={styles.filtersLabel}>Filtres rapides</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtersScroll} contentContainerStyle={styles.filtersContent}>
+            {FILTER_OPTIONS.map(opt => {
+              const isActive = activeFilter === opt.key;
+              const count = opt.countKey ? (summary[opt.countKey] as number) : summary.totalMembers;
+              return (
+                <TouchableOpacity key={opt.key} style={[styles.filterChip, isActive && styles.filterChipActive]} onPress={() => setActiveFilter(opt.key)} activeOpacity={0.8}>
+                  <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
+                    {opt.label}
+                    {count > 0 ? ` (${count})` : ''}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
         </View>
       </View>
-
-      {/* ════════════════════════════════════════
-          BARRE DE FILTRES
-      ════════════════════════════════════════ */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.filtersScroll}
-        contentContainerStyle={styles.filtersContent}
-      >
-        {FILTER_OPTIONS.map(opt => {
-          const isActive = activeFilter === opt.key;
-          const count = opt.countKey ? (summary[opt.countKey] as number) : summary.totalMembers;
-
-          return (
-            <TouchableOpacity
-              key={opt.key}
-              style={[styles.filterChip, isActive && styles.filterChipActive]}
-              onPress={() => setActiveFilter(opt.key)}
-              activeOpacity={0.75}
-            >
-              <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
-                {opt.label}
-                {count > 0 ? ` (${count})` : ''}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
-
-      {/* ════════════════════════════════════════
-          BANDEAU DE SYNTHÈSE
-      ════════════════════════════════════════ */}
       <View style={styles.summaryBanner}>
         <View style={styles.summaryRow}>
           <View style={styles.summaryLeft}>
-            <Text style={styles.summaryCollected}>
-              {summary.collectedAmount.toLocaleString('fr-FR')}
-              <Text style={styles.summaryCurrency}> CDF</Text>
-            </Text>
-            <Text style={styles.summaryExpected}>
-              / {summary.expectedAmount.toLocaleString('fr-FR')} CDF attendus
-            </Text>
+            <Text style={styles.summaryCollected}>{summary.collectedAmount.toLocaleString('fr-FR')}<Text style={styles.summaryCurrency}> CDF</Text></Text>
+            <Text style={styles.summaryExpected}>/ {summary.expectedAmount.toLocaleString('fr-FR')} CDF attendus</Text>
           </View>
           <View style={[styles.pctBadge, { backgroundColor: progressColor + '18' }]}>
             <Text style={[styles.pctText, { color: progressColor }]}>{pct}%</Text>
@@ -477,71 +531,64 @@ export default function AdminPaymentTrackingScreen({ navigation }: any) {
         <View style={styles.progressWrap}>
           <ProgressBar current={pct} total={100} color={progressColor} height={6} />
         </View>
-        <View style={styles.summaryStats}>
-          {[
-            { label: 'Payés',      count: summary.paidCount,    color: Colors.secondary },
-            { label: 'En attente', count: summary.pendingCount,  color: Colors.warning   },
-            { label: 'En retard',  count: summary.lateCount,    color: Colors.error     },
-            { label: 'Échecs',     count: summary.failedCount,  color: Colors.textMuted },
-          ].map(s => (
-            <View key={s.label} style={styles.statChip}>
+        <View style={styles.summaryStatsGrid}>
+          {statsData.map(s => (
+            <View key={s.label} style={[styles.statCard, isLargeScreen && styles.statCardLarge]}>
               <Text style={[styles.statCount, { color: s.color }]}>{s.count}</Text>
               <Text style={styles.statLabel}>{s.label}</Text>
             </View>
           ))}
         </View>
       </View>
+    </>
+  );
 
-      {/* ════════════════════════════════════════
-          LISTE DES TRANSACTIONS
-      ════════════════════════════════════════ */}
+  return (
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor={Colors.surface} />
+
+      {renderScreenHeader()}
+      {!isLoading && renderTableHeader()}
+
       {isLoading ? (
-        <View style={styles.skeletonWrap}>
-          {[0, 1, 2, 3, 4].map(i => <SkeletonRow key={i} />)}
-        </View>
+        <ScrollView
+          style={styles.list}
+          contentContainerStyle={styles.loadingScrollContent}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.skeletonWrap}>
+            {[0, 1, 2, 3, 4].map(i => <SkeletonRow key={i} />)}
+          </View>
+        </ScrollView>
       ) : (
         <FlatList
           data={items}
+          key={isLargeScreen ? 'desktop-contributions' : 'mobile-contributions'}
           keyExtractor={item => item.id}
           renderItem={renderItem}
           ListEmptyComponent={renderEmpty}
           ListFooterComponent={renderFooter}
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.4}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              colors={[Colors.primary]}
-              tintColor={Colors.primary}
-            />
-          }
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />}
           showsVerticalScrollIndicator={false}
           style={styles.list}
           contentContainerStyle={[
             styles.listContent,
+            isLargeScreen ? styles.listContentDesktop : styles.listContentMobile,
             items.length === 0 && { flex: 1 },
           ]}
         />
       )}
 
-      {/* ════════════════════════════════════════
-          FAB — Rappel groupé
-      ════════════════════════════════════════ */}
       {unpaidCount > 0 && (
-        <TouchableOpacity
-          style={styles.fab}
-          onPress={() => setShowConfirm(true)}
-          activeOpacity={0.88}
-        >
+        <TouchableOpacity style={styles.fab} onPress={() => setShowConfirm(true)} activeOpacity={0.88}>
           <MaterialCommunityIcons name="bell-ring" size={22} color="#FFF" />
           <Text style={styles.fabText}>Rappel groupé</Text>
         </TouchableOpacity>
       )}
 
-      {/* ════════════════════════════════════════
-          MODAL — Confirmer rappel groupé
-      ════════════════════════════════════════ */}
       {showConfirm && (
         <View style={styles.modalOverlay}>
           <View style={styles.modal}>
@@ -557,20 +604,14 @@ export default function AdminPaymentTrackingScreen({ navigation }: any) {
                 </View>
                 <Text style={styles.modalTitle}>Rappel groupé</Text>
                 <Text style={styles.modalMsg}>
-                  Envoyer un rappel à tous les membres qui n'ont pas payé ?{'\n'}
+                  Envoyer un rappel à tous les membres qui n&apos;ont pas payé ?{`\n`}
                   <Text style={styles.modalCount}>({unpaidCount} membre{unpaidCount > 1 ? 's' : ''})</Text>
                 </Text>
                 <View style={styles.modalBtns}>
-                  <TouchableOpacity
-                    style={styles.modalBtnCancel}
-                    onPress={() => setShowConfirm(false)}
-                  >
+                  <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setShowConfirm(false)}>
                     <Text style={styles.modalBtnCancelText}>Annuler</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.modalBtnConfirm}
-                    onPress={handleRemindAll}
-                  >
+                  <TouchableOpacity style={styles.modalBtnConfirm} onPress={handleRemindAll}>
                     <MaterialCommunityIcons name="send" size={16} color="#FFF" />
                     <Text style={styles.modalBtnConfirmText}>Envoyer</Text>
                   </TouchableOpacity>
@@ -581,9 +622,6 @@ export default function AdminPaymentTrackingScreen({ navigation }: any) {
         </View>
       )}
 
-      {/* ════════════════════════════════════════
-          ACTION BOTTOM SHEET
-      ════════════════════════════════════════ */}
       {actionItem && (
         <ActionBottomSheet
           item={actionItem}
@@ -596,13 +634,10 @@ export default function AdminPaymentTrackingScreen({ navigation }: any) {
     </View>
   );
 }
-
-// ─── Styles ──────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.surface },
 
-  // ── Hors-ligne ──
+  // â”€â”€ Hors-ligne â”€â”€
   offlineBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: Colors.offline,
@@ -610,70 +645,109 @@ const styles = StyleSheet.create({
   },
   offlineText: { fontFamily: Fonts.body, fontSize: 12, color: '#795501' },
 
-  // ── Header ──
-  header: {
+  // â”€â”€ Top App Bar (rÃ©fÃ©rence AdminDashboard) â”€â”€
+  headerShell: {
+    marginBottom: 4,
+  },
+  topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: Colors.surface,
+    alignItems: 'flex-start',
+    gap: 16,
+    backgroundColor: Colors.surfaceContainerLowest,
     paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 56 : 40,
-    paddingBottom: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.outlineVariant + '40',
-    shadowColor: Colors.onSurface,
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
+    paddingTop: Platform.OS === 'ios' ? 52 : 36,
+    paddingBottom: 16,
+    ...Shadow.card,
   },
-  headerTitle: {
+  topBarLeft: {
+    flex: 1,
+    gap: 4,
+  },
+  topBarEyebrow: {
+    fontFamily: Fonts.label,
+    fontSize: 11,
+    color: Colors.primaryContainer,
+    textTransform: 'uppercase',
+    letterSpacing: 1.1,
+  },
+  topBarTitle: {
     fontFamily: Fonts.display,
-    fontSize: 22,
+    fontSize: 24,
     color: Colors.onSurface,
-    letterSpacing: -0.3,
+    letterSpacing: -0.4,
+  },
+  topBarSubtitle: {
+    fontFamily: Fonts.body,
+    fontSize: 13,
+    lineHeight: 20,
+    color: Colors.onSurfaceVariant,
+    maxWidth: 520,
   },
 
-  // ── Sélecteur de mois ──
+  // â”€â”€ SÃ©lecteur de mois â”€â”€
   monthSelector: {
     flexDirection: 'row',
     alignItems: 'center',
+    alignSelf: 'flex-start',
     backgroundColor: Colors.surfaceContainerLow,
     borderRadius: Radius.full,
     paddingVertical: 4,
     paddingHorizontal: 4,
+    minHeight: 44,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
     gap: 2,
   },
   monthArrow: {
-    width: 30, height: 30,
-    justifyContent: 'center', alignItems: 'center',
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
     borderRadius: Radius.full,
   },
   monthLabel: {
     fontFamily: Fonts.title,
     fontSize: 13,
     color: Colors.primary,
-    paddingHorizontal: 4,
+    minWidth: 108,
+    textAlign: 'center',
+    paddingHorizontal: 6,
   },
 
-  // ── Filtres ──
+  // â”€â”€ Filtres â”€â”€
+  filtersSection: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    gap: 12,
+  },
+  filtersLabel: {
+    fontFamily: Fonts.title,
+    fontSize: 13,
+    color: Colors.onSurfaceVariant,
+  },
   filtersScroll: {
-    backgroundColor: Colors.surface,
-    maxHeight: 52,
+    backgroundColor: 'transparent',
+    maxHeight: 56,
   },
   filtersContent: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
     gap: 8,
   },
   filterChip: {
+    minHeight: 40,
     paddingHorizontal: 14,
-    paddingVertical: 7,
+    paddingVertical: 8,
     borderRadius: Radius.full,
-    backgroundColor: Colors.surfaceContainerHigh,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+    backgroundColor: Colors.surfaceContainerHighest,
+    justifyContent: 'center',
   },
   filterChipActive: {
     backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
   },
   filterChipText: {
     fontFamily: Fonts.title,
@@ -684,27 +758,28 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
 
-  // ── Bandeau synthèse ──
+  // â”€â”€ Bandeau synthÃ¨se â”€â”€
   summaryBanner: {
     marginHorizontal: 16,
-    marginVertical: 10,
+    marginVertical: 12,
     backgroundColor: Colors.surfaceContainerLowest,
     borderRadius: Radius.xl,
-    padding: 16,
-    gap: 10,
+    padding: 18,
+    gap: 14,
     ...Shadow.card,
   },
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-end',
+    alignItems: 'flex-start',
+    gap: 12,
   },
-  summaryLeft: { gap: 2 },
+  summaryLeft: { gap: 4, flex: 1 },
   summaryCollected: {
     fontFamily: Fonts.display,
-    fontSize: 26,
+    fontSize: 28,
     color: Colors.primary,
-    letterSpacing: -0.5,
+    letterSpacing: -0.6,
   },
   summaryCurrency: {
     fontFamily: Fonts.headline,
@@ -713,43 +788,247 @@ const styles = StyleSheet.create({
   },
   summaryExpected: {
     fontFamily: Fonts.body,
-    fontSize: 12,
+    fontSize: 13,
     color: Colors.textMuted,
   },
   pctBadge: {
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderRadius: Radius.full,
+    minHeight: 40,
+    justifyContent: 'center',
   },
   pctText: {
     fontFamily: Fonts.display,
     fontSize: 18,
     letterSpacing: -0.4,
   },
-  progressWrap: { marginTop: 4 },
-  summaryStats: {
+  progressWrap: { marginTop: 2 },
+  summaryStatsGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
-    marginTop: 4,
+    rowGap: 12,
   },
-  statChip: { alignItems: 'center', gap: 2 },
+  statCard: {
+    width: '48%',
+    minHeight: 76,
+    backgroundColor: Colors.surfaceContainerLow,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant + '70',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    justifyContent: 'center',
+    gap: 4,
+  },
+  statCardLarge: {
+    width: '23.5%',
+  },
   statCount: {
     fontFamily: Fonts.headline,
-    fontSize: 18,
+    fontSize: 20,
   },
   statLabel: {
     fontFamily: Fonts.body,
-    fontSize: 10,
-    color: Colors.textMuted,
+    fontSize: 12,
+    color: Colors.onSurfaceVariant,
   },
 
-  // ── Liste ──
+  // â”€â”€ Liste â”€â”€
   list: { flex: 1 },
   listContent: {
-    paddingBottom: 100, // espace FAB
+    paddingBottom: 128,
+  },
+  listContentMobile: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  loadingScrollContent: {
+    paddingBottom: 128,
+  },
+  listContentDesktop: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+  },
+  contributionCard: {
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant + '55',
+    padding: 16,
+    minHeight: 148,
+    gap: 14,
+    marginBottom: 12,
+    ...Shadow.card,
+  },
+  cardTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  cardIdentity: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  cardAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.surfaceContainerHigh,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cardAvatarText: {
+    fontFamily: Fonts.headline,
+    fontSize: 16,
+    color: Colors.primary,
+  },
+  cardIdentityText: {
+    flex: 1,
+    gap: 4,
+  },
+  cardMemberName: {
+    fontFamily: Fonts.headline,
+    fontSize: 16,
+    color: Colors.onSurface,
+  },
+  cardMetaText: {
+    fontFamily: Fonts.body,
+    fontSize: 12,
+    color: Colors.textMuted,
+  },
+  operatorPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minHeight: 40,
+    borderRadius: Radius.full,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    maxWidth: '48%',
+  },
+  operatorDot: {
+    width: 8,
+    height: 8,
+    borderRadius: Radius.full,
+  },
+  operatorPillText: {
+    flexShrink: 1,
+    fontFamily: Fonts.title,
+    fontSize: 12,
+    color: Colors.onSurfaceVariant,
+  },
+  cardAmountRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    gap: 12,
+  },
+  cardAmountValue: {
+    fontFamily: Fonts.display,
+    fontSize: 20,
+    color: Colors.primary,
+    letterSpacing: -0.4,
+  },
+  cardAmountCurrency: {
+    fontFamily: Fonts.body,
+    fontSize: 13,
+    color: Colors.textMuted,
+  },
+  cardReference: {
+    fontFamily: Fonts.body,
+    fontSize: 12,
+    color: Colors.onSurfaceVariant,
+    marginTop: 4,
+  },
+  cardStatusHint: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: Radius.lg,
+    padding: 10,
+  },
+  cardStatusHintText: {
+    flex: 1,
+    fontFamily: Fonts.body,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  desktopTableHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surfaceContainerHigh,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+    borderTopLeftRadius: Radius.xl,
+    borderTopRightRadius: Radius.xl,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    minHeight: 48,
+  },
+  desktopHeaderText: {
+    flex: 1,
+    fontFamily: Fonts.title,
+    fontSize: 12,
+    color: Colors.onSurfaceVariant,
+  },
+  desktopMemberCol: {
+    flex: 1.6,
+  },
+  desktopAmountHeader: {
+    flex: 1.1,
+    textAlign: 'right',
+  },
+  desktopStatusHeader: {
+    flex: 1.2,
+    textAlign: 'right',
+  },
+  desktopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.outlineVariant + '45',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    minHeight: 72,
+    gap: 12,
+  },
+  desktopMemberName: {
+    fontFamily: Fonts.headline,
+    fontSize: 14,
+    color: Colors.onSurface,
+  },
+  desktopSubtle: {
+    fontFamily: Fonts.body,
+    fontSize: 11,
+    color: Colors.textMuted,
+    marginTop: 4,
+  },
+  desktopCell: {
+    flex: 1,
+    fontFamily: Fonts.body,
+    fontSize: 13,
+    color: Colors.onSurfaceVariant,
+  },
+  desktopAmount: {
+    flex: 1.1,
+    fontFamily: Fonts.headline,
+    fontSize: 14,
+    color: Colors.onSurface,
+    textAlign: 'right',
+  },
+  desktopStatusCell: {
+    flex: 1.2,
+    alignItems: 'flex-end',
   },
 
-  // ── Footer liste ──
+  // â”€â”€ Footer liste â”€â”€
   footerLoader: {
     paddingVertical: 20,
     alignItems: 'center',
@@ -767,12 +1046,17 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
   },
 
-  // ── État vide ──
+  // â”€â”€ Ã‰tat vide â”€â”€
   emptyState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 60,
+    marginHorizontal: 16,
+    paddingHorizontal: 24,
+    paddingVertical: 48,
+    borderRadius: Radius.xl,
+    backgroundColor: Colors.surfaceContainerLowest,
+    ...Shadow.card,
     gap: 12,
   },
   emptyTitle: {
@@ -790,9 +1074,12 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingHorizontal: 20,
     paddingVertical: 10,
+    minHeight: 40,
     borderRadius: Radius.full,
     borderWidth: 1.5,
     borderColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   clearFiltersBtnText: {
     fontFamily: Fonts.title,
@@ -800,8 +1087,8 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
 
-  // ── Skeletons ──
-  skeletonWrap: { paddingTop: 8 },
+  // â”€â”€ Skeletons â”€â”€
+  skeletonWrap: { paddingTop: 8, paddingHorizontal: 16 },
   skeletonRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -823,10 +1110,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceContainerHigh,
   },
 
-  // ── FAB ──
+  // â”€â”€ FAB â”€â”€
   fab: {
     position: 'absolute',
-    bottom: 24,
+    bottom: 32,
     right: 20,
     flexDirection: 'row',
     alignItems: 'center',
@@ -834,6 +1121,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     paddingHorizontal: 20,
     paddingVertical: 14,
+    minHeight: 48,
     borderRadius: Radius.full,
     shadowColor: Colors.primary,
     shadowOpacity: 0.32,
@@ -847,7 +1135,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
 
-  // ── Modal confirm ──
+  // â”€â”€ Modal confirm â”€â”€
   modalOverlay: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
     backgroundColor: 'rgba(7,30,39,0.55)',
@@ -893,9 +1181,11 @@ const styles = StyleSheet.create({
   modalBtnCancel: {
     flex: 1,
     paddingVertical: 14,
+    minHeight: 44,
     borderRadius: Radius.lg,
     backgroundColor: Colors.surfaceContainerHigh,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   modalBtnCancelText: {
     fontFamily: Fonts.title,
@@ -906,6 +1196,7 @@ const styles = StyleSheet.create({
     flex: 2,
     flexDirection: 'row',
     paddingVertical: 14,
+    minHeight: 44,
     borderRadius: Radius.lg,
     backgroundColor: Colors.primary,
     alignItems: 'center',
@@ -918,7 +1209,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
 
-  // ── Bottom Sheet ──
+  // â”€â”€ Bottom Sheet â”€â”€
   sheetOverlay: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
     backgroundColor: 'rgba(7,30,39,0.45)',
@@ -961,6 +1252,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 14,
+    minHeight: 56,
     gap: 14,
   },
   sheetActionIcon: {
@@ -1001,9 +1293,11 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     marginTop: 8,
     paddingVertical: 14,
+    minHeight: 44,
     borderRadius: Radius.lg,
     backgroundColor: Colors.surfaceContainerHigh,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   sheetCloseBtnText: {
     fontFamily: Fonts.title,
@@ -1011,3 +1305,7 @@ const styles = StyleSheet.create({
     color: Colors.onSurfaceVariant,
   },
 });
+
+
+
+

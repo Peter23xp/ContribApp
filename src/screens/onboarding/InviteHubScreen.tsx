@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { 
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Share, Linking, Image
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Share, Linking, Image, Platform
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Ionicons, FontAwesome } from '@expo/vector-icons';
@@ -11,7 +11,7 @@ import QRCode from 'react-native-qrcode-svg';
 // import * as Sharing from 'expo-sharing';
 // import * as FileSystem from 'expo-file-system';
 
-import { Colors } from '../../constants/colors';
+import { Colors, Fonts, Radius } from '../../constants/colors';
 import { AppButton } from '../../components/common/AppButton';
 import { AppInput } from '../../components/common/AppInput';
 import { ToastNotification } from '../../components/common/ToastNotification';
@@ -142,15 +142,17 @@ export default function InviteHubScreen({ navigation, route }: any) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
-        </TouchableOpacity>
-        <View style={styles.headerTitles}>
-          <Text style={styles.headerTitle}>Inviter des membres</Text>
-          <Text style={styles.headerSubtitle}>{memberCount} membres actuellement dans le groupe</Text>
+      {/* ── Top App Bar (référence AdminDashboard) ── */}
+      <View style={styles.topBar}>
+        <View style={styles.topBarLeft}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.topBarBtn} activeOpacity={0.7}>
+            <Ionicons name="arrow-back" size={22} color={Colors.onSurface} />
+          </TouchableOpacity>
+          <View>
+            <Text style={styles.topBarTitle}>Inviter des membres</Text>
+            <Text style={styles.headerSubtitle}>{memberCount} membres dans le groupe</Text>
+          </View>
         </View>
-        <View style={{ width: 24 }} />
       </View>
 
       <ScrollView style={styles.scroll}>
@@ -268,20 +270,19 @@ export default function InviteHubScreen({ navigation, route }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F5F5' },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF',
-    paddingTop: 50,
-    paddingBottom: 16,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+  // ── Top App Bar (référence AdminDashboard) ──
+  topBar: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: Colors.surface, paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 52 : 36, paddingBottom: 12,
+    shadowColor: Colors.onSurface, shadowOpacity: 0.05, shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 }, elevation: 2,
   },
-  backBtn: { padding: 8, marginLeft: -8 },
-  headerTitles: { flex: 1, alignItems: 'center' },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary },
-  headerSubtitle: { fontSize: 12, color: '#666', marginTop: 2 },
+  topBarLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  topBarTitle: { fontFamily: Fonts.display, fontSize: 20, color: Colors.onSurface },
+  topBarBtn: { padding: 8, borderRadius: Radius.full },
+
+  headerSubtitle: { fontFamily: Fonts.body, fontSize: 11, color: Colors.onSurfaceVariant, marginTop: -2 },
   scroll: { flex: 1, padding: 16 },
   section: {
     backgroundColor: '#FFF',
