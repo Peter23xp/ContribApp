@@ -2,9 +2,6 @@ import { AwsClient } from 'aws4fetch';
 
 export interface Env {
   BUCKET: R2Bucket;
-  R2_ACCESS_KEY_ID: string;
-  R2_SECRET_ACCESS_KEY: string;
-  FIREBASE_PROJECT_ID: string;
 }
 
 export default {
@@ -22,9 +19,9 @@ export default {
       return new Response(null, { headers: corsHeaders });
     }
 
-    if (request.method === 'POST' && url.pathname === '/presign') {
+    if (request.method === 'PUT' && url.pathname.startsWith('/upload/')) {
       try {
-        const body = await request.json() as { fileName: string; contentType: string; category: string };
+        const key = url.pathname.replace('/upload/', '');
         const authHeader = request.headers.get('Authorization');
         
         // TODO: En prod, vérifier le Token JWT (Firebase)
@@ -32,37 +29,14 @@ export default {
           return new Response('Not Authenticated', { status: 401, headers: corsHeaders });
         }
 
-        const bucketName = 'contrib-bucket'; 
-        // Note : Il faut configurer vos credentials API R2 S3 depuis l'interface Cloudflare
-        const accountId = 'VOTRE_ID_COMPTE_(REMPLACER_EN_PROD)'; 
-        
-        // C'est un code simplifié, on génère juste un chemin
-        const key = `${body.category}/${body.fileName}`;
-        const s3Url = `https://${accountId}.r2.cloudflarestorage.com/${bucketName}/${key}`;
+        const publicBaseUrl = 'https://pub-45a3bfa4592944adb4b365a939adcf46.r2.dev';
 
-        // Initialiser l'AWScLient (S3 compatible)
-        const aws = new AwsClient({
-          accessKeyId: env.R2_ACCESS_KEY_ID || 'dummy',
-          secretAccessKey: env.R2_SECRET_ACCESS_KEY || 'dummy',
-          service: 's3',
-          region: 'auto',
+        await env.BUCKET.put(key, request.body, {
+          httpMetadata: { contentType: request.headers.get('Content-Type') || 'application/octet-stream' }
         });
-
-        const signed = await aws.sign(s3Url, {
-          method: 'PUT',
-          aws: { signQuery: true },
-          headers: {
-            'Content-Type': body.contentType
-          }
-        });
-
-        // Simulons temporairement si les clés ne sont pas encore mises: on revoie l'url public.
-        // Sinon en prod on renvoit l'URL `signed.url`.
-        const uploadUrl = env.R2_ACCESS_KEY_ID ? signed.url : `https://pub-replace-me.r2.dev/${key}`;
 
         return new Response(JSON.stringify({
-          uploadUrl: uploadUrl,
-          publicUrl: `https://pub-replace-me.r2.dev/${key}`, // À remplacer par votre public URL R2
+          url: `${publicBaseUrl}/${key}`,
           key: key
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -70,6 +44,20 @@ export default {
 
       } catch (err: any) {
         return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders });
+      }
+    }
+
+    if (request.method === 'DELETE' && url.pathname === '/delete') {
+      try {
+        const authHeader = request.headers.get('Authorization');
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+          return new Response('Not Authenticated', { status: 401, headers: corsHeaders });
+        }
+        const body = await request.json() as { key: string };
+        await env.BUCKET.delete(body.key);
+        return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      } catch (err: any) {
+         return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders });
       }
     }
 

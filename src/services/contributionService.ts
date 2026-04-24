@@ -84,8 +84,68 @@ export async function fetchReceiptPdfUrl(txId: string): Promise<PdfUrlResponse> 
 }
 
 export async function fetchReceiptDetail(txId: string): Promise<ReceiptDetail> {
+  let docSnap = await getDoc(doc(db, 'contributions', txId));
+  let cd: any = null;
+  let id = txId;
+  
+  if (docSnap.exists()) {
+    cd = docSnap.data();
+  } else {
+    // Essayer de chercher par tx_reference
+    const q1 = query(collection(db, 'contributions'), where('tx_reference', '==', txId), limit(1));
+    const snap1 = await getDocs(q1);
+    if (!snap1.empty) {
+      cd = snap1.docs[0].data();
+      id = snap1.docs[0].id;
+    } else {
+      const q2 = query(collection(db, 'contributions'), where('transaction_ref', '==', txId), limit(1));
+      const snap2 = await getDocs(q2);
+      if (!snap2.empty) {
+        cd = snap2.docs[0].data();
+        id = snap2.docs[0].id;
+      }
+    }
+  }
+  
+  if (!cd) throw new Error('RECEIPT_NOT_FOUND');
+  
+  const groupSnap = cd.group_id ? await getDoc(doc(db, 'groups', cd.group_id)) : null;
+  const groupData = groupSnap?.exists() ? groupSnap.data() : {};
+  
+  const memberUid = cd.member_uid ?? cd.user_id ?? '';
+  const memberSnap = memberUid ? await getDoc(doc(db, 'users', memberUid)) : null;
+  const memberData = memberSnap?.exists() ? memberSnap.data() : {};
+  
+  const treasurerUid = groupData.treasurer_uid ?? '';
+  let treasurerName = cd.treasurer_name ?? cd.treasurerName ?? groupData.treasurer_name ?? groupData.treasurerName ?? '';
+  if (!treasurerName && treasurerUid) {
+    const tSnap = await getDoc(doc(db, 'users', treasurerUid));
+    if (tSnap.exists()) treasurerName = tSnap.data().full_name ?? '';
+  }
+
+  const amountPaid = Number(cd.amount_paid ?? cd.amountPaid ?? 0);
+  const amountDue = Number(cd.amount_due ?? cd.amountDue ?? cd.amount ?? 0);
+  const finalAmount = amountPaid > 0 ? amountPaid : amountDue;
+  
+  const paidAtValue = cd.approved_at ?? cd.approvedAt ?? cd.paid_at ?? cd.paidAt ?? cd.created_at ?? cd.createdAt;
+  
   return {
-    txId, groupName: '', memberName: '', amount: 0, currency: 'CDF', paidAt: '', operator: 'mpesa', txReference: '', period: '', receiptNumber: ''
+    txId: id,
+    groupName: groupData.name ?? 'Groupe Inconnu',
+    memberName: cd.member_name ?? cd.memberName ?? memberData.full_name ?? 'Membre',
+    amount: finalAmount,
+    currency: cd.currency ?? groupData.currency ?? 'CDF',
+    paidAt: paidAtValue ? new Date(toMillis(paidAtValue)).toISOString() : new Date().toISOString(),
+    operator: (normalizeOperator(cd.operator ?? cd.payment_operator) ?? 'mpesa') as 'airtel' | 'orange' | 'mpesa' | 'mtn',
+    txReference: cd.transaction_ref ?? cd.tx_reference ?? cd.txReference ?? id,
+    period: cd.period_month ?? cd.month ?? '',
+    receiptNumber: cd.receipt_number ?? cd.receiptNumber ?? id.substring(0, 8).toUpperCase(),
+    memberPhone: cd.member_phone ?? cd.memberPhone ?? memberData.phone ?? '',
+    baseAmount: amountDue,
+    penaltyAmount: Number(cd.penalty_amount ?? cd.penaltyAmount ?? 0),
+    totalAmount: finalAmount,
+    treasurerName: treasurerName || 'Trésorière',
+    treasurerAccount: groupData.treasurer_phone ?? groupData.treasurerPhone ?? '',
   };
 }
 

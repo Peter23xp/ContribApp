@@ -12,7 +12,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity,
   StatusBar, Platform, ActivityIndicator,
 } from 'react-native';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing    from 'expo-sharing';
 import NetInfo          from '@react-native-community/netinfo';
 import Toast            from 'react-native-toast-message';
@@ -22,36 +22,105 @@ import { Colors, Fonts, Radius, Shadow } from '../../constants/colors';
 import { ReceiptDocument }    from '../../components/payment/ReceiptDocument';
 import {
   fetchReceiptDetail,
-  fetchReceiptPdfUrl,
   type ReceiptDetail,
-  type PdfUrlResponse,
 } from '../../services/contributionService';
 
-// ─── Cache PDF local (30 minutes) ────────────────────────────
-
-interface PdfCache {
-  url:       string;
-  expiresAt: number;  // timestamp ms
-}
-const pdfCache = new Map<string, PdfCache>();
-
-async function getPdfUrl(txId: string): Promise<string> {
-  const cached = pdfCache.get(txId);
-  if (cached && Date.now() < cached.expiresAt) return cached.url;
-
-  const res: PdfUrlResponse = await fetchReceiptPdfUrl(txId);
-  pdfCache.set(txId, {
-    url:       res.downloadUrl,
-    expiresAt: Date.now() + 30 * 60 * 1000,   // 30 min
-  });
-  return res.downloadUrl;
-}
+import * as Print from 'expo-print';
 
 // ─── Helpers ─────────────────────────────────────────────────
 
 function safeFilename(receiptNumber: string): string {
   return `recu_${receiptNumber.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
 }
+
+function formatDate(iso: string) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+
+function formatCurrency(amount: number) {
+  if (amount === undefined || amount === null) return '0';
+  return amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+}
+
+function generatePdfHtml(r: ReceiptDetail) {
+  const dateStr = formatDate(r.paidAt);
+  const formattedAmount = formatCurrency(r.amount);
+  const formattedPenalty = r.penaltyAmount ? formatCurrency(r.penaltyAmount) : '0';
+
+  return `
+    <html>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
+        <style>
+          body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #1a1a1a; }
+          .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #004d40; padding-bottom: 20px; }
+          .title { font-size: 28px; font-weight: bold; color: #004d40; margin: 0 0 10px 0; }
+          .subtitle { font-size: 16px; color: #666; margin: 0; }
+          .row { display: flex; justify-content: space-between; margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 8px; }
+          .label { font-size: 14px; color: #666; font-weight: bold; }
+          .value { font-size: 16px; font-weight: bold; color: #333; }
+          .total-box { background-color: #f0fdf4; border: 2px solid #004d40; padding: 20px; text-align: center; margin-top: 30px; border-radius: 8px; }
+          .total-label { font-size: 18px; color: #004d40; margin-bottom: 10px; font-weight: bold; }
+          .total-value { font-size: 32px; font-weight: bold; color: #004d40; }
+          .footer { text-align: center; margin-top: 50px; font-size: 12px; color: #999; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1 class="title">Reçu de Contribution</h1>
+          <p class="subtitle">${r.groupName || ''}</p>
+        </div>
+        
+        <div class="row">
+          <span class="label">N° de reçu :</span>
+          <span class="value">${r.receiptNumber || ''}</span>
+        </div>
+        <div class="row">
+          <span class="label">Date du paiement :</span>
+          <span class="value">${dateStr}</span>
+        </div>
+        <div class="row">
+          <span class="label">Membre :</span>
+          <span class="value">${r.memberName || ''}</span>
+        </div>
+        <div class="row">
+          <span class="label">Période :</span>
+          <span class="value">${r.period || ''}</span>
+        </div>
+        <div class="row">
+          <span class="label">Opérateur :</span>
+          <span class="value" style="text-transform: capitalize;">${r.operator || ''}</span>
+        </div>
+        <div class="row">
+          <span class="label">Réf. transaction :</span>
+          <span class="value">${r.txReference || ''}</span>
+        </div>
+        <div class="row">
+          <span class="label">Trésorière :</span>
+          <span class="value">${r.treasurerName || ''}</span>
+        </div>
+
+        <div class="total-box">
+          <div class="total-label">Montant Payé</div>
+          <div class="total-value">${formattedAmount} ${r.currency || ''}</div>
+          ${r.penaltyAmount && r.penaltyAmount > 0 ? `<div style="color: #d32f2f; margin-top: 5px; font-size: 14px;">(Inclut ${formattedPenalty} ${r.currency} de pénalité)</div>` : ''}
+        </div>
+        
+        <div class="footer">
+          Généré par ContribApp • Le ${formatDate(new Date().toISOString())}
+        </div>
+      </body>
+    </html>
+  `;
+}
+
+// ─── LoadingOverlay ──────────────────────────────────────────
 
 // ─── LoadingOverlay ──────────────────────────────────────────
 
@@ -101,47 +170,35 @@ export default function PaymentReceiptScreen({ navigation, route }: any) {
 
   // ── Action partage (déclenchable depuis icône header OU bouton bas) ──
   const handleShare = useCallback(async () => {
-    if (isOffline) {
-      Toast.show({ type: 'error', text1: 'Hors-ligne', text2: 'Partage indisponible sans connexion.' });
-      return;
-    }
+    if (!receipt) return;
     setOverlayMsg('Préparation du partage…');
-    let tmpPath: string | null = null;
     try {
-      const url      = await getPdfUrl(txId);
-      const filename = receipt ? safeFilename(receipt.receiptNumber) : 'recu.pdf';
-      tmpPath = ((FileSystem as any).cacheDirectory ?? '') + filename;
-
-      await FileSystem.downloadAsync(url, tmpPath);
-      await Sharing.shareAsync(tmpPath, {
+      const html = generatePdfHtml(receipt);
+      const { uri } = await Print.printToFileAsync({ html });
+      await Sharing.shareAsync(uri, {
         mimeType: 'application/pdf',
         dialogTitle: 'Partager le reçu',
       });
-    } catch {
-      Toast.show({ type: 'error', text1: 'Partage échoué', text2: 'Impossible de préparer le fichier.' });
+    } catch (err: any) {
+      console.error('Share PDF Error:', err);
+      Toast.show({ type: 'error', text1: 'Partage échoué', text2: err.message || 'Impossible de générer le fichier PDF.' });
     } finally {
       setOverlayMsg(null);
-      // Nettoyage du fichier temporaire
-      if (tmpPath) {
-        try { await FileSystem.deleteAsync(tmpPath, { idempotent: true }); }
-        catch { /* ignorer */ }
-      }
     }
-  }, [txId, receipt, isOffline]);
+  }, [receipt]);
 
   // ── Téléchargement PDF ──
   const handleDownload = useCallback(async () => {
-    if (isOffline) {
-      Toast.show({ type: 'error', text1: 'Hors-ligne', text2: 'Téléchargement indisponible sans connexion.' });
-      return;
-    }
+    if (!receipt) return;
     setOverlayMsg('Génération du PDF…');
     try {
-      const url      = await getPdfUrl(txId);
-      const filename = receipt ? safeFilename(receipt.receiptNumber) : 'recu.pdf';
+      const html = generatePdfHtml(receipt);
+      const { uri } = await Print.printToFileAsync({ html });
+      
+      const filename = safeFilename(receipt.receiptNumber);
       const destPath = ((FileSystem as any).documentDirectory ?? '') + filename;
-
-      await FileSystem.downloadAsync(url, destPath);
+      
+      await FileSystem.copyAsync({ from: uri, to: destPath });
 
       Toast.show({
         type: 'success',
@@ -155,12 +212,13 @@ export default function PaymentReceiptScreen({ navigation, route }: any) {
         mimeType: 'application/pdf',
         dialogTitle: 'Ouvrir le reçu PDF',
       });
-    } catch {
-      Toast.show({ type: 'error', text1: 'Téléchargement échoué', text2: 'Impossible de générer le PDF. Réessayez.' });
+    } catch (err: any) {
+      console.error('Download PDF Error:', err);
+      Toast.show({ type: 'error', text1: 'Téléchargement échoué', text2: err.message || 'Impossible de générer le PDF. Réessayez.' });
     } finally {
       setOverlayMsg(null);
     }
-  }, [txId, receipt, isOffline]);
+  }, [receipt]);
 
   // ─── Render ────────────────────────────────────────────────
 

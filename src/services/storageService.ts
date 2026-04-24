@@ -50,50 +50,14 @@ interface UploadResult {
 
 
 
-/**
- * Obtient une URL pré-signée depuis le Cloudflare Worker
- */
-async function getPresignedUrl(
-  fileName: string,
-  contentType: string,
-  category: FileCategory
-): Promise<{ uploadUrl: string; publicUrl: string; key: string }> {
-  if (!CLOUDFLARE_CONFIG.workerUrl) {
-    throw new Error('CLOUDFLARE_WORKER_URL_MISSING');
-  }
-
-  // Utiliser le helper robuste (onAuthStateChanged + refresh forcé)
-  const token = await getAuthToken();
-
-  const response = await fetch(`${CLOUDFLARE_CONFIG.workerUrl}/presign`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-    },
-    body: JSON.stringify({ fileName, contentType, category }),
-  });
-
-  if (!response.ok) {
-    const errBody = await response.text().catch(() => response.statusText);
-    throw new Error(`PRESIGN_FAILED (${response.status}): ${errBody}`);
-  }
-  return response.json();
-}
-
-/**
- * Upload un fichier local (URI expo) vers Cloudflare R2
- */
 export async function uploadFile(
   localUri: string,
   category: FileCategory,
   fileName?: string
 ): Promise<UploadResult> {
-  // Lire les infos du fichier
   const fileInfo = await FileSystem.getInfoAsync(localUri);
   if (!fileInfo.exists) throw new Error('FILE_NOT_FOUND');
 
-  // Déterminer le type MIME
   const extension = localUri.split('.').pop()?.toLowerCase() ?? 'jpg';
   const mimeTypes: Record<string, string> = {
     jpg: 'image/jpeg', jpeg: 'image/jpeg',
@@ -103,34 +67,37 @@ export async function uploadFile(
   };
   const contentType = mimeTypes[extension] ?? 'application/octet-stream';
 
-  // Nom de fichier unique
   const uid = auth.currentUser?.uid ?? 'unknown';
   const timestamp = Date.now();
   const finalFileName = fileName ?? `${uid}_${timestamp}.${extension}`;
 
-  // Obtenir l'URL pré-signée
-  const { uploadUrl, publicUrl, key } = await getPresignedUrl(
-    finalFileName,
-    contentType,
-    category
-  );
+  const workerUrl = CLOUDFLARE_CONFIG.workerUrl;
+  if (!workerUrl) throw new Error('CLOUDFLARE_WORKER_URL_MISSING');
 
-  if (!uploadUrl || !publicUrl) {
-    throw new Error('INVALID_PRESIGN_RESPONSE');
-  }
+  const token = await getAuthToken();
+  const key = `${category}/${finalFileName}`;
+  const uploadUrl = `${workerUrl}/upload/${key}`;
 
-  // Upload direct vers R2 (PUT avec le fichier en body)
-  const uploadResponse = await FileSystem.uploadAsync(uploadUrl, localUri, {
-    httpMethod: 'PUT',
-    headers: { 'Content-Type': contentType },
-    uploadType: 1, // FileSystemUploadType.BINARY_CONTENT = 1
+  const fileResp = await fetch(localUri);
+  const blob = await fileResp.blob();
+
+  const uploadResponse = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': contentType,
+      'Authorization': `Bearer ${token}`,
+    },
+    body: blob,
   });
 
-  if (uploadResponse.status !== 200) {
+  if (!uploadResponse.ok) {
+    const errorText = await uploadResponse.text();
+    console.error('R2 Upload Error:', uploadResponse.status, errorText);
     throw new Error(`UPLOAD_FAILED (${uploadResponse.status})`);
   }
 
-  return { url: publicUrl, key };
+  const result = await uploadResponse.json();
+  return { url: result.url, key: result.key };
 }
 
 /**
