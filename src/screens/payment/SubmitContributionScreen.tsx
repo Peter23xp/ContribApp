@@ -3,11 +3,9 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, StatusBar,
 import * as ImagePicker from 'expo-image-picker';
 import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
-import { onAuthStateChanged, User } from 'firebase/auth';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { auth } from '../../config/firebase';
 import { getMemberContributionStatus, submitContribution } from '../../services/contributionService';
 import { analyzePaymentCapture, GeminiAnalysis } from '../../services/geminiService';
 import { uploadFile } from '../../services/storageService';
@@ -54,8 +52,7 @@ export function SubmitContributionScreen({ route, navigation }: any) {
   const insets = useSafeAreaInsets();
   const storeUser = useAuthStore((s) => s.user);
   const storeGroup = useAuthStore((s) => s.groupId);
-
-  const [currentUser, setCurrentUser] = useState<User | null>(auth.currentUser);
+  const storeUid = useAuthStore((s) => s.uid);
   const [resolvedData, setResolvedData] = useState<ResolvedData | null>(null);
   const [status, setStatus] = useState<any | null>(null);
   const [currentStep, setCurrentStep] = useState(1);
@@ -67,20 +64,15 @@ export function SubmitContributionScreen({ route, navigation }: any) {
   const [memberNote, setMemberNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setCurrentUser(user);
-    });
-    return unsubscribe;
-  }, []);
+
 
   const initScreen = useCallback(async () => {
     setIsInitializing(true);
 
     try {
       const params = route?.params ?? {};
-      const uid = params.memberUid ?? storeUser?.id ?? currentUser?.uid ?? '';
-      const memberName = params.memberName ?? storeUser?.full_name ?? '';
+      const uid = params.memberUid ?? storeUid ?? '';
+      const memberName = params.memberName ?? storeUser?.fullName ?? '';
       const periodMonth = params.periodMonth ?? dbService.getCurrentMonthKey();
 
       let group = null;
@@ -133,7 +125,7 @@ export function SubmitContributionScreen({ route, navigation }: any) {
     } finally {
       setIsInitializing(false);
     }
-  }, [currentUser?.uid, route?.params, storeGroup, storeUser?.full_name, storeUser?.id]);
+  }, [route?.params, storeGroup, storeUser?.fullName, storeUid]);
 
   useEffect(() => {
     initScreen();
@@ -154,7 +146,7 @@ export function SubmitContributionScreen({ route, navigation }: any) {
   const treasurerNumber = resolvedData?.treasurerNumber ?? '';
   const operatorTreasurer = resolvedData?.operatorTreasurer ?? 'mobile_money';
   const normalizedStatus = normalizeContributionStatus(status?.status);
-  const isAuthenticatedForSubmission = !!(currentUser?.uid || storeUser?.id);
+  const isAuthenticatedForSubmission = !!storeUid;
 
   const copyToClipboard = async (text: string) => {
     if (!text) {
@@ -337,7 +329,7 @@ export function SubmitContributionScreen({ route, navigation }: any) {
           <Ionicons name="checkmark-circle" size={48} color={Colors.statusPaid} />
           <Text style={styles.statusTitle}>Contribution déjà approuvée</Text>
           <Text style={styles.statusDesc}>
-            Votre paiement de ce mois est déjà validé. Aucun nouvel envoi n'est nécessaire.
+            Votre paiement de ce mois est déjà validé. Aucun nouvel envoi n&apos;est nécessaire.
           </Text>
           <AppButton title="Retour au tableau de bord" onPress={() => navigation.navigate('Accueil')} variant="solid" />
         </View>
@@ -442,7 +434,7 @@ export function SubmitContributionScreen({ route, navigation }: any) {
               </Text>
               <Text style={styles.instructionLine}>3. Attendez la confirmation de la transaction.</Text>
               <Text style={styles.instructionLine}>
-                4. Faites une capture d'ecran de l'alerte ou du SMS de confirmation.
+                4. Faites une capture d&apos;ecran de l&apos;alerte ou du SMS de confirmation.
               </Text>
               <Text style={styles.instructionLine}>5. Revenez ici et soumettez la capture.</Text>
             </View>

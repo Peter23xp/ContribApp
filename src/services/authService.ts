@@ -1,243 +1,228 @@
 /**
- * authService.ts — Service d'authentification v2.0
+ * authService.ts — v3.0
  *
- * ARCHITECTURE :
- * - Firebase Auth Phone pour OTP (inscription et reset PIN)
- * - PIN haché (SHA-256 + sel) stocké dans Firestore users/{uid}.pin_hash
- * - Collection temporaire pending_registrations pendant le flux d'inscription
- * - AUCUNE référence à SQLite, SecureStore, ou USE_LOCAL_DB
+ * ARCHITECTURE v3 :
+ * - Numéro de téléphone = username (identifiant unique)
+ * - PIN à 6 chiffres = mot de passe (haché SHA-256 + sel côté client)
+ * - Email = canal de réception OTP (via EmailJS)
+ * - Firebase Auth supprimé — sessions gérées via AsyncStorage + Firestore
+ * - UID généré côté client (SHA-256 du téléphone + timestamp + random)
+ * - sessionToken stocké dans Firestore users/{uid}.active_session_token
+ *   pour la déconnexion multi-appareils
+ *
+ * AUCUNE référence à Firebase Auth, SecureStore, SQLite, phone_directory, login_sessions.
  */
-import {
-  signInWithPhoneNumber,
-  signOut,
-  ConfirmationResult,
-  PhoneAuthProvider,
-  signInWithCredential,
-} from 'firebase/auth';
-import {
-  doc, setDoc, getDoc, getDocs, updateDoc,
-  query, collection, where, serverTimestamp,
-  deleteDoc, Timestamp,
-} from 'firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Crypto from 'expo-crypto';
-import { auth, db } from '../config/firebase';
+import {
+  doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc,
+  query, collection, where, serverTimestamp, Timestamp,
+} from 'firebase/firestore';
+import { db } from '../config/firebase';
+import * as otpService from './otpService';
+
+// ─── Constantes ───────────────────────────────────────────────────────────────
+
+const SESSION_KEY = '@contributapp_session';
+const PIN_SALT = 'contributapp_rdc_pin_salt_2026';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type MobileOperator = 'airtel' | 'orange' | 'mpesa' | 'mtn';
 export type UserRole = 'admin' | 'treasurer' | 'member' | 'auditor';
 
-export interface AuthResponse {
+export interface LocalSession {
   uid: string;
-  fullName: string;
   phone: string;
-  operator: MobileOperator;
-  role: UserRole;
-  groupId?: string;
-  profilePhotoUrl?: string | null;
+  fullName: string;
+  operator: string;
+  email: string;
+  role: 'admin' | 'treasurer' | 'member';
+  groupId: string | null;
+  sessionToken: string;
+  createdAt: string;
 }
 
 export interface RegisterPayload {
   fullName: string;
-  phone: string;         // +243XXXXXXXXX
+  phone: string;          // +243XXXXXXXXX — identifiant unique (username)
+  email: string;          // pour recevoir les OTP
   operator: MobileOperator;
-  pin: string;           // 4-6 chiffres — sera haché avant tout stockage
-  photoUri?: string | null;
+  pin: string;            // 6 chiffres — sera haché
 }
 
 export interface LoginPayload {
-  phone: string;
-  pin: string;
+  phone: string;          // username
+  pin: string;            // 6 chiffres
 }
 
-// ─── État en mémoire (session OTP en cours) ───────────────────────────────────
-// ConfirmationResult de Firebase (n'existe pas sur tous les cas FirebaseRecaptcha)
-let _pendingConfirmation: ConfirmationResult | null = null;
-let _verificationId: string | null = null;  // pour compatibilité FirebaseRecaptcha WebView
+export interface AuthResponse {
+  uid: string;
+  fullName: string;
+  phone: string;
+  email: string;
+  operator: string;
+  role: 'admin' | 'treasurer' | 'member';
+  groupId: string | null;
+}
 
-// ─── hashPIN ──────────────────────────────────────────────────────────────────
+// ─── Session locale (AsyncStorage) ───────────────────────────────────────────
 
-const PIN_SALT = 'contributapp_rdc_salt_2026';
+export async function getLocalSession(): Promise<LocalSession | null> {
+  try {
+    const raw = await AsyncStorage.getItem(SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
 
-/**
- * Hache le PIN avec SHA-256 + sel fixe.
- * Le PIN en clair ne quitte JAMAIS l'appareil.
- */
+export async function saveLocalSession(session: LocalSession): Promise<void> {
+  await AsyncStorage.setItem(SESSION_KEY, JSON.stringify(session));
+}
+
+export async function clearLocalSession(): Promise<void> {
+  await AsyncStorage.removeItem(SESSION_KEY);
+}
+
+// ─── Utilitaires ──────────────────────────────────────────────────────────────
+
+/** Hache le PIN avec sel fixe. Le PIN en clair ne quitte JAMAIS l'appareil. */
 export async function hashPIN(pin: string): Promise<string> {
-  return await Crypto.digestStringAsync(
+  return Crypto.digestStringAsync(
     Crypto.CryptoDigestAlgorithm.SHA256,
     pin + PIN_SALT
   );
 }
 
-// Pour compatibilité avec les composants existants (FirebaseRecaptcha WebView)
-export function setVerificationId(id: string) {
-  _verificationId = id;
-}
-export function getVerificationId(): string | null {
-  return _verificationId;
+/** Génère un token de session unique (64 caractères hex) */
+async function generateSessionToken(): Promise<string> {
+  const bytes = await Crypto.getRandomBytesAsync(32);
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 // ─── INSCRIPTION ──────────────────────────────────────────────────────────────
 
 /**
- * FLUX D'INSCRIPTION :
- * 1. Vérifier que le numéro n'est pas déjà inscrit
- * 2. Hacher le PIN → pending_registrations/{hash(phone)} dans Firestore
- * 3. Envoyer l'OTP Firebase (ou via WebView FirebaseRecaptcha)
+ * ÉTAPE 1 D'INSCRIPTION :
+ * 1. Vérifier l'unicité du numéro (query Firestore users.phone)
+ * 2. Vérifier l'unicité de l'email (query Firestore users.email)
+ * 3. Hacher le PIN
+ * 4. Stocker dans pending_registrations/{hash(phone)}
+ * 5. Envoyer l'OTP par email via otpService
  */
 export async function register(payload: RegisterPayload): Promise<void> {
-  // Étape 1 : Vérifier doublon
-  const existing = await getDocs(
-    query(collection(db, 'users'),
-      where('phone', '==', payload.phone),
-      where('is_verified', '==', true))
-  );
-  if (!existing.empty) throw new Error('PHONE_ALREADY_EXISTS');
+  const normalizedEmail = payload.email.toLowerCase().trim();
 
-  // Étape 2 : Hacher le PIN, stocker temporairement dans Firestore
-  const pinHash = await hashPIN(payload.pin);
-  const phoneHash = await Crypto.digestStringAsync(
-    Crypto.CryptoDigestAlgorithm.SHA256, payload.phone
+  // 1. Vérifier unicité du numéro
+  const phoneQuery = query(
+    collection(db, 'users'),
+    where('phone', '==', payload.phone)
   );
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+  const phoneSnap = await getDocs(phoneQuery);
+  if (!phoneSnap.empty) throw new Error('PHONE_ALREADY_EXISTS');
+
+  // 2. Vérifier unicité de l'email
+  const emailQuery = query(
+    collection(db, 'users'),
+    where('email', '==', normalizedEmail)
+  );
+  const emailSnap = await getDocs(emailQuery);
+  if (!emailSnap.empty) throw new Error('EMAIL_ALREADY_EXISTS');
+
+  // 3. Hacher le PIN
+  const pinHash = await hashPIN(payload.pin);
+
+  // 4. Stocker temporairement dans Firestore (TTL : 15 minutes)
+  const phoneHash = await Crypto.digestStringAsync(
+    Crypto.CryptoDigestAlgorithm.SHA256,
+    payload.phone
+  );
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
   await setDoc(doc(db, 'pending_registrations', phoneHash), {
     full_name: payload.fullName,
     phone: payload.phone,
+    email: normalizedEmail,
     operator: payload.operator,
     pin_hash: pinHash,
-    photo_uri: payload.photoUri ?? null,
     created_at: serverTimestamp(),
     expires_at: Timestamp.fromDate(expiresAt),
   });
 
-  // Étape 3 : Envoyer OTP
-  // Si FirebaseRecaptcha WebView est utilisé, il appellera setVerificationId()
-  // après son envoi indépendant — ici on tente aussi signInWithPhoneNumber
+  // 5. Envoyer l'OTP par email
   try {
-    _pendingConfirmation = await signInWithPhoneNumber(auth, payload.phone);
-  } catch (err: any) {
-    // Si c'est le WebView qui gère l'OTP, l'erreur ici est normale
-    // On continue sans _pendingConfirmation — verifyOTP utilisera _verificationId
-    if (err.code !== 'auth/too-many-requests' && err.code !== 'auth/invalid-phone-number') {
-      console.warn('[authService] signInWithPhoneNumber échoué, fallback WebView:', err.code);
-    } else {
-      await deleteDoc(doc(db, 'pending_registrations', phoneHash));
-      if (err.code === 'auth/too-many-requests') throw new Error('TOO_MANY_ATTEMPTS');
-      throw new Error('INVALID_PHONE');
-    }
+    await otpService.sendOTP(
+      normalizedEmail,
+      payload.phone,
+      payload.fullName,
+      'registration'
+    );
+  } catch (err) {
+    // Nettoyer si l'envoi échoue
+    await deleteDoc(doc(db, 'pending_registrations', phoneHash));
+    throw err;
   }
 }
 
-// ─── VÉRIFICATION OTP ─────────────────────────────────────────────────────────
-
 /**
- * FLUX DE VÉRIFICATION :
- * 1. Confirmer l'OTP (via ConfirmationResult OU via PhoneAuthProvider + verificationId WebView)
- * 2. Récupérer pending_registrations/{hash(phone)}
- * 3. Créer users/{uid} avec pin_hash définitif
- * 4. Supprimer pending_registrations
+ * ÉTAPE 2 D'INSCRIPTION — Vérification OTP :
+ * 1. Vérifier l'OTP via otpService.verifyOTP()
+ * 2. Récupérer les données depuis pending_registrations
+ * 3. Générer un UID unique côté client
+ * 4. Créer users/{uid} dans Firestore
+ * 5. Nettoyer les documents temporaires
+ * 6. Créer et sauvegarder la session locale
+ * 7. Retourner AuthResponse
  */
-export async function verifyOTP(
+export async function verifyRegistrationOTP(
   phone: string,
-  otpCode: string,
-  context: 'register' | 'reset_pin' | 'session_reauth' = 'register'
+  otpCode: string
 ): Promise<AuthResponse> {
-  let uid: string;
-  const isResetPhase = context === 'reset_pin';
-  const isSessionReauth = context === 'session_reauth';
+  // 1. Vérifier l'OTP
+  await otpService.verifyOTP(phone, 'registration', otpCode);
 
-  try {
-    if (_pendingConfirmation) {
-      // Flux direct Firebase
-      const cred = await _pendingConfirmation.confirm(otpCode);
-      uid = cred.user.uid;
-    } else if (_verificationId) {
-      // Flux WebView FirebaseRecaptcha
-      const credential = PhoneAuthProvider.credential(_verificationId, otpCode);
-      const cred = await signInWithCredential(auth, credential);
-      uid = cred.user.uid;
-    } else {
-      throw new Error('NO_PENDING_OTP');
-    }
-  } catch (err: any) {
-    if (err.message === 'NO_PENDING_OTP') throw err;
-    if (err.code === 'auth/invalid-verification-code') throw new Error('INVALID_OTP');
-    if (err.code === 'auth/code-expired') throw new Error('OTP_EXPIRED');
-    throw new Error('OTP_VERIFY_FAILED');
-  }
-
-  // Reset PIN
-  if (isResetPhase) {
-    const userDoc = await getDoc(doc(db, 'users', uid));
-    if (!userDoc.exists()) throw new Error('USER_NOT_FOUND');
-    const d = userDoc.data();
-    _pendingConfirmation = null;
-    _verificationId = null;
-    return {
-      uid, fullName: d.full_name, phone: d.phone,
-      operator: d.operator, role: d.role || 'member',
-      groupId: d.active_group_id,
-    };
-  }
-
-  // Re-auth Firebase session after PIN login
-  if (isSessionReauth) {
-    const userDoc = await getDoc(doc(db, 'users', uid));
-    if (!userDoc.exists()) throw new Error('USER_NOT_FOUND');
-    const d = userDoc.data();
-    _pendingConfirmation = null;
-    _verificationId = null;
-    return {
-      uid,
-      fullName: d.full_name,
-      phone: d.phone,
-      operator: d.operator,
-      role: d.role || 'member',
-      groupId: d.active_group_id,
-      profilePhotoUrl: d.profile_photo_url ?? null,
-    };
-  }
-
-  // Inscription : récupérer données temporaires
+  // 2. Récupérer les données temporaires
   const phoneHash = await Crypto.digestStringAsync(
-    Crypto.CryptoDigestAlgorithm.SHA256, phone
+    Crypto.CryptoDigestAlgorithm.SHA256,
+    phone
   );
   const pendingDoc = await getDoc(doc(db, 'pending_registrations', phoneHash));
-  if (!pendingDoc.exists()) throw new Error('REGISTRATION_DATA_NOT_FOUND');
+  if (!pendingDoc.exists()) throw new Error('REGISTRATION_DATA_EXPIRED');
 
-  const pd = pendingDoc.data();
-  if (new Date() > pd.expires_at.toDate()) {
+  const pending = pendingDoc.data();
+
+  // Vérifier expiration
+  if (new Date() > pending.expires_at.toDate()) {
     await deleteDoc(doc(db, 'pending_registrations', phoneHash));
     throw new Error('REGISTRATION_EXPIRED');
   }
 
-  // Upload photo si présente
-  let profilePhotoUrl: string | null = null;
-  if (pd.photo_uri) {
-    try {
-      const storageService = await import('./storageService');
-      profilePhotoUrl = await storageService.uploadProfilePhoto(pd.photo_uri);
-    } catch (e) {
-      console.warn('[authService] Photo upload échoué, on continue:', e);
-    }
-  }
+  // 3. Générer un UID unique
+  const uid = await Crypto.digestStringAsync(
+    Crypto.CryptoDigestAlgorithm.SHA256,
+    phone + Date.now().toString() + Math.random().toString()
+  );
 
-  // Créer le document utilisateur définitif
+  // 4. Générer le token de session
+  const sessionToken = await generateSessionToken();
+
+  // 5. Créer le document utilisateur dans Firestore
   await setDoc(doc(db, 'users', uid), {
     uid,
-    full_name: pd.full_name,
-    phone: pd.phone,
-    operator: pd.operator,
-    profile_photo_url: profilePhotoUrl,
-    is_verified: true,
-    pin_hash: pd.pin_hash,       // PIN haché transféré définitivement ici
+    full_name: pending.full_name,
+    phone: pending.phone,
+    email: pending.email,
+    operator: pending.operator,
+    profile_photo_url: null,
+    pin_hash: pending.pin_hash,
+    role: 'member',
+    active_group_id: null,
     login_attempts: 0,
     locked_until: null,
     biometric_enabled: false,
     fcm_token: null,
-    role: 'member',
+    active_session_token: sessionToken,
     preferences: {
       language: 'fr',
       currency_display: 'CDF',
@@ -251,156 +236,200 @@ export async function verifyOTP(
     updated_at: serverTimestamp(),
   });
 
-  // Nettoyer
+  // 6. Nettoyer les documents temporaires
   await deleteDoc(doc(db, 'pending_registrations', phoneHash));
-  _pendingConfirmation = null;
-  _verificationId = null;
+  await otpService.cleanupOTP(phone, 'registration');
+
+  // 7. Sauvegarder la session locale
+  const session: LocalSession = {
+    uid,
+    phone: pending.phone,
+    fullName: pending.full_name,
+    operator: pending.operator,
+    email: pending.email,
+    role: 'member',
+    groupId: null,
+    sessionToken,
+    createdAt: new Date().toISOString(),
+  };
+  await saveLocalSession(session);
 
   return {
     uid,
-    fullName: pd.full_name,
-    phone: pd.phone,
-    operator: pd.operator,
+    fullName: pending.full_name,
+    phone: pending.phone,
+    email: pending.email,
+    operator: pending.operator,
     role: 'member',
-    profilePhotoUrl,
+    groupId: null,
   };
 }
 
-// ─── RENVOI OTP ───────────────────────────────────────────────────────────────
-
-export async function resendOTP(phone: string): Promise<void> {
-  try {
-    _pendingConfirmation = await signInWithPhoneNumber(auth, phone);
-  } catch (err: any) {
-    if (err.code === 'auth/too-many-requests') throw new Error('TOO_MANY_ATTEMPTS');
-    throw new Error('OTP_SEND_FAILED');
-  }
-}
-
-// ─── CONNEXION PAR PIN ────────────────────────────────────────────────────────
+// ─── CONNEXION ────────────────────────────────────────────────────────────────
 
 /**
- * FLUX DE CONNEXION :
- * 1. Chercher l'utilisateur par téléphone dans Firestore
- * 2. Vérifier blocage (locked_until)
- * 3. Comparer pin_hash Firestore avec le hash du PIN saisi
- * 4. Incrémenter tentatives / bloquer après 5 échecs
- * 5. Succès : reset compteur + last_login
+ * CONNEXION avec numéro (username) + PIN :
+ * 1. Chercher l'utilisateur par numéro de téléphone dans Firestore
+ * 2. Vérifier si le compte est bloqué
+ * 3. Comparer le PIN haché
+ * 4. Succès → générer nouveau token session + sauvegarder localement
  */
 export async function login(payload: LoginPayload): Promise<AuthResponse> {
-  const snap = await getDocs(
-    query(collection(db, 'users'),
-      where('phone', '==', payload.phone),
-      where('is_verified', '==', true))
+  const q = query(
+    collection(db, 'users'),
+    where('phone', '==', payload.phone)
   );
+  const snap = await getDocs(q);
+
   if (snap.empty) throw new Error('USER_NOT_FOUND');
 
   const userDoc = snap.docs[0];
-  const ud = userDoc.data();
+  const userData = userDoc.data();
   const uid = userDoc.id;
 
-  // Vérifier blocage
-  if (ud.locked_until) {
-    const lockedUntil: Date = ud.locked_until.toDate();
+  // Vérifier le blocage
+  if (userData.locked_until) {
+    const lockedUntil = userData.locked_until.toDate();
     if (new Date() < lockedUntil) {
-      const mins = Math.ceil((lockedUntil.getTime() - Date.now()) / 60000);
-      throw new Error(`ACCOUNT_LOCKED:${mins}`);
+      const minutesLeft = Math.ceil(
+        (lockedUntil.getTime() - Date.now()) / 60000
+      );
+      throw new Error(`ACCOUNT_LOCKED:${minutesLeft}`);
     }
-    await updateDoc(doc(db, 'users', uid), { locked_until: null, login_attempts: 0 });
+    // Débloquer si le temps est écoulé
+    await updateDoc(doc(db, 'users', uid), {
+      locked_until: null,
+      login_attempts: 0,
+    });
   }
 
-  // Comparer le PIN
-  const inputHash = await hashPIN(payload.pin);
-  if (inputHash !== ud.pin_hash) {
-    const attempts = (ud.login_attempts || 0) + 1;
-    const update: any = { login_attempts: attempts };
+  // Vérifier le PIN
+  const inputPinHash = await hashPIN(payload.pin);
+  if (inputPinHash !== userData.pin_hash) {
+    const attempts = (userData.login_attempts || 0) + 1;
+    const updateData: Record<string, any> = { login_attempts: attempts };
     if (attempts >= 5) {
-      update.locked_until = Timestamp.fromDate(new Date(Date.now() + 30 * 60 * 1000));
-      await updateDoc(doc(db, 'users', uid), update);
+      const lockUntil = new Date(Date.now() + 30 * 60 * 1000);
+      updateData.locked_until = Timestamp.fromDate(lockUntil);
+      await updateDoc(doc(db, 'users', uid), updateData);
       throw new Error('ACCOUNT_LOCKED:30');
     }
-    await updateDoc(doc(db, 'users', uid), update);
+    await updateDoc(doc(db, 'users', uid), updateData);
     throw new Error(`INVALID_CREDENTIALS:${5 - attempts}`);
   }
 
-  // Succès
+  // Succès — nouveau token session
+  const sessionToken = await generateSessionToken();
   await updateDoc(doc(db, 'users', uid), {
     login_attempts: 0,
     locked_until: null,
+    active_session_token: sessionToken,
     last_login: serverTimestamp(),
     updated_at: serverTimestamp(),
   });
 
+  // Sauvegarder session locale
+  const session: LocalSession = {
+    uid,
+    phone: userData.phone,
+    fullName: userData.full_name,
+    operator: userData.operator,
+    email: userData.email,
+    role: userData.role || 'member',
+    groupId: userData.active_group_id || null,
+    sessionToken,
+    createdAt: new Date().toISOString(),
+  };
+  await saveLocalSession(session);
+
   return {
     uid,
-    fullName: ud.full_name,
-    phone: ud.phone,
-    operator: ud.operator,
-    role: ud.role || 'member',
-    groupId: ud.active_group_id,
-    profilePhotoUrl: ud.profile_photo_url,
+    fullName: userData.full_name,
+    phone: userData.phone,
+    email: userData.email,
+    operator: userData.operator,
+    role: userData.role || 'member',
+    groupId: userData.active_group_id || null,
   };
 }
 
-// ─── BIOMÉTRIE ────────────────────────────────────────────────────────────────
+// ─── RESET PIN ────────────────────────────────────────────────────────────────
 
-export async function loginWithBiometric(phone: string, _token: string): Promise<AuthResponse> {
-  if (!auth.currentUser) throw new Error('AUTH_REQUIRED');
-  const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
-  if (!userDoc.exists()) throw new Error('USER_NOT_FOUND');
-  const ud = userDoc.data();
-  return {
-    uid: auth.currentUser.uid,
-    fullName: ud.full_name,
-    phone: ud.phone,
-    operator: ud.operator,
-    role: ud.role || 'member',
-    groupId: ud.active_group_id,
-  };
-}
-
-// ─── CHANGEMENT DE PIN ────────────────────────────────────────────────────────
-
-export async function changePin(uid: string, oldPin: string, newPin: string): Promise<void> {
-  const userDoc = await getDoc(doc(db, 'users', uid));
-  if (!userDoc.exists()) throw new Error('USER_NOT_FOUND');
-  const ud = userDoc.data();
-  if (await hashPIN(oldPin) !== ud.pin_hash) throw new Error('INVALID_OLD_PIN');
-  await updateDoc(doc(db, 'users', uid), {
-    pin_hash: await hashPIN(newPin),
-    updated_at: serverTimestamp(),
-  });
-}
-
-// ─── RESET PIN (via OTP) ──────────────────────────────────────────────────────
-
-export async function resetPIN(phone: string, newPin: string): Promise<{ success: boolean }> {
-  const pinHash = await hashPIN(newPin);
-  const snap = await getDocs(
-    query(collection(db, 'users'), where('phone', '==', phone))
-  );
+/** Envoie un OTP par email pour réinitialiser le PIN */
+export async function requestPinReset(phone: string): Promise<void> {
+  const q = query(collection(db, 'users'), where('phone', '==', phone));
+  const snap = await getDocs(q);
   if (snap.empty) throw new Error('USER_NOT_FOUND');
-  await updateDoc(doc(db, 'users', snap.docs[0].id), {
-    pin_hash: pinHash,
+  const userData = snap.docs[0].data();
+  await otpService.sendOTP(
+    userData.email,
+    phone,
+    userData.full_name,
+    'pin_reset'
+  );
+}
+
+/** Confirme le code OTP et applique le nouveau PIN */
+export async function confirmPinReset(
+  phone: string,
+  otpCode: string,
+  newPin: string
+): Promise<void> {
+  await otpService.verifyOTP(phone, 'pin_reset', otpCode);
+  const q = query(collection(db, 'users'), where('phone', '==', phone));
+  const snap = await getDocs(q);
+  if (snap.empty) throw new Error('USER_NOT_FOUND');
+  const uid = snap.docs[0].id;
+  const newPinHash = await hashPIN(newPin);
+  await updateDoc(doc(db, 'users', uid), {
+    pin_hash: newPinHash,
     login_attempts: 0,
     locked_until: null,
     updated_at: serverTimestamp(),
   });
-  return { success: true };
+  await otpService.cleanupOTP(phone, 'pin_reset');
+}
+
+// ─── CHANGEMENT DE PIN ────────────────────────────────────────────────────────
+
+export async function changePin(
+  uid: string,
+  oldPin: string,
+  newPin: string
+): Promise<void> {
+  const userDoc = await getDoc(doc(db, 'users', uid));
+  if (!userDoc.exists()) throw new Error('USER_NOT_FOUND');
+  const userData = userDoc.data();
+  const oldPinHash = await hashPIN(oldPin);
+  if (oldPinHash !== userData.pin_hash) throw new Error('INVALID_OLD_PIN');
+  const newPinHash = await hashPIN(newPin);
+  await updateDoc(doc(db, 'users', uid), {
+    pin_hash: newPinHash,
+    updated_at: serverTimestamp(),
+  });
 }
 
 // ─── DÉCONNEXION ──────────────────────────────────────────────────────────────
 
-export async function logout(): Promise<void> {
-  try { await signOut(auth); } catch (e) {}
+/** Déconnecte l'utilisateur : révoque le token session + efface la session locale */
+export async function logout(uid?: string): Promise<void> {
+  if (uid) {
+    try {
+      await updateDoc(doc(db, 'users', uid), {
+        active_session_token: null,
+      });
+    } catch { /* ignorer les erreurs réseau lors de la déconnexion */ }
+  }
+  await clearLocalSession();
 }
 
+/** Déconnecter tous les appareils (token révoqué + force_logout_at) */
 export async function logoutAllDevices(uid: string): Promise<void> {
   await updateDoc(doc(db, 'users', uid), {
+    active_session_token: null,
     force_logout_at: serverTimestamp(),
-    updated_at: serverTimestamp(),
   });
-  await logout();
+  await clearLocalSession();
 }
 
 // ─── PROFIL ───────────────────────────────────────────────────────────────────
@@ -413,8 +442,10 @@ export async function getUserProfile(uid: string): Promise<Record<string, any>> 
   return safeData;
 }
 
-export async function updateUserProfile(uid: string, data: Record<string, any>): Promise<void> {
-  // Interdire la mise à jour de pin_hash via cette fonction
+export async function updateUserProfile(
+  uid: string,
+  data: Record<string, any>
+): Promise<void> {
   const { pin_hash, ...safeData } = data;
   await updateDoc(doc(db, 'users', uid), {
     ...safeData,
@@ -427,8 +458,4 @@ export async function updatePushToken(userId: string, token: string): Promise<vo
     fcm_token: token,
     updated_at: serverTimestamp(),
   });
-}
-
-export async function getCurrentUser() {
-  return auth.currentUser;
 }

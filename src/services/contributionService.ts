@@ -8,7 +8,7 @@ import {
   where, orderBy, limit, startAfter, serverTimestamp, onSnapshot,
   runTransaction, Timestamp, getCountFromServer,
 } from 'firebase/firestore';
-import { auth, db } from '../config/firebase';
+import { db } from '../config/firebase';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -584,10 +584,12 @@ export async function approveContribution(approval: ContributionApproval): Promi
     updated_at: serverTimestamp(),
   });
 
-  if (groupId && auth.currentUser?.uid) {
+  if (groupId) {
     const groupRef = doc(db, 'groups', groupId);
     const groupSnap = await getDoc(groupRef);
-    if (groupSnap.exists() && groupSnap.data().admin_uid === auth.currentUser.uid) {
+    const { getLocalSession } = await import('./authService');
+    const session = await getLocalSession();
+    if (groupSnap.exists() && groupSnap.data().admin_uid === session?.uid) {
       const current = groupSnap.data().collected_amount || 0;
       await updateDoc(groupRef, {
         collected_amount: current + approval.amountPaid,

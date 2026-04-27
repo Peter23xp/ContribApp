@@ -1,13 +1,10 @@
 /**
- * firebase.ts — Configuration Firebase v2.0
- * Architecture : 100% Firebase + Cloudflare R2 (SQLite supprimé)
- * Persistance Auth via AsyncStorage (recommandé Expo)
+ * firebase.ts — v3.0
+ * Firebase Auth supprimé. Seul Firestore est utilisé.
+ * L'authentification est gérée manuellement via Firestore + sessions AsyncStorage.
  */
 import { initializeApp, getApps, getApp } from 'firebase/app';
-// @ts-ignore
-import { initializeAuth, getAuth, getReactNativePersistence } from 'firebase/auth';
 import { initializeFirestore, getFirestore } from 'firebase/firestore';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -18,7 +15,6 @@ const firebaseConfig = {
   appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
 };
 
-// Évite la double initialisation en hot-reload Expo
 let app;
 let isNewApp = false;
 if (getApps().length === 0) {
@@ -28,14 +24,7 @@ if (getApps().length === 0) {
   app = getApp();
 }
 
-// Auth avec persistance AsyncStorage — évite la reconnexion après fermeture
-export const auth = isNewApp
-  ? initializeAuth(app, {
-      persistence: getReactNativePersistence(AsyncStorage),
-    })
-  : getAuth(app);
-
-// Utilise la détection auto du long polling pour éviter les erreurs de timeout ou de stream RPC sur Expo
+// Utilise le long polling pour éviter les timeout RPC sur Expo
 export const db = isNewApp
   ? initializeFirestore(app, {
       experimentalAutoDetectLongPolling: true,
@@ -43,3 +32,7 @@ export const db = isNewApp
   : getFirestore(app);
 
 export default app;
+
+// NOTE : Firebase Auth est supprimé (v3.0).
+// Authentification gérée via : Firestore users/{uid} + sessionToken + AsyncStorage.
+// PIN haché SHA-256 côté client, jamais stocké en clair.

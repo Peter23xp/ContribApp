@@ -1,7 +1,7 @@
 /**
- * App.tsx — v2.0
- * SQLite supprimé. Firebase est l'unique source de données.
- * initFirebaseListener() démarre le listener onAuthStateChanged au boot.
+ * App.tsx — v3.0
+ * Firebase Auth supprimé. Session gérée via AsyncStorage + Firestore (initSession).
+ * initEmailJS() initialisé au démarrage pour l'envoi d'OTP.
  */
 import React, { useEffect } from 'react';
 import { View, ActivityIndicator } from 'react-native';
@@ -10,6 +10,7 @@ import Toast from 'react-native-toast-message';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useAuthStore } from './src/stores/authStore';
 import { Colors } from './src/constants/colors';
+import { initEmailJS } from './src/config/emailjs';
 import {
   useFonts,
   Manrope_400Regular,
@@ -29,12 +30,13 @@ export default function App() {
   });
 
   useEffect(() => {
-    // Initialiser le listener Firebase Auth — gère la persistance de session
-    useAuthStore.getState().loadPersistedSession().catch((error) => {
-      console.error('[App] Impossible de restaurer la session:', error);
+    // Initialiser EmailJS pour l'envoi d'OTP par email
+    initEmailJS();
+
+    // Initialiser la session : lit AsyncStorage + vérifie le token dans Firestore
+    useAuthStore.getState().initSession().catch((error) => {
+      console.error('[App] Impossible d\'initialiser la session:', error);
     });
-    const unsubscribe = useAuthStore.getState().initFirebaseListener();
-    return () => unsubscribe();
   }, []);
 
   if (isLoading || !fontsLoaded) {

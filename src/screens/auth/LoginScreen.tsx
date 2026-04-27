@@ -1,108 +1,68 @@
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import * as LocalAuthentication from 'expo-local-authentication';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+/**
+ * LoginScreen.tsx — SCR-003-B v3.0
+ * Connexion avec numéro de téléphone (username) + PIN à 6 chiffres.
+ * Aucun OTP à la connexion directe — uniquement numéro + PIN.
+ * PIN oublié → BottomSheet → OTP envoyé par email → SCR-004-B (purpose=pin_reset)
+ */
 import React, { useEffect, useRef, useState } from 'react';
 import {
-    Keyboard,
-    KeyboardAvoidingView,
-    LayoutAnimation,
-    Modal,
-    Platform,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    TouchableWithoutFeedback,
-    View
+  View, Text, StyleSheet, KeyboardAvoidingView, Platform,
+  TouchableOpacity, Keyboard, TouchableWithoutFeedback,
+  ScrollView, StatusBar, Modal, ActivityIndicator,
 } from 'react-native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Toast from 'react-native-toast-message';
 import { AppButton } from '../../components/common/AppButton';
 import { AppInput } from '../../components/common/AppInput';
 import { Colors } from '../../constants/colors';
-import { auth } from '../../config/firebase';
 import * as authService from '../../services/authService';
-import { setVerificationId } from '../../services/authService';
 import { useAuthStore } from '../../stores/authStore';
-
 import { AuthStackParamList } from '../../navigation/AuthNavigator';
-import FirebaseRecaptcha, { FirebaseRecaptchaRef } from '../../components/auth/FirebaseRecaptcha';
+
+// App version (lecture depuis app.json via expo-constants si disponible)
+const APP_VERSION = '1.0.0';
 
 type Props = {
-  navigation: NativeStackNavigationProp<AuthStackParamList, 'Register'>;
+  navigation: NativeStackNavigationProp<AuthStackParamList, 'Login'>;
 };
 
 export default function LoginScreen({ navigation }: Props) {
-  const [phone, setPhone] = useState('');
-  const [pin, setPin] = useState('');
-  const [showPin, setShowPin] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [lockTimer, setLockTimer] = useState(0);       // secondes
-  const [showForgotModal, setShowForgotModal] = useState(false);
-  const [biometricAvailable, setBiometricAvailable] = useState(false);
-  const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [phone, setPhone]             = useState('');
+  const [pin, setPin]                 = useState('');
+  const [showPin, setShowPin]         = useState(false);
+  const [isLoading, setIsLoading]     = useState(false);
+  const [error, setError]             = useState<string | null>(null);
+  const [lockTimer, setLockTimer]     = useState(0); // secondes restantes de blocage
 
+  // BottomSheet PIN oublié
+  const [showForgotModal, setShowForgotModal] = useState(false);
   const [forgotPhone, setForgotPhone] = useState('');
   const [forgotLoading, setForgotLoading] = useState(false);
-  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+  const [forgotError, setForgotError] = useState<string | null>(null);
 
-  const pinRef = useRef<TextInput>(null);
-  const recaptchaRef = useRef<FirebaseRecaptchaRef>(null);
+  const setAuthData = useAuthStore(s => s.setAuthData);
 
+  // ── Countdown blocage ─────────────────────────────────────────────────────
   useEffect(() => {
-    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-
-    const keyboardShowListener = Keyboard.addListener(showEvent, () => {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      setKeyboardVisible(true);
-    });
-    const keyboardHideListener = Keyboard.addListener(hideEvent, () => {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      setKeyboardVisible(false);
-    });
-
-    return () => {
-      keyboardShowListener.remove();
-      keyboardHideListener.remove();
-    };
-  }, []);
-
-  useEffect(() => {
-    AsyncStorage.getItem('last_phone').then(saved => {
-      if (saved) setPhone(saved);
-    });
-
-    LocalAuthentication.hasHardwareAsync().then(available => {
-      LocalAuthentication.isEnrolledAsync().then(enrolled => {
-        setBiometricAvailable(available && enrolled);
+    if (lockTimer <= 0) return;
+    const interval = setInterval(() => {
+      setLockTimer(prev => {
+        if (prev <= 1) { setError(null); return 0; }
+        return prev - 1;
       });
-    });
-
-    AsyncStorage.getItem('biometric_enabled').then(enabled => {
-      setBiometricEnabled(enabled === 'true');
-    });
-  }, []);
-
-  useEffect(() => {
-    let interval: any;
-    if (lockTimer > 0) {
-      interval = setInterval(() => {
-        setLockTimer(prev => {
-          if (prev <= 1) {
-            setError(null);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
+    }, 1000);
     return () => clearInterval(interval);
   }, [lockTimer]);
 
+  const formatTimer = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
+
+  // ── Connexion ─────────────────────────────────────────────────────────────
   const handleLogin = async () => {
+    Keyboard.dismiss();
     setIsLoading(true);
     setError(null);
     try {
@@ -111,257 +71,236 @@ export default function LoginScreen({ navigation }: Props) {
         pin,
       });
 
-      if (auth.currentUser?.uid === response.uid) {
-        await useAuthStore.getState().setAuthenticatedUser({
-          user: {
-            id: response.uid,
-            full_name: response.fullName,
-            phone: response.phone,
-            operator: response.operator,
-            profile_photo_url: response.profilePhotoUrl ?? null,
-          },
-          role: response.role,
-          groupId: response.groupId ?? null,
-        });
-        await AsyncStorage.setItem('last_phone', phone);
-      } else {
-        if (!recaptchaRef.current) {
-          throw new Error('Recaptcha non initialisé. Impossible d’ouvrir la session Firebase.');
-        }
+      setAuthData(response);
 
-        const verificationId = await recaptchaRef.current.sendVerification('+243' + phone);
-        setVerificationId(verificationId);
-        await AsyncStorage.setItem('last_phone', phone);
-        Toast.show({
-          type: 'info',
-          text1: 'PIN valide',
-          text2: 'Entrez le code OTP pour finaliser la session Firebase.',
-        });
-        navigation.navigate('OTP', { phone: '+243' + phone, context: 'session_reauth' });
-      }
-      // authStore se met à jour automatiquement via onAuthStateChanged
+      // Navigation selon le rôle
+      // AppNavigator gère la redirection automatiquement via isAuthenticated
     } catch (err: any) {
-      setPin('');
       const msg = err?.message ?? '';
-      if (msg.startsWith('INVALID_CREDENTIALS')) {
+      if (msg.startsWith('INVALID_CREDENTIALS:')) {
         const remaining = msg.split(':')[1];
-        setError(`PIN incorrect.${remaining ? ` ${remaining} tentative(s) restante(s).` : ''}`);
-      } else if (msg.startsWith('ACCOUNT_LOCKED')) {
-        const minutes = msg.split(':')[1] || '30';
-        setError(`Compte bloqué. Réessayez dans ${minutes} minutes.`);
-        setLockTimer(parseInt(minutes) * 60);
-      } else if (msg === 'TOO_MANY_ATTEMPTS') {
-        setError('Trop de tentatives. Patientez.');
+        setError(`PIN incorrect. Il vous reste ${remaining} tentative(s).`);
+      } else if (msg.startsWith('ACCOUNT_LOCKED:')) {
+        const minutes = parseInt(msg.split(':')[1] || '30', 10);
+        setError(`Compte bloqué pendant ${minutes} minutes suite à trop de tentatives incorrectes.`);
+        setLockTimer(minutes * 60);
       } else if (msg === 'USER_NOT_FOUND') {
         setError('Numéro non trouvé. Vérifiez ou inscrivez-vous.');
-      } else if (msg.includes('Recaptcha')) {
-        setError(msg);
       } else {
         setError(msg || 'Une erreur est survenue. Réessayez.');
       }
+      setPin('');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleBiometricLogin = async () => {
-    const { success } = await LocalAuthentication.authenticateAsync({
-      promptMessage: 'Identifiez-vous pour accéder à ContribApp',
-      fallbackLabel: 'Utiliser le PIN',
-    });
-    if (success) {
-      const savedPhone = await AsyncStorage.getItem('last_phone');
-      const biometricToken = await AsyncStorage.getItem('biometric_token');
-      if (savedPhone && biometricToken) {
-        setIsLoading(true);
-        setError(null);
-        try {
-          const response = await authService.loginWithBiometric('+243' + savedPhone, biometricToken);
-          await useAuthStore.getState().setAuthenticatedUser({
-            user: {
-              id: response.uid,
-              full_name: response.fullName,
-              phone: response.phone,
-              operator: response.operator,
-              profile_photo_url: response.profilePhotoUrl ?? null,
-            },
-            role: response.role,
-            groupId: response.groupId ?? null,
-          });
-          // authStore mis à jour via onAuthStateChanged
-        } catch (err: any) {
-          setError("Erreur d'authentification biométrique.");
-        } finally {
-          setIsLoading(false);
-        }
-      } else {
-        setError("Aucun jeton biométrique trouvé. Connectez-vous par PIN d'abord.");
-      }
-    }
-  };
+  // ── Formulaire valide ─────────────────────────────────────────────────────
+  const isFormValid = phone.length === 9 && pin.length === 6 && lockTimer === 0;
 
+  // ── PIN oublié — envoi OTP email ─────────────────────────────────────────
   const handleForgotPIN = async () => {
+    setForgotError(null);
     if (!/^[0-9]{9}$/.test(forgotPhone)) {
-      Toast.show({ type: 'error', text1: 'Erreur', text2: 'Numéro invalide (9 chiffres)' });
+      setForgotError('Numéro invalide (9 chiffres requis après +243)');
       return;
     }
     setForgotLoading(true);
     try {
-      if (!recaptchaRef.current) {
-        throw new Error('Recaptcha non initialisé. Réessayez.');
-      }
-      const verificationId = await recaptchaRef.current.sendVerification('+243' + forgotPhone);
-      setVerificationId(verificationId);
+      await authService.requestPinReset('+243' + forgotPhone);
       setShowForgotModal(false);
-      (navigation as any).navigate('OTP', { phone: '+243' + forgotPhone, context: 'reset_pin' });
-    } catch (error: any) {
-      Toast.show({ type: 'error', text1: 'Erreur', text2: error.message || 'Impossible d\'envoyer le code' });
+      setForgotPhone('');
+      Toast.show({
+        type: 'success',
+        text1: 'Code envoyé !',
+        text2: 'Vérifiez votre boîte mail.',
+      });
+      // On a besoin de l'email — requestPinReset récupère l'email depuis Firestore
+      // Pour naviguer vers OTP, on cherche l'email via le numéro
+      // (Il est récupéré dans requestPinReset mais non retourné — on navigue sans email affiché)
+      navigation.navigate('OTP', {
+        phone: '+243' + forgotPhone,
+        email: '***@***.***', // l'OTP est envoyé, l'email sera masqué
+        purpose: 'pin_reset',
+      });
+    } catch (err: any) {
+      const msg = err?.message ?? '';
+      if (msg === 'USER_NOT_FOUND') {
+        setForgotError('Aucun compte associé à ce numéro.');
+      } else if (msg.startsWith('RATE_LIMIT:')) {
+        const secs = msg.split(':')[1];
+        setForgotError(`Réessayez dans ${secs} secondes.`);
+      } else {
+        setForgotError(msg || "Impossible d'envoyer le code. Réessayez.");
+      }
     } finally {
       setForgotLoading(false);
     }
   };
 
-  const formatTimer = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m}:${s < 10 ? '0' : ''}${s}`;
-  };
-
-  const isFormInvalid = phone.length !== 9 || pin.length < 4;
-
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
       <View style={styles.container}>
-        {/* reCAPTCHA invisible (WebView) */}
-        <FirebaseRecaptcha ref={recaptchaRef} />
         <StatusBar barStyle="light-content" backgroundColor={Colors.primary} />
-        
-        {/* Zone Haute (Dynamique) */}
-        <View style={[styles.topSection, isKeyboardVisible && { flex: 0.15 }]}>
-          {!isKeyboardVisible && (
-            <View style={styles.logoContainer}>
-              <Text style={styles.logoText}>💰</Text>
-            </View>
-          )}
-          <Text style={[styles.title, isKeyboardVisible && { marginTop: 0, fontSize: 18 }]}>
-            Bienvenue sur ContribApp
+
+        {/* Zone haute */}
+        <View style={styles.topSection}>
+          <View style={styles.logoContainer}>
+            <Text style={styles.logoIcon}>💰</Text>
+          </View>
+          <Text style={styles.title}>Bon retour !</Text>
+          <Text style={styles.subtitle}>
+            Connectez-vous avec votre numéro et votre PIN
           </Text>
-          {!isKeyboardVisible && (
-            <Text style={styles.subtitle}>Connectez-vous pour continuer</Text>
-          )}
         </View>
 
-        {/* Zone Formulaire (S'étend si le clavier est haut) */}
-        <KeyboardAvoidingView 
-          style={[styles.keyboardView, isKeyboardVisible && { flex: 0.85 }]} 
+        {/* Formulaire */}
+        <KeyboardAvoidingView
+          style={styles.formWrapper}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <View style={styles.formWrapper}>
-            <ScrollView 
-              contentContainerStyle={styles.formContent}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode="on-drag"
-            >
-              <AppInput
-                label="Numéro de téléphone"
-                prefix="+243"
-                placeholder="9XXXXXXXX"
-                value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
-                maxLength={9}
-                autoFocus={!phone}
-                onSubmitEditing={() => pinRef.current?.focus()}
-              />
+          <ScrollView
+            contentContainerStyle={styles.formContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <AppInput
+              label="Numéro de téléphone"
+              subLabel="Votre identifiant de connexion"
+              subLabelColor={Colors.primary}
+              prefix="+243"
+              placeholder="97X XXX XXX"
+              value={phone}
+              onChangeText={v => {
+                setPhone(v.replace(/\D/g, ''));
+                setError(null);
+              }}
+              keyboardType="phone-pad"
+              maxLength={9}
+              autoFocus={!phone}
+            />
 
-              <AppInput
-                ref={pinRef}
-                label="Code PIN"
-                placeholder="******"
-                value={pin}
-                onChangeText={setPin}
-                secureTextEntry={!showPin}
-                keyboardType="numeric"
-                maxLength={4}
-                rightIcon={
-                  <TouchableOpacity onPress={() => setShowPin(!showPin)}>
-                    <Text style={{ color: Colors.primary, fontWeight: 'bold' }}>
-                      {showPin ? 'Cacher' : 'Voir'}
-                    </Text>
-                  </TouchableOpacity>
-                }
-              />
-
-              {error && (
-                <View style={styles.errorBox}>
-                  <Text style={styles.errorBoxText}>{error}</Text>
-                </View>
-              )}
-
-              {biometricAvailable && biometricEnabled && (
-                <TouchableOpacity style={styles.biometricBtn} onPress={handleBiometricLogin}>
-                  <Text style={styles.biometricBtnText}>🖐 Connexion par empreinte / Face ID</Text>
+            <AppInput
+              label="Code PIN à 6 chiffres"
+              placeholder="••••••"
+              value={pin}
+              onChangeText={v => {
+                setPin(v.replace(/\D/g, ''));
+                setError(null);
+              }}
+              secureTextEntry={!showPin}
+              keyboardType="numeric"
+              maxLength={6}
+              rightIcon={
+                <TouchableOpacity onPress={() => setShowPin(!showPin)}>
+                  <Text style={styles.togglePin}>{showPin ? 'Cacher' : 'Voir'}</Text>
                 </TouchableOpacity>
-              )}
+              }
+            />
 
-              <AppButton 
-                title="Se connecter"
-                onPress={handleLogin}
-                disabled={isFormInvalid || lockTimer > 0}
-                loading={isLoading}
-                loadingText="Connexion en cours..."
-                style={styles.submitButton}
-              />
-              
-              {lockTimer > 0 && (
-                <Text style={styles.timerText}>Compte débloqué dans {formatTimer(lockTimer)}</Text>
-              )}
+            {/* Message d'erreur dynamique */}
+            {error && (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorBoxText}>{error}</Text>
+                {lockTimer > 0 && (
+                  <>
+                    <Text style={styles.timerText}>
+                      Déblocage dans{' '}
+                      <Text style={styles.timerBold}>{formatTimer(lockTimer)}</Text>
+                    </Text>
+                    <TouchableOpacity
+                      style={{ marginTop: 8 }}
+                      onPress={() => {
+                        setShowForgotModal(true);
+                        setForgotPhone(phone);
+                      }}
+                    >
+                      <Text style={styles.resetPinLink}>Réinitialiser mon PIN →</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
+            )}
 
-              <TouchableOpacity style={styles.linkMargin} onPress={() => setShowForgotModal(true)}>
-                <Text style={styles.linkText}>Code PIN oublié ?</Text>
-              </TouchableOpacity>
+            <AppButton
+              title="Se connecter"
+              onPress={handleLogin}
+              disabled={!isFormValid}
+              loading={isLoading}
+              loadingText="Connexion en cours..."
+              style={styles.loginButton}
+            />
 
-              <TouchableOpacity style={styles.linkMargin} onPress={() => navigation.navigate('Register')}>
-                <Text style={styles.linkText}>Pas encore de compte ? S'inscrire</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
+            <TouchableOpacity
+              style={styles.forgotPinLink}
+              onPress={() => { setShowForgotModal(true); setForgotPhone(phone); }}
+            >
+              <Text style={styles.forgotPinText}>PIN oublié ?</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.registerLink}
+              onPress={() => navigation.navigate('Register')}
+            >
+              <Text style={styles.registerLinkText}>
+                Pas encore de compte ?{' '}
+                <Text style={styles.registerLinkBold}>S&apos;inscrire →</Text>
+              </Text>
+            </TouchableOpacity>
+
+            <Text style={styles.version}>ContribApp RDC v{APP_VERSION}</Text>
+          </ScrollView>
         </KeyboardAvoidingView>
 
-        {/* Modal Forgot PIN */}
-        <Modal visible={showForgotModal} transparent animationType="slide">
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Réinitialiser mon PIN</Text>
-              <Text style={styles.modalText}>
-                Entrez votre numéro de téléphone. Vous recevrez un code SMS pour créer un nouveau PIN.
-              </Text>
-              
-              <AppInput
-                label="Numéro de téléphone"
-                prefix="+243"
-                placeholder="9XXXXXXXX"
-                value={forgotPhone}
-                onChangeText={setForgotPhone}
-                keyboardType="phone-pad"
-                maxLength={9}
-              />
+        {/* BottomSheet — PIN oublié */}
+        <Modal
+          visible={showForgotModal}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowForgotModal(false)}
+        >
+          <TouchableWithoutFeedback onPress={() => setShowForgotModal(false)}>
+            <View style={styles.modalOverlay} />
+          </TouchableWithoutFeedback>
+          <View style={styles.bottomSheet}>
+            <View style={styles.bottomSheetHandle} />
+            <Text style={styles.bottomSheetTitle}>Réinitialiser le PIN</Text>
+            <Text style={styles.bottomSheetSubtitle}>
+              Entrez votre numéro de téléphone. Vous recevrez un code par email.
+            </Text>
 
-              <AppButton 
-                title="Envoyer le code SMS"
-                onPress={handleForgotPIN}
-                loading={forgotLoading}
-                disabled={forgotPhone.length !== 9}
-                style={{ marginTop: 16 }}
-              />
-              
-              <TouchableOpacity 
-                style={[styles.linkMargin, { alignSelf: 'center', marginTop: 20 }]} 
-                onPress={() => setShowForgotModal(false)}
-              >
-                <Text style={[styles.linkText, { color: Colors.textSecondary }]}>Annuler</Text>
-              </TouchableOpacity>
-            </View>
+            <AppInput
+              label="Votre numéro de téléphone"
+              prefix="+243"
+              placeholder="97X XXX XXX"
+              value={forgotPhone}
+              onChangeText={v => {
+                setForgotPhone(v.replace(/\D/g, ''));
+                setForgotError(null);
+              }}
+              keyboardType="phone-pad"
+              maxLength={9}
+              autoFocus
+            />
+
+            {forgotError && (
+              <Text style={styles.forgotErrorText}>{forgotError}</Text>
+            )}
+
+            <AppButton
+              title="Recevoir le code par email"
+              onPress={handleForgotPIN}
+              loading={forgotLoading}
+              disabled={forgotPhone.length !== 9 || forgotLoading}
+              style={{ marginTop: 16 }}
+            />
+
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={() => { setShowForgotModal(false); setForgotError(null); }}
+            >
+              <Text style={styles.cancelText}>Annuler</Text>
+            </TouchableOpacity>
           </View>
         </Modal>
       </View>
@@ -371,51 +310,84 @@ export default function LoginScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.primary },
+
   topSection: {
-    flex: 0.4,
+    flex: 0.38,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 24,
   },
   logoContainer: {
-    width: 70, height: 70, borderRadius: 35,
-    backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center'
+    width: 80, height: 80, borderRadius: 40,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center', alignItems: 'center',
+    marginBottom: 14,
   },
-  logoText: { fontSize: 35 },
-  title: { color: '#FFF', fontSize: 22, fontWeight: 'bold', marginTop: 16 },
-  subtitle: { color: 'rgba(255, 255, 255, 0.7)', fontSize: 14, marginTop: 4 },
-  keyboardView: { flex: 0.6 },
+  logoIcon: { fontSize: 38 },
+  title: { color: '#FFF', fontSize: 26, fontWeight: 'bold', textAlign: 'center' },
+  subtitle: {
+    color: 'rgba(255,255,255,0.75)', fontSize: 14,
+    marginTop: 6, textAlign: 'center', lineHeight: 20,
+  },
+
   formWrapper: {
-    flex: 1,
+    flex: 0.62,
     backgroundColor: '#FFF',
-    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     overflow: 'hidden',
   },
-  formContent: {
-    flexGrow: 1,
-    padding: 28,
-  },
+  formContent: { flexGrow: 1, padding: 28, paddingBottom: 40 },
+
+  togglePin: { color: Colors.primary, fontWeight: '600', fontSize: 13 },
+
   errorBox: {
-    backgroundColor: '#FDECEA', padding: 12, borderRadius: 8,
-    marginBottom: 16, borderWidth: 1, borderColor: '#F5B7B1'
+    backgroundColor: '#FDECEA',
+    borderWidth: 1, borderColor: '#F5B7B1',
+    borderRadius: 10, padding: 14, marginBottom: 16,
   },
-  errorBoxText: { color: '#C0392B', fontSize: 13, textAlign: 'center' },
-  biometricBtn: {
-    padding: 14, borderWidth: 1, borderColor: Colors.primary, borderRadius: 8,
-    alignItems: 'center', marginBottom: 16
+  errorBoxText: { color: '#C0392B', fontSize: 13, fontWeight: '600', marginBottom: 4 },
+  timerText: { color: '#E74C3C', fontSize: 13, marginTop: 4 },
+  timerBold: { fontWeight: 'bold' },
+  resetPinLink: { color: '#E74C3C', fontWeight: '700', fontSize: 13 },
+
+  loginButton: { marginTop: 8 },
+
+  forgotPinLink: { marginTop: 20, alignItems: 'center' },
+  forgotPinText: { color: Colors.danger, fontSize: 15, fontWeight: '600' },
+
+  registerLink: { marginTop: 20, alignItems: 'center' },
+  registerLinkText: { color: Colors.textSecondary, fontSize: 14 },
+  registerLinkBold: { color: Colors.primary, fontWeight: '700' },
+
+  version: {
+    color: Colors.textSecondary, fontSize: 11,
+    textAlign: 'center', marginTop: 32, opacity: 0.7,
   },
-  biometricBtnText: { color: Colors.primary, fontWeight: '600', fontSize: 15 },
-  submitButton: { marginTop: 8 },
-  timerText: { color: Colors.danger, textAlign: 'center', marginTop: 8, fontWeight: 'bold' },
-  linkMargin: { marginTop: 24, alignItems: 'center' },
-  linkText: { color: Colors.primary, fontSize: 15, fontWeight: '600' },
+
+  // Modal
   modalOverlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', 
-    justifyContent: 'center', padding: 20
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.4)',
   },
-  modalContent: {
-    backgroundColor: '#FFF', borderRadius: 16, padding: 24,
-    shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 10, elevation: 5
+  bottomSheet: {
+    backgroundColor: '#FFF',
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: 24, paddingBottom: 40,
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 20, elevation: 10,
   },
-  modalTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 12, textAlign: 'center' },
-  modalText: { fontSize: 14, color: Colors.textSecondary, marginBottom: 20, textAlign: 'center' },
+  bottomSheetHandle: {
+    width: 40, height: 4, borderRadius: 2,
+    backgroundColor: '#E0E0E0', alignSelf: 'center', marginBottom: 20,
+  },
+  bottomSheetTitle: {
+    fontSize: 18, fontWeight: '700', color: Colors.textPrimary, marginBottom: 8,
+  },
+  bottomSheetSubtitle: {
+    fontSize: 13, color: Colors.textSecondary, marginBottom: 20, lineHeight: 19,
+  },
+  forgotErrorText: { color: Colors.danger, fontSize: 13, marginTop: 4, marginBottom: 8 },
+  cancelButton: { marginTop: 16, alignItems: 'center', paddingVertical: 10 },
+  cancelText: { color: Colors.textSecondary, fontSize: 15, fontWeight: '600' },
 });

@@ -72,9 +72,9 @@ export default function PublicReportsScreen({ navigation }: any) {
   }, [groupId, selectedMonth, isOffline]);
 
   const myContribution = useMemo(() => {
-    if (!report || !user?.id) return null;
-    return report.contributions.find((c) => c.memberId === user.id) ?? null;
-  }, [report, user?.id]);
+    if (!report || !user?.uid) return null;
+    return report.contributions.find((c) => c.memberId === user.uid) ?? null;
+  }, [report, user?.uid]);
 
   const paidCount = report?.summary.paidCount ?? 0;
   const pendingCount = Math.max(0, (report?.summary.totalMembers ?? 0) - paidCount);

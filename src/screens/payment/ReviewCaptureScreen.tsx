@@ -4,7 +4,7 @@ import { doc, getDoc, collection, setDoc, serverTimestamp } from 'firebase/fires
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { auth, db } from '../../config/firebase';
+import { db } from '../../config/firebase';
 import { approveContribution, rejectContribution, ContributionSubmission } from '../../services/contributionService';
 import { CapturePreviewCard } from '../../components/payment/CapturePreviewCard';
 import { ApprovalActionBar } from '../../components/payment/ApprovalActionBar';
@@ -115,10 +115,10 @@ export function ReviewCaptureScreen({ route, navigation }: any) {
   };
 
   const handleApprove = () => {
-    const approverUid = auth.currentUser?.uid ?? storeUser?.id ?? '';
+    const approverUid = storeUser?.uid ?? '';
     const numAmount = parseInt(amountConfirmed, 10);
-    if (!auth.currentUser?.uid) {
-      Alert.alert('Session requise', "La session Firebase du tresorier n'est pas active. Reconnectez-vous puis reessayez.");
+    if (!approverUid) {
+      Alert.alert('Session requise', "La session de trésorier n'est pas active. Reconnectez-vous puis réessayez.");
       return;
     }
 
@@ -165,10 +165,10 @@ export function ReviewCaptureScreen({ route, navigation }: any) {
   };
 
   const handleConfirmReject = async () => {
-    const rejectorUid = auth.currentUser?.uid ?? storeUser?.id ?? '';
+    const rejectorUid = storeUser?.uid ?? '';
     const finalReason = rejectReason === 'Autre (preciser)' ? customReason : rejectReason;
-    if (!auth.currentUser?.uid) {
-      Alert.alert('Session requise', "La session Firebase du tresorier n'est pas active. Reconnectez-vous puis reessayez.");
+    if (!rejectorUid) {
+      Alert.alert('Session requise', "La session de trésorier n'est pas active. Reconnectez-vous puis réessayez.");
       return;
     }
     if (rejectReason === 'Autre (preciser)' && !customReason.trim()) {

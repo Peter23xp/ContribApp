@@ -3,7 +3,7 @@
  */
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import type { MobileOperator } from './authService';
-import { auth, db } from '../config/firebase';
+import { db } from '../config/firebase';
 import { useAuthStore } from '../stores/authStore';
 
 export interface UserProfile {
@@ -56,10 +56,7 @@ type FirestorePreferences = {
 };
 
 function resolveCurrentUid(): string {
-  const firebaseUid = auth.currentUser?.uid;
-  if (firebaseUid) return firebaseUid;
-
-  const storedUid = useAuthStore.getState().user?.id;
+  const storedUid = useAuthStore.getState().uid;
   if (storedUid) return storedUid;
 
   throw new Error('NOT_AUTHENTICATED');

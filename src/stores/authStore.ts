@@ -1,155 +1,179 @@
 /**
- * authStore.ts — Store Zustand v2.0
- * AUCUNE référence à SecureStore, SQLite, ou USE_LOCAL_DB.
- * Persistance via Firebase onAuthStateChanged + AsyncStorage (géré par Firebase).
- * pin_hash JAMAIS inclus dans le store.
+ * authStore.ts — v3.0
+ * Plus de Firebase Auth — sessions gérées via AsyncStorage + Firestore.
+ * SessionToken vérifié au démarrage pour invalidation multi-appareils.
+ * pin_hash JAMAIS dans le store, JAMAIS loggué.
  */
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
-import { onAuthStateChanged } from 'firebase/auth';
+import { getLocalSession, clearLocalSession, LocalSession, AuthResponse } from '../services/authService';
 import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../config/firebase';
+import { db } from '../config/firebase';
 
 export type UserRole = 'admin' | 'treasurer' | 'member' | 'auditor';
 
-export interface User {
-  id: string;          // = uid Firebase
-  full_name: string;
-  phone: string;
-  operator: string;
-  profile_photo_url?: string | null;
-}
-
-interface AuthStore {
-  user: User | null;
-  role: UserRole | null;
+interface AuthState {
+  uid: string | null;
+  user: {
+    fullName: string;
+    phone: string;
+    email: string;
+    operator: string;
+    profilePhotoUrl: string | null;
+  } | null;
+  role: 'admin' | 'treasurer' | 'member' | null;
   groupId: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
 
-  setAuthenticatedUser: (payload: { user: User; role: UserRole; groupId?: string | null }) => Promise<void>;
-  loadPersistedSession: () => Promise<void>;
-  clearSession: () => Promise<void>;
+  // Actions
+  initSession: () => Promise<void>;
+  setAuthData: (data: AuthResponse) => void;
   setGroupId: (groupId: string) => void;
-  hydrateCurrentUserProfile: (uid?: string) => Promise<boolean>;
   logout: () => Promise<void>;
-  initFirebaseListener: () => () => void;
+
+  // Compatibilité avec les composants existants
+  setAuthenticatedUser: (payload: {
+    user: { id: string; full_name: string; phone: string; operator: string; profile_photo_url?: string | null };
+    role: UserRole;
+    groupId?: string | null;
+  }) => Promise<void>;
 }
 
-const PROFILE_RETRY_DELAYS_MS = [0, 250, 750, 1500, 2500];
-const AUTH_SESSION_KEY = 'auth_session';
-
-function delay(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-export const useAuthStore = create<AuthStore>((set, get) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
+  uid: null,
   user: null,
   role: null,
   groupId: null,
   isAuthenticated: false,
   isLoading: true,
 
-  setAuthenticatedUser: async ({ user, role, groupId = null }) => {
-    await AsyncStorage.setItem(AUTH_SESSION_KEY, JSON.stringify({ user, role, groupId }));
-    set({ user, role, groupId, isAuthenticated: true, isLoading: false });
-  },
-
-  loadPersistedSession: async () => {
+  /**
+   * Initialiser la session au démarrage de l'app :
+   * 1. Lire la session locale depuis AsyncStorage
+   * 2. Si session trouvée : vérifier la validité du token dans Firestore
+   * 3. Si valide : restaurer l'état auth
+   * 4. Si invalide (token révoqué sur un autre appareil) : déconnecter
+   */
+  initSession: async () => {
     try {
-      const rawSession = await AsyncStorage.getItem(AUTH_SESSION_KEY);
-      if (!rawSession) {
-        set({ isLoading: false });
+      const session = await getLocalSession();
+
+      if (!session) {
+        set({ isLoading: false, isAuthenticated: false });
         return;
       }
 
-      const session = JSON.parse(rawSession) as { user: User; role: UserRole; groupId?: string | null };
+      // Vérifier la validité du token dans Firestore
+      const userDoc = await getDoc(doc(db, 'users', session.uid));
+
+      if (!userDoc.exists()) {
+        await clearLocalSession();
+        set({ isLoading: false, isAuthenticated: false });
+        return;
+      }
+
+      const userData = userDoc.data();
+
+      // Vérifier que le token local correspond au token Firestore
+      if (userData.active_session_token !== session.sessionToken) {
+        // Session révoquée (déconnexion depuis un autre appareil)
+        await clearLocalSession();
+        set({ isLoading: false, isAuthenticated: false });
+        return;
+      }
+
+      // Session valide — restaurer l'état (pin_hash JAMAIS dans le store)
       set({
-        user: session.user,
-        role: session.role,
-        groupId: session.groupId ?? null,
+        uid: session.uid,
+        user: {
+          fullName: userData.full_name,
+          phone: userData.phone,
+          email: userData.email,
+          operator: userData.operator,
+          profilePhotoUrl: userData.profile_photo_url ?? null,
+        },
+        role: userData.role || 'member',
+        groupId: userData.active_group_id || null,
         isAuthenticated: true,
         isLoading: false,
       });
-    } catch (error) {
-      console.error('[authStore] Impossible de restaurer la session:', error);
-      await AsyncStorage.removeItem(AUTH_SESSION_KEY);
-      set({ user: null, role: null, groupId: null, isAuthenticated: false, isLoading: false });
+    } catch {
+      // En cas d'erreur réseau : utiliser la session locale sans validation Firestore
+      try {
+        const session = await getLocalSession();
+        if (session) {
+          set({
+            uid: session.uid,
+            user: {
+              fullName: session.fullName,
+              phone: session.phone,
+              email: session.email,
+              operator: session.operator,
+              profilePhotoUrl: null,
+            },
+            role: session.role,
+            groupId: session.groupId,
+            isAuthenticated: true,
+            isLoading: false,
+          });
+        } else {
+          set({ isLoading: false, isAuthenticated: false });
+        }
+      } catch {
+        set({ isLoading: false, isAuthenticated: false });
+      }
     }
   },
 
-  clearSession: async () => {
-    await AsyncStorage.removeItem(AUTH_SESSION_KEY);
-    set({ user: null, role: null, groupId: null, isAuthenticated: false, isLoading: false });
+  setAuthData: (data: AuthResponse) => {
+    set({
+      uid: data.uid,
+      user: {
+        fullName: data.fullName,
+        phone: data.phone,
+        email: data.email,
+        operator: data.operator,
+        profilePhotoUrl: null,
+      },
+      role: data.role,
+      groupId: data.groupId,
+      isAuthenticated: true,
+    });
   },
 
   setGroupId: (groupId) => set({ groupId }),
 
-  hydrateCurrentUserProfile: async (uidOverride) => {
-    const uid = uidOverride ?? auth.currentUser?.uid;
-
-    if (!uid) {
-      set({ user: null, role: null, groupId: null, isAuthenticated: false, isLoading: false });
-      return false;
-    }
-
-    set({ isLoading: true });
-
-    for (const retryDelay of PROFILE_RETRY_DELAYS_MS) {
-      if (retryDelay > 0) {
-        await delay(retryDelay);
-      }
-
-      const userDoc = await getDoc(doc(db, 'users', uid));
-      if (!userDoc.exists()) {
-        continue;
-      }
-
-      const data = userDoc.data();
-      const { pin_hash, ...safeData } = data;
-
-      await get().setAuthenticatedUser({
-        user: {
-          id: uid,
-          full_name: safeData.full_name ?? '',
-          phone: safeData.phone ?? '',
-          operator: safeData.operator ?? '',
-          profile_photo_url: safeData.profile_photo_url ?? null,
-        },
-        role: (safeData.role as UserRole) ?? 'member',
-        groupId: safeData.active_group_id ?? null,
-      });
-
-      return true;
-    }
-
-    await get().clearSession();
-    return false;
-  },
-
   logout: async () => {
-    await import('../services/authService').then((m) => m.logout());
-    await get().clearSession();
+    const uid = get().uid;
+    try {
+      if (uid) {
+        await import('../services/authService').then(m => m.logout(uid));
+      }
+    } catch { /* ignorer les erreurs réseau lors de la déconnexion */ }
+    set({
+      uid: null,
+      user: null,
+      role: null,
+      groupId: null,
+      isAuthenticated: false,
+    });
   },
 
-  initFirebaseListener: () => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        try {
-          await get().hydrateCurrentUserProfile(firebaseUser.uid);
-        } catch (e) {
-          console.error('[authStore] Erreur chargement profil:', e);
-          await get().clearSession();
-        }
-      } else {
-        if (!get().user) {
-          await get().clearSession();
-        } else {
-          set({ isLoading: false });
-        }
-      }
+  // ── Compatibilité legacy (utilisé par certains écrans existants) ──────────
+  setAuthenticatedUser: async ({ user, role, groupId = null }) => {
+    set({
+      uid: user.id,
+      user: {
+        fullName: user.full_name,
+        phone: user.phone,
+        email: '',
+        operator: user.operator,
+        profilePhotoUrl: user.profile_photo_url ?? null,
+      },
+      role: role as 'admin' | 'treasurer' | 'member',
+      groupId: groupId ?? null,
+      isAuthenticated: true,
+      isLoading: false,
     });
-
-    return unsubscribe;
   },
 }));

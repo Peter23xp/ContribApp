@@ -1,7 +1,5 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { CLOUDFLARE_CONFIG } from '../config/cloudflare';
-import { auth } from '../config/firebase';
-import { User } from 'firebase/auth';
 
 /**
  * SERVICE DE STOCKAGE — Cloudflare R2
@@ -13,31 +11,17 @@ import { User } from 'firebase/auth';
  * Ainsi, seuls les utilisateurs authentifiés peuvent uploader.
  */
 
-/**
- * Attend que Firebase Auth ait résolu son état de session (évite la race condition
- * au démarrage où auth.currentUser est null avant l'hydratation).
- * Ensuite force le refresh du token JWT pour éviter les tokens expirés (>1h).
- */
-async function getAuthToken(): Promise<string> {
-  // 1. Attendre la résolution de l'état Auth (onAuthStateChanged wrappé en Promise)
-  const user = await new Promise<User | null>((resolve) => {
-    const unsubscribe = auth.onAuthStateChanged((u) => {
-      unsubscribe();
-      resolve(u);
-    });
-  });
-
-  if (!user) {
-    throw new Error('FIREBASE_SESSION_REQUIRED');
+// NOTE : Firebase Auth est supprimé (v3.0).
+// Le Cloudflare Worker peut être mis à jour pour accepter un sessionToken Firestore
+// à la place du JWT Firebase. En attendant, l'upload ne requiert plus de token Firebase.
+async function getUidForUpload(): Promise<string> {
+  try {
+    const { getLocalSession } = await import('./authService');
+    const session = await getLocalSession();
+    return session?.uid ?? 'anonymous';
+  } catch {
+    return 'anonymous';
   }
-
-  // 2. Forcer le refresh du token JWT (évite les tokens expirés après 1 heure)
-  const token = await user.getIdToken(true);
-  if (!token) {
-    throw new Error('FIREBASE_SESSION_REQUIRED');
-  }
-
-  return token;
 }
 
 // Types de fichiers autorisés
@@ -67,14 +51,13 @@ export async function uploadFile(
   };
   const contentType = mimeTypes[extension] ?? 'application/octet-stream';
 
-  const uid = auth.currentUser?.uid ?? 'unknown';
+  const uid = await getUidForUpload();
   const timestamp = Date.now();
   const finalFileName = fileName ?? `${uid}_${timestamp}.${extension}`;
 
   const workerUrl = CLOUDFLARE_CONFIG.workerUrl;
   if (!workerUrl) throw new Error('CLOUDFLARE_WORKER_URL_MISSING');
 
-  const token = await getAuthToken();
   const key = `${category}/${finalFileName}`;
   const uploadUrl = `${workerUrl}/upload/${key}`;
 
@@ -85,7 +68,6 @@ export async function uploadFile(
     method: 'PUT',
     headers: {
       'Content-Type': contentType,
-      'Authorization': `Bearer ${token}`,
     },
     body: blob,
   });
@@ -104,14 +86,12 @@ export async function uploadFile(
  * Supprimer un fichier de R2 (via le Worker)
  */
 export async function deleteFile(key: string): Promise<void> {
-  const token = await getAuthToken();
+  const workerUrl = CLOUDFLARE_CONFIG.workerUrl;
+  if (!workerUrl) return;
 
-  await fetch(`${CLOUDFLARE_CONFIG.workerUrl}/delete`, {
+  await fetch(`${workerUrl}/delete`, {
     method: 'DELETE',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ key }),
   });
 }

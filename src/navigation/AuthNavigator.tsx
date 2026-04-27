@@ -6,18 +6,23 @@ import SplashScreen from '../screens/auth/SplashScreen';
 import LoginScreen from '../screens/auth/LoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
 import OTPScreen from '../screens/auth/OTPScreen';
-import SetNewPINScreen from '../screens/auth/SetNewPINScreen';
+import NewPINScreen from '../screens/auth/NewPINScreen';
 
 export type AuthStackParamList = {
   Splash: undefined;
   Login: undefined;
   Register: undefined;
-  OTP: { 
-    phone: string; 
-    context: 'register' | 'reset_pin' | 'session_reauth';
-  };
-  SetNewPIN: {
+  OTP: {
     phone: string;
+    email: string;
+    purpose: 'registration' | 'pin_reset';
+    /** fullName — utilisé pour le renvoi OTP */
+    fullName?: string;
+  };
+  NewPIN: {
+    phone: string;
+    /** OTP vérifié transmis pour appel confirmPinReset */
+    verifiedOtpCode: string;
   };
 };
 
@@ -36,7 +41,7 @@ export default function AuthNavigator() {
       <Stack.Screen name="Login" component={LoginScreen} options={{ gestureEnabled: false }} />
       <Stack.Screen name="Register" component={RegisterScreen} />
       <Stack.Screen name="OTP" component={OTPScreen} />
-      <Stack.Screen name="SetNewPIN" component={SetNewPINScreen} />
+      <Stack.Screen name="NewPIN" component={NewPINScreen} />
     </Stack.Navigator>
   );
 }

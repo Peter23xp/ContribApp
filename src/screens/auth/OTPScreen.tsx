@@ -1,312 +1,463 @@
+/**
+ * OTPScreen.tsx — SCR-004-B v3.0
+ * Vérification du code OTP reçu par EMAIL (plus par SMS).
+ * 6 cases séparées, auto-focus, paste, timer 10min, shake sur erreur.
+ *
+ * Purposes :
+ *  - 'registration' → appelle authService.verifyRegistrationOTP → crée le compte
+ *  - 'pin_reset'    → appelle otpService.verifyOTP → navigue vers NewPINScreen
+ */
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, TextInput, TouchableOpacity,
+  Animated, KeyboardAvoidingView, Platform, StatusBar,
+  TouchableWithoutFeedback, Keyboard, ActivityIndicator,
+  SafeAreaView,
+} from 'react-native';
 import { RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import React, { useEffect, useRef, useState } from 'react';
-import {
-    Animated, Keyboard,
-    KeyboardAvoidingView, Platform,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    TouchableWithoutFeedback,
-    View
-} from 'react-native';
 import Toast from 'react-native-toast-message';
-import { AppButton } from '../../components/common/AppButton';
 import { Colors } from '../../constants/colors';
 import { AuthStackParamList } from '../../navigation/AuthNavigator';
 import * as authService from '../../services/authService';
-import { setVerificationId } from '../../services/authService';
+import * as otpService from '../../services/otpService';
 import { useAuthStore } from '../../stores/authStore';
-import FirebaseRecaptcha, { FirebaseRecaptchaRef } from '../../components/auth/FirebaseRecaptcha';
 
-type OTPScreenRouteProp = RouteProp<AuthStackParamList, 'OTP'>;
-type OTPScreenNavigationProp = NativeStackNavigationProp<AuthStackParamList, 'OTP'>;
+type OTPRouteProp  = RouteProp<AuthStackParamList, 'OTP'>;
+type OTPNavProp    = NativeStackNavigationProp<AuthStackParamList, 'OTP'>;
 
 interface Props {
-  route: OTPScreenRouteProp;
-  navigation: OTPScreenNavigationProp;
+  route: OTPRouteProp;
+  navigation: OTPNavProp;
+}
+
+const OTP_LENGTH = 6;
+const OTP_TIMER_SECONDS = 10 * 60; // 10 minutes
+const RESEND_COOLDOWN = 120;        // 2 minutes (rate limit otpService)
+
+/** Masque un email : "jean@gmail.com" → "j***@gmail.com" */
+function maskEmail(email: string): string {
+  const at = email.indexOf('@');
+  if (at <= 0) return email;
+  return email[0] + '***' + email.slice(at);
 }
 
 export default function OTPScreen({ route, navigation }: Props) {
-  const { phone, context } = route.params;
+  const { phone, email, purpose, fullName } = route.params;
 
-  const [otpValues, setOtpValues] = useState(['', '', '', '', '', '']);
-  const [timer, setTimer] = useState(120);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isResending, setIsResending] = useState(false);
-  const [hasError, setHasError] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [attemptsLeft, setAttemptsLeft] = useState(3);
-  const inputRefs = Array.from({ length: 6 }, () => useRef<TextInput>(null));
-  
-  const shakeAnimation = useRef(new Animated.Value(0)).current;
-  const recaptchaRef = useRef<FirebaseRecaptchaRef>(null);
+  const [otp, setOtp]               = useState<string[]>(Array(OTP_LENGTH).fill(''));
+  const [focusedIndex, setFocused]  = useState(0);
+  const [timer, setTimer]           = useState(OTP_TIMER_SECONDS);
+  const [resendCooldown, setResend] = useState(0);
+  const [isLoading, setLoading]     = useState(false);
+  const [isResending, setResending] = useState(false);
+  const [hasError, setHasError]     = useState(false);
+  const [errorMsg, setErrorMsg]     = useState<string | null>(null);
+  const [isExpired, setExpired]     = useState(false);
+  const [maxAttempts, setMaxAttempts] = useState(false);
 
-  // Masked phone ex: +243 97 *** ** 89
-  const maskedPhone = phone.slice(0, -3).replace(/\d/g, '*') + phone.slice(-3);
+  const inputRefs = useRef<(TextInput | null)[]>(Array(OTP_LENGTH).fill(null));
+  const shakeAnim = useRef(new Animated.Value(0)).current;
+  const bounceAnim = useRef(new Animated.Value(0.8)).current;
+
+  const setAuthData = useAuthStore(s => s.setAuthData);
+
+  // ── Animations ────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    if (timer <= 0) return;
-    const interval = setInterval(() => {
-      setTimer(prev => {
-        if (prev <= 1) { clearInterval(interval); return 0; }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
+    // Bounce de l'icône email au montage
+    Animated.spring(bounceAnim, {
+      toValue: 1,
+      friction: 5,
+      tension: 100,
+      useNativeDriver: true,
+    }).start();
+    // Focus sur la première case
+    setTimeout(() => inputRefs.current[0]?.focus(), 300);
+  }, []);
+
+  const triggerShake = useCallback(() => {
+    Animated.sequence([
+      Animated.timing(shakeAnim, { toValue: 10, duration: 80, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -10, duration: 80, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 8, duration: 80, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -8, duration: 80, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 0, duration: 80, useNativeDriver: true }),
+    ]).start();
+  }, [shakeAnim]);
+
+  // ── Timer expiration OTP ──────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (timer <= 0) { setExpired(true); return; }
+    const id = setInterval(() => setTimer(t => t - 1), 1000);
+    return () => clearInterval(id);
   }, [timer]);
 
-  const formatTimer = (seconds: number): string => {
-    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
-    const s = (seconds % 60).toString().padStart(2, '0');
-    return `${m}:${s}`;
+  const formatTime = (s: number) => {
+    const m = Math.floor(s / 60).toString().padStart(2, '0');
+    const sec = (s % 60).toString().padStart(2, '0');
+    return `${m}:${sec}`;
   };
 
-  const handleVerify = async () => {
-    const otpCode = otpValues.join('');
-    if (otpCode.length !== 6) return;
-
-    setIsLoading(true);
-    setHasError(false);
-    setError(null);
-    try {
-      const response = await authService.verifyOTP(phone, otpCode, context);
-      
-      if (context === 'reset_pin') {
-        Toast.show({ type: 'success', text1: 'Code vérifié !', text2: 'Choisissez votre nouveau PIN' });
-        navigation.replace('SetNewPIN', { phone });
-      } else {
-        await useAuthStore.getState().hydrateCurrentUserProfile(response.uid);
-        Toast.show({
-          type: 'success',
-          text1: context === 'session_reauth' ? 'Session Firebase active' : 'Téléphone vérifié !',
-          text2: context === 'session_reauth' ? 'Connexion finalisée sur ContribApp' : 'Bienvenue sur ContribApp',
-        });
-      }
-    } catch (err: any) {
-      setHasError(true);
-      setOtpValues(['', '', '', '', '', '']);
-      inputRefs[0].current?.focus();
-      setAttemptsLeft(prev => prev - 1);
-      
-      Animated.sequence([
-        Animated.timing(shakeAnimation, { toValue: 8, duration: 100, useNativeDriver: true }),
-        Animated.timing(shakeAnimation, { toValue: -8, duration: 100, useNativeDriver: true }),
-        Animated.timing(shakeAnimation, { toValue: 8, duration: 100, useNativeDriver: true }),
-        Animated.timing(shakeAnimation, { toValue: 0, duration: 100, useNativeDriver: true })
-      ]).start();
-
-      if (err.message === 'OTP_EXPIRED') {
-        setError('Code expiré. Veuillez en demander un nouveau.');
-      } else if (err.message === 'MAX_ATTEMPTS') {
-        setError('Trop de tentatives. Un nouveau code est requis.');
-        setTimer(0);
-      } else if (err.message === 'INVALID_OTP') {
-        setError(`Code incorrect. ${attemptsLeft - 1} tentative(s) restante(s).`);
-      } else {
-        setError('Erreur de vérification. Réessayez.');
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleResend = async () => {
-    setIsResending(true);
-    try {
-      if (!recaptchaRef.current) {
-        throw new Error('Recaptcha non initialisé');
-      }
-      const verificationId = await recaptchaRef.current.sendVerification(phone);
-      setVerificationId(verificationId);
-      setTimer(120);
-      setHasError(false);
-      setError(null);
-      setOtpValues(['', '', '', '', '', '']);
-      setAttemptsLeft(3);
-      inputRefs[0].current?.focus();
-      Toast.show({ type: 'success', text1: 'Code renvoyé !', text2: `SMS envoyé au ${phone}` });
-    } catch (err: any) {
-      if (err?.code === 'auth/too-many-requests') {
-        Toast.show({ type: 'error', text1: 'Limite atteinte', text2: 'Attendez avant de renvoyer.' });
-      } else {
-        Toast.show({ type: 'error', text1: 'Erreur', text2: err.message || 'Impossible de renvoyer le code' });
-      }
-    } finally {
-      setIsResending(false);
-    }
-  };
+  // ── Cooldown renvoi ───────────────────────────────────────────────────────
 
   useEffect(() => {
-    if (otpValues.every(v => v !== '')) {
-      const timeout = setTimeout(() => {
-        handleVerify();
-      }, 300);
-      return () => clearTimeout(timeout);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [otpValues]);
+    if (resendCooldown <= 0) return;
+    const id = setInterval(() => setResend(c => c - 1), 1000);
+    return () => clearInterval(id);
+  }, [resendCooldown]);
+
+  // ── Saisie OTP ────────────────────────────────────────────────────────────
 
   const handleChange = (text: string, index: number) => {
-    const newOtp = [...otpValues];
-    newOtp[index] = text;
-    setOtpValues(newOtp);
-
-    if (text && index < 5) {
-      inputRefs[index + 1].current?.focus();
+    // Gestion du paste (6 chiffres d'un coup)
+    if (text.length > 1) {
+      const digits = text.replace(/\D/g, '').slice(0, OTP_LENGTH);
+      if (digits.length === OTP_LENGTH) {
+        const newOtp = digits.split('');
+        setOtp(newOtp);
+        inputRefs.current[OTP_LENGTH - 1]?.focus();
+        return;
+      }
     }
-    if (text && index === 5) {
+    const digit = text.replace(/\D/g, '').slice(-1);
+    const newOtp = [...otp];
+    newOtp[index] = digit;
+    setOtp(newOtp);
+    setHasError(false);
+    setErrorMsg(null);
+    if (digit && index < OTP_LENGTH - 1) {
+      inputRefs.current[index + 1]?.focus();
+      setFocused(index + 1);
+    }
+    if (digit && index === OTP_LENGTH - 1) {
       Keyboard.dismiss();
     }
   };
 
-  const handleKeyPress = ({ nativeEvent }: any, index: number) => {
-    if (nativeEvent.key === 'Backspace' && !otpValues[index] && index > 0) {
-      const newOtp = [...otpValues];
-      newOtp[index - 1] = '';
-      setOtpValues(newOtp);
-      inputRefs[index - 1].current?.focus();
+  const handleKeyPress = (e: any, index: number) => {
+    if (e.nativeEvent.key === 'Backspace') {
+      const newOtp = [...otp];
+      if (!otp[index] && index > 0) {
+        newOtp[index - 1] = '';
+        setOtp(newOtp);
+        inputRefs.current[index - 1]?.focus();
+        setFocused(index - 1);
+      } else {
+        newOtp[index] = '';
+        setOtp(newOtp);
+      }
     }
   };
 
-  const isFormComplete = otpValues.every(v => v !== '');
+  // ── Vérification automatique quand les 6 cases sont remplies ─────────────
 
-  const [focusedIndex, setFocusedIndex] = useState(-1);
+  useEffect(() => {
+    if (otp.every(v => v !== '') && !isLoading) {
+      const timeout = setTimeout(() => handleVerify(otp.join('')), 300);
+      return () => clearTimeout(timeout);
+    }
+  }, [otp]);
+
+  // ── Vérification OTP ──────────────────────────────────────────────────────
+
+  const handleVerify = async (code: string) => {
+    if (code.length !== OTP_LENGTH || isLoading) return;
+    setLoading(true);
+    setHasError(false);
+    setErrorMsg(null);
+
+    try {
+      if (purpose === 'registration') {
+        const response = await authService.verifyRegistrationOTP(phone, code);
+        setAuthData(response);
+        Toast.show({
+          type: 'success',
+          text1: 'Compte créé avec succès !',
+          text2: `Bienvenue, ${response.fullName} !`,
+        });
+        // AppNavigator gère la redirection automatiquement
+      } else {
+        // pin_reset — vérifier l'OTP et naviguer vers NewPINScreen
+        await otpService.verifyOTP(phone, 'pin_reset', code);
+        navigation.replace('NewPIN', { phone, verifiedOtpCode: code });
+      }
+    } catch (err: any) {
+      const msg = err?.message ?? '';
+      triggerShake();
+      setHasError(true);
+
+      setTimeout(() => {
+        setOtp(Array(OTP_LENGTH).fill(''));
+        inputRefs.current[0]?.focus();
+        setFocused(0);
+      }, 800);
+
+      if (msg === 'OTP_EXPIRED') {
+        setExpired(true);
+        setErrorMsg('Code expiré. Renvoyez un nouveau code.');
+      } else if (msg === 'OTP_MAX_ATTEMPTS') {
+        setMaxAttempts(true);
+        setErrorMsg('Trop de tentatives incorrectes. Renvoyez un nouveau code.');
+      } else if (msg.startsWith('OTP_INVALID:')) {
+        const remaining = msg.split(':')[1];
+        setErrorMsg(`Code incorrect. ${remaining} tentative(s) restante(s).`);
+      } else if (msg === 'OTP_NOT_FOUND') {
+        setErrorMsg('Code introuvable. Renvoyez un nouveau code.');
+      } else {
+        setErrorMsg('Erreur de vérification. Réessayez.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ── Renvoi OTP ────────────────────────────────────────────────────────────
+
+  const handleResend = async () => {
+    if (resendCooldown > 0 || isResending) return;
+    setResending(true);
+    try {
+      await otpService.sendOTP(
+        email,
+        phone,
+        fullName ?? 'Utilisateur',
+        purpose
+      );
+      setTimer(OTP_TIMER_SECONDS);
+      setResend(RESEND_COOLDOWN);
+      setExpired(false);
+      setMaxAttempts(false);
+      setHasError(false);
+      setErrorMsg(null);
+      setOtp(Array(OTP_LENGTH).fill(''));
+      inputRefs.current[0]?.focus();
+      Toast.show({
+        type: 'success',
+        text1: 'Nouveau code envoyé',
+        text2: `Vérifiez ${maskEmail(email)}`,
+      });
+    } catch (err: any) {
+      const msg = err?.message ?? '';
+      if (msg.startsWith('RATE_LIMIT:')) {
+        const secs = msg.split(':')[1];
+        setResend(parseInt(secs, 10));
+        Toast.show({
+          type: 'error',
+          text1: 'Trop vite',
+          text2: `Réessayez dans ${secs} secondes`,
+        });
+      } else {
+        Toast.show({ type: 'error', text1: 'Erreur', text2: "Impossible d'envoyer le code" });
+      }
+    } finally {
+      setResending(false);
+    }
+  };
+
+  // ── Header title ──────────────────────────────────────────────────────────
+  const headerTitle = purpose === 'registration'
+    ? 'Vérification du compte'
+    : 'Réinitialisation du PIN';
+
+  const handleBack = () => {
+    if (purpose === 'registration') {
+      navigation.navigate('Register');
+    } else {
+      navigation.navigate('Login');
+    }
+  };
 
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-      <View style={styles.container}>
-        {/* reCAPTCHA invisible (WebView) pour resend */}
-        <FirebaseRecaptcha ref={recaptchaRef} />
-        <StatusBar barStyle="light-content" backgroundColor={Colors.primary} />
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-            <Text style={styles.backButtonText}>←</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Vérification</Text>
-          <View style={styles.backButton} />
-        </View>
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor={Colors.background} />
 
-        <KeyboardAvoidingView 
-          style={{ flex: 1 }} 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backBtn} onPress={handleBack}>
+          <Text style={styles.backBtnText}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>{headerTitle}</Text>
+        <View style={styles.backBtn} />
+      </View>
+
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={styles.body}>
-            {/* Icon */}
-            <View style={styles.iconContainer}>
-              <Text style={styles.iconText}>✉️</Text>
-            </View>
-            <Text style={styles.title}>Code de vérification</Text>
-            <Text style={styles.subtitle}>
-              Nous avons envoyé un code SMS au{"\n"}
-              <Text style={styles.phoneText}>{maskedPhone}</Text>
-            </Text>
-
-            <Animated.View style={[styles.otpContainer, { transform: [{ translateX: shakeAnimation }] }]}>
-              {otpValues.map((val, index) => {
-                const isFocused = focusedIndex === index;
-                const isFilled = val !== '';
-                return (
-                  <TextInput
-                    key={index}
-                    ref={inputRefs[index]}
-                    style={[
-                      styles.otpBox,
-                      isFocused && styles.otpBoxFocused,
-                      isFilled && !isFocused && !hasError && styles.otpBoxFilled,
-                      hasError && styles.otpBoxError
-                    ]}
-                    value={val}
-                    onChangeText={(t) => handleChange(t, index)}
-                    onKeyPress={(e) => handleKeyPress(e, index)}
-                    onFocus={() => { setFocusedIndex(index); setHasError(false); setError(null); }}
-                    onBlur={() => setFocusedIndex(-1)}
-                    keyboardType="numeric"
-                    maxLength={1}
-                    selectTextOnFocus
-                  />
-                )
-              })}
+            {/* Icône animée */}
+            <Animated.View
+              style={[styles.iconWrap, { transform: [{ scale: bounceAnim }] }]}
+            >
+              <Text style={styles.iconEmoji}>✉️</Text>
             </Animated.View>
 
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+            <Text style={styles.title}>Vérifiez votre email</Text>
+            <Text style={styles.desc}>
+              Nous avons envoyé un code à 6 chiffres à
+            </Text>
+            <Text style={styles.emailMasked}>{maskEmail(email)}</Text>
+            <Text style={styles.spamNote}>
+              Vérifiez aussi votre dossier spam si vous ne trouvez pas l&apos;email.
+            </Text>
 
-            <View style={styles.timerContainer}>
-              {timer > 0 ? (
-                <Text style={styles.timerText}>Renvoyer le code dans <Text style={styles.timerBold}>{formatTimer(timer)}</Text></Text>
-              ) : (
-                <TouchableOpacity onPress={handleResend} disabled={isResending}>
-                  <Text style={styles.resendButtonText}>
-                    {isResending ? 'Renvoi...' : 'Renvoyer le code'}
+            {/* 6 cases OTP */}
+            {!isExpired && !maxAttempts && (
+              <>
+                <Animated.View
+                  style={[
+                    styles.otpRow,
+                    { transform: [{ translateX: shakeAnim }] }
+                  ]}
+                >
+                  {otp.map((val, i) => (
+                    <TextInput
+                      key={i}
+                      ref={ref => { inputRefs.current[i] = ref; }}
+                      style={[
+                        styles.otpBox,
+                        focusedIndex === i && styles.otpBoxFocused,
+                        val && !hasError && styles.otpBoxFilled,
+                        hasError && styles.otpBoxError,
+                      ]}
+                      value={val}
+                      onChangeText={t => handleChange(t, i)}
+                      onKeyPress={e => handleKeyPress(e, i)}
+                      onFocus={() => setFocused(i)}
+                      onBlur={() => setFocused(-1)}
+                      keyboardType="numeric"
+                      maxLength={OTP_LENGTH} // autorise le paste
+                      selectTextOnFocus
+                      editable={!isLoading}
+                    />
+                  ))}
+                </Animated.View>
+
+                {isLoading && (
+                  <View style={styles.loadingWrap}>
+                    <ActivityIndicator color={Colors.primary} size="small" />
+                    <Text style={styles.loadingText}>Vérification en cours...</Text>
+                  </View>
+                )}
+              </>
+            )}
+
+            {/* Message d'erreur */}
+            {errorMsg && <Text style={styles.errorText}>{errorMsg}</Text>}
+
+            {/* Timer */}
+            {!isExpired && !maxAttempts && (
+              <View style={styles.timerRow}>
+                {resendCooldown > 0 ? (
+                  <Text style={styles.timerText}>
+                    Code valable encore :{' '}
+                    <Text style={styles.timerBold}>{formatTime(timer)}</Text>
+                    {'\n'}
+                    <Text style={styles.resendDisabled}>
+                      Renvoyer disponible dans {resendCooldown}s
+                    </Text>
                   </Text>
-                </TouchableOpacity>
-              )}
-            </View>
+                ) : (
+                  <Text style={styles.timerText}>
+                    Code valable encore :{' '}
+                    <Text style={styles.timerBold}>{formatTime(timer)}</Text>
+                  </Text>
+                )}
+              </View>
+            )}
 
-            <AppButton
-              title="Vérifier"
-              onPress={handleVerify}
-              disabled={!isFormComplete || isLoading}
-              loading={isLoading}
-              loadingText="Vérification..."
-              style={styles.verifyButton}
-            />
+            {/* Bouton Renvoyer */}
+            <TouchableOpacity
+              style={[
+                styles.resendBtn,
+                (resendCooldown > 0 || isResending) && styles.resendBtnDisabled,
+              ]}
+              onPress={handleResend}
+              disabled={resendCooldown > 0 || isResending}
+            >
+              <Text style={[
+                styles.resendBtnText,
+                (resendCooldown > 0 || isResending) && styles.resendBtnTextDisabled,
+              ]}>
+                {isResending ? 'Envoi...' : 'Renvoyer un nouveau code'}
+              </Text>
+            </TouchableOpacity>
           </View>
-        </KeyboardAvoidingView>
-      </View>
-    </TouchableWithoutFeedback>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+  safeArea: { flex: 1, backgroundColor: Colors.background },
+
   header: {
-    backgroundColor: Colors.primary,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 50,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 14,
+    backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#F0F0F0',
   },
-  headerTitle: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
-  backButton: { width: 40 },
-  backButtonText: { color: '#FFF', fontSize: 24 },
+  backBtn: { width: 40, justifyContent: 'center' },
+  backBtnText: { fontSize: 24, color: Colors.textPrimary, fontWeight: 'bold' },
+  headerTitle: { fontSize: 17, fontWeight: '700', color: Colors.textPrimary },
+
   body: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
+    flex: 1, alignItems: 'center',
+    paddingHorizontal: 28, paddingTop: 36, paddingBottom: 20,
   },
-  iconContainer: {
-    width: 60, height: 60, borderRadius: 30,
-    backgroundColor: Colors.primary + '15',
+
+  iconWrap: {
+    width: 90, height: 90, borderRadius: 45,
+    backgroundColor: Colors.primary + '18',
     justifyContent: 'center', alignItems: 'center',
-    marginBottom: 20
+    marginBottom: 20,
   },
-  iconText: { fontSize: 30 },
-  title: { fontSize: 24, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 8 },
-  subtitle: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center', lineHeight: 22, marginBottom: 32 },
-  phoneText: { fontWeight: 'bold', color: Colors.textPrimary },
-  otpContainer: { flexDirection: 'row', gap: 10, justifyContent: 'center', marginBottom: 24 },
+  iconEmoji: { fontSize: 40 },
+
+  title: { fontSize: 22, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 10 },
+  desc: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center' },
+  emailMasked: {
+    fontSize: 15, fontWeight: '700', color: Colors.textPrimary,
+    marginTop: 4, marginBottom: 8, textAlign: 'center',
+  },
+  spamNote: {
+    fontSize: 12, color: Colors.textSecondary,
+    textAlign: 'center', lineHeight: 18, marginBottom: 28, opacity: 0.8,
+  },
+
+  otpRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
   otpBox: {
-    width: 48, height: 48,
+    width: 52, height: 52, borderRadius: 12,
     borderWidth: 1.5, borderColor: Colors.border,
-    borderRadius: 12,
-    fontSize: 22, textAlign: 'center',
-    color: Colors.textPrimary,
-    backgroundColor: '#FFF'
+    fontSize: 22, fontWeight: 'bold', textAlign: 'center',
+    color: Colors.textPrimary, backgroundColor: '#F8F8F8',
   },
-  otpBoxFocused: { borderColor: Colors.primary, backgroundColor: Colors.primary + '05' },
-  otpBoxFilled: { borderColor: Colors.accent },
-  otpBoxError: { borderColor: Colors.danger },
-  errorText: { color: Colors.danger, fontSize: 13, textAlign: 'center', marginBottom: 16 },
-  timerContainer: { marginBottom: 32 },
-  timerText: { color: Colors.textSecondary, fontSize: 14 },
+  otpBoxFocused: { borderColor: Colors.primary, backgroundColor: '#FFF' },
+  otpBoxFilled:  { borderColor: Colors.accent, backgroundColor: '#FFF' },
+  otpBoxError:   { borderColor: Colors.danger, backgroundColor: '#FFF3F3' },
+
+  loadingWrap: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  loadingText: { color: Colors.textSecondary, fontSize: 13 },
+
+  errorText: {
+    color: Colors.danger, fontSize: 13, fontWeight: '600',
+    textAlign: 'center', marginBottom: 12, paddingHorizontal: 16,
+  },
+
+  timerRow: { marginBottom: 20, alignItems: 'center' },
+  timerText: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
   timerBold: { fontWeight: 'bold', color: Colors.textPrimary },
-  resendButtonText: { color: Colors.primary, fontSize: 15, fontWeight: 'bold' },
-  verifyButton: { width: '100%' }
+  resendDisabled: { color: Colors.textSecondary, opacity: 0.6 },
+
+  resendBtn: {
+    paddingVertical: 12, paddingHorizontal: 24,
+    borderRadius: 10, borderWidth: 1.5, borderColor: Colors.primary,
+    backgroundColor: '#FFF',
+  },
+  resendBtnDisabled: { borderColor: Colors.border, backgroundColor: Colors.background },
+  resendBtnText: { color: Colors.primary, fontWeight: '700', fontSize: 14 },
+  resendBtnTextDisabled: { color: Colors.textSecondary },
 });

@@ -12,6 +12,7 @@
     "cleanup-db": "node ./scripts/cleanup-db.js"
   },
   "dependencies": {
+    "@emailjs/browser": "^4.4.1",
     "@expo-google-fonts/manrope": "^0.4.2",
     "@expo/vector-icons": "^15.0.3",
     "@react-native-async-storage/async-storage": "^2.2.0",

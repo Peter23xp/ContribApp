@@ -4,15 +4,18 @@ import { Colors } from '../../constants/colors';
 
 export interface AppInputProps extends TextInputProps {
   label: string;
+  subLabel?: string;
+  subLabelColor?: string;
   error?: string;
   prefix?: string;
   rightIcon?: React.ReactNode;
 }
 
-export const AppInput = forwardRef<TextInput, AppInputProps>(({ label, error, prefix, rightIcon, ...props }, ref) => {
+export const AppInput = forwardRef<TextInput, AppInputProps>(({ label, subLabel, subLabelColor, error, prefix, rightIcon, ...props }, ref) => {
   return (
     <View style={styles.container}>
       <Text style={styles.label}>{label}</Text>
+      {subLabel ? <Text style={[styles.subLabel, subLabelColor ? { color: subLabelColor } : null]}>{subLabel}</Text> : null}
       <View style={[
         styles.inputWrapper, 
         props.multiline && { height: 'auto', minHeight: 48, paddingVertical: 12 },
@@ -34,7 +37,8 @@ export const AppInput = forwardRef<TextInput, AppInputProps>(({ label, error, pr
 
 const styles = StyleSheet.create({
   container: { marginBottom: 16 },
-  label: { marginBottom: 6, color: Colors.textPrimary, fontWeight: '600' },
+  label: { marginBottom: 2, color: Colors.textPrimary, fontWeight: '600' },
+  subLabel: { fontSize: 12, color: Colors.textSecondary, marginBottom: 6 },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',

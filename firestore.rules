@@ -16,9 +16,29 @@ service cloud.firestore {
     // TTL géré via expires_at (configurer dans la console Firebase)
     match /pending_registrations/{phoneHash} {
       allow create: if true;
-      allow read:   if request.auth != null;
-      allow delete: if request.auth != null;
+      allow read:   if true;
+      allow delete: if true;
       allow update: if false;   // immutable une fois créé
+    }
+
+    // ── LOGIN SESSIONS & PHONE DIRECTORY ──────────────────────────────────────
+    match /login_sessions/{phoneHash} {
+      allow create: if true;
+      allow read:   if true;
+      allow delete: if true;
+      allow update: if false;
+    }
+
+    match /phone_directory/{phoneHash} {
+      allow read: if true;
+      allow create: if request.auth != null || true; // Autorisé lors de l'inscription non auth
+      allow update, delete: if false;
+    }
+
+    // ── MAIL (Firebase Trigger Email) ─────────────────────────────────────────
+    match /mail/{mailId} {
+      allow create: if true;
+      allow read, update, delete: if false; // Seul le serveur/l'extension peut lire/modifier
     }
 
     // ── GROUPS ────────────────────────────────────────────────────────────────
