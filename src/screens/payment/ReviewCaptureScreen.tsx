@@ -74,6 +74,7 @@ export function ReviewCaptureScreen({ route, navigation }: any) {
   const insets = useSafeAreaInsets();
   const { contributionId, readOnly = false } = route.params || {};
   const storeUser = useAuthStore((s) => s.user);
+  const storeUid = useAuthStore((s) => s.uid);
 
   const [contribution, setContribution] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
@@ -115,7 +116,7 @@ export function ReviewCaptureScreen({ route, navigation }: any) {
   };
 
   const handleApprove = () => {
-    const approverUid = storeUser?.uid ?? '';
+    const approverUid = storeUid ?? '';
     const numAmount = parseInt(amountConfirmed, 10);
     if (!approverUid) {
       Alert.alert('Session requise', "La session de trésorier n'est pas active. Reconnectez-vous puis réessayez.");
@@ -165,7 +166,7 @@ export function ReviewCaptureScreen({ route, navigation }: any) {
   };
 
   const handleConfirmReject = async () => {
-    const rejectorUid = storeUser?.uid ?? '';
+    const rejectorUid = storeUid ?? '';
     const finalReason = rejectReason === 'Autre (preciser)' ? customReason : rejectReason;
     if (!rejectorUid) {
       Alert.alert('Session requise', "La session de trésorier n'est pas active. Reconnectez-vous puis réessayez.");

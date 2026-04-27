@@ -21,8 +21,8 @@ import { createGroup } from '../../services/groupService';
 import { uploadFile } from '../../services/storageService';
 
 export default function GroupCreationScreen({ navigation }: any) {
-  const { user, setGroupId } = useAuthStore();
-  const adminUid = user?.id || '';
+  const { user, setGroupId, uid } = useAuthStore();
+  const adminUid = uid || '';
 
   const [formData, setFormData] = useState({
     // Étape 1

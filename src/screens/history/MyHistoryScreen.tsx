@@ -35,6 +35,7 @@ type SheetType = 'paid' | 'late' | 'missing' | null;
 
 export default function MyHistoryScreen({ navigation }: any) {
   const user = useAuthStore((s) => s.user);
+  const uid = useAuthStore((s) => s.uid);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [history, setHistory] = useState<MemberYearHistoryResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -101,7 +102,7 @@ export default function MyHistoryScreen({ navigation }: any) {
 
   useEffect(() => {
     async function loadHistory() {
-      if (!user?.id || !groupId) return;
+      if (!uid || !groupId) return;
       setIsLoading(true);
       const cacheKey = `member_history_${selectedYear}`;
 
@@ -119,7 +120,7 @@ export default function MyHistoryScreen({ navigation }: any) {
           }
         }
 
-        const fresh = await fetchMemberHistoryByYear(groupId, user.id, selectedYear);
+        const fresh = await fetchMemberHistoryByYear(groupId, uid, selectedYear);
         setHistory(fresh);
         setFromCache(false);
         await AsyncStorage.setItem(
@@ -138,7 +139,7 @@ export default function MyHistoryScreen({ navigation }: any) {
     }
 
     loadHistory();
-  }, [selectedYear, user?.id, groupId, isOffline]);
+  }, [selectedYear, uid, groupId, isOffline]);
 
   const displayedPaidMonths = fromCache ? history?.summary.paidMonths ?? 0 : animatedStats.paidMonths;
   const displayedTotalPaid = fromCache ? history?.summary.totalPaid ?? 0 : animatedStats.totalPaid;

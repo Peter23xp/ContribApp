@@ -95,6 +95,7 @@ function SkeletonRow() {
 // ─── Écran principal ──────────────────────────────────────────
 export default function MemberManagementScreen({ navigation, route }: any) {
   const user = useAuthStore((s) => s.user);
+  const uid = useAuthStore((s) => s.uid);
   const role = useAuthStore((s) => s.role);
   const initialGroupId = route?.params?.groupId ?? useAuthStore.getState().groupId ?? '';
   const [groupId, setGroupId] = useState(initialGroupId);
@@ -127,20 +128,26 @@ export default function MemberManagementScreen({ navigation, route }: any) {
   }, [route?.params?.groupId]);
 
   const ensureAdminGroup = useCallback(async (): Promise<string> => {
-    if (!user?.id || role !== 'admin') return '';
+    if (!uid || role !== 'admin') return '';
 
-    const existingGroup = await getGroupForAdmin(user.id);
+    const existingGroup = await getGroupForAdmin(uid);
     if (existingGroup?.id) {
       setGroupId(existingGroup.id);
       await useAuthStore.getState().setAuthenticatedUser({
-        user,
+        user: user ? {
+          id: uid,
+          full_name: user.fullName,
+          phone: user.phone,
+          operator: user.operator,
+          profile_photo_url: user.profilePhotoUrl,
+        } : { id: uid, full_name: '', phone: '', operator: '' },
         role,
         groupId: existingGroup.id,
       });
       return existingGroup.id;
     }
     return '';
-  }, [role, user]);
+  }, [role, user, uid]);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -239,7 +246,7 @@ export default function MemberManagementScreen({ navigation, route }: any) {
     setMemberTarget(null);
     if (!groupId) return;
     try {
-      await updateMemberRole(groupId, target.uid, newRole, user?.id ?? '');
+      await updateMemberRole(groupId, target.uid, newRole, uid ?? '');
       setMembers(prev => prev.map(m => m.uid === target.uid ? { ...m, role: newRole } : m));
       Toast.show({ type: 'success', text1: 'Rôle mis à jour' });
     } catch {
@@ -265,7 +272,7 @@ export default function MemberManagementScreen({ navigation, route }: any) {
     setMemberTarget(null);
     if (!groupId) return;
     try {
-      await updateMemberStatus(groupId, target.uid, status, user?.id ?? '');
+      await updateMemberStatus(groupId, target.uid, status, uid ?? '');
       setMembers(prev => prev.map(m => m.uid === target.uid ? { ...m, status } : m));
       const msg = status === 'suspended' ? 'Membre suspendu' : status === 'removed' ? 'Membre retiré du groupe' : 'Membre réactivé';
       Toast.show({ type: 'success', text1: msg });

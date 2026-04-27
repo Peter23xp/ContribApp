@@ -12,7 +12,7 @@ import { ConfirmModal } from '../../components/common/ConfirmModal';
 import { ToastNotification } from '../../components/common/ToastNotification';
 
 export default function MembersScreen({ navigation }: any) {
-  const { user, groupId } = useAuthStore();
+  const { user, groupId, uid } = useAuthStore();
   const isAdmin = useAuthStore(s => s.role === 'admin');
 
   const [isLoading, setIsLoading] = useState(true);
@@ -144,7 +144,7 @@ export default function MembersScreen({ navigation }: any) {
             <MemberCard 
               member={item} 
               onActionPress={handleAction} 
-              showSwipeActions={isAdmin && item.id !== user?.id} 
+              showSwipeActions={isAdmin && item.id !== uid} 
             />
           )}
           refreshControl={

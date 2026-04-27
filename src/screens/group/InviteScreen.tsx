@@ -31,8 +31,9 @@ import { getGroupForAdmin, getGroupForMember } from '../../services/groupService
 
 export default function InviteScreen({ navigation, route }: any) {
   const user = useAuthStore((s) => s.user);
+  const uid = useAuthStore((s) => s.uid);
   const groupId = route?.params?.groupId
-    ?? (user?.id ? undefined : undefined);  // groupId chargé via route.params
+    ?? (uid ? undefined : undefined);  // groupId chargé via route.params
   
   const [inviteData, setInviteData] = useState<InviteCode | null>(null);
   const [pending, setPending] = useState<PendingInvitation[]>([]);

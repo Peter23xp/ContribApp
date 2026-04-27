@@ -22,7 +22,7 @@ import { getGroup, regenerateInviteCode, sendSmsInvite, fetchPendingInvitations,
 
 export default function InviteHubScreen({ navigation, route }: any) {
   const { inviteCode: paramsInviteCode, groupId: paramsGroupId } = route.params || {};
-  const { user, groupId: storeGroupId } = useAuthStore();
+  const { user, groupId: storeGroupId, uid } = useAuthStore();
   const actGroupId = paramsGroupId || storeGroupId;
 
   const [isLoading, setIsLoading] = useState(!paramsInviteCode);
@@ -95,7 +95,7 @@ export default function InviteHubScreen({ navigation, route }: any) {
     // In actual code, use ConfirmModal
     try {
       setIsLoading(true);
-      const res = await regenerateInviteCode(actGroupId, user?.id);
+      const res = await regenerateInviteCode(actGroupId, uid || '');
       setInviteCode(res.code);
       showToast("Nouveau code généré", "warning");
     } catch (err) {

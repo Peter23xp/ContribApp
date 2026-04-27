@@ -10,7 +10,7 @@ export default function WelcomeScreen({ navigation }: any) {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteCode, setInviteCode] = useState('');
 
-  const firstName = user?.full_name?.split(' ')[0] || 'Admin';
+  const firstName = user?.fullName?.split(' ')[0] || 'Admin';
 
   const handleCreateGroup = () => {
     navigation.navigate('GroupCreation');

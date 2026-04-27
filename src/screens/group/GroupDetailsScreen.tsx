@@ -74,20 +74,21 @@ function SkeletonBlock() {
 // ─── Écran ────────────────────────────────────────────────────
 export default function GroupDetailsScreen({ navigation, route }: any) {
   const user = useAuthStore(state => state.user);
+  const uid = useAuthStore(state => state.uid);
   const role = useAuthStore(state => state.role);
   const isPaid = true; // Fallback ou logique depuis Zustand
   
   const [groupId, setGroupId] = useState<string | undefined>(route?.params?.groupId);
 
   useEffect(() => {
-    if (groupId || !user?.id) return;
+    if (groupId || !uid) return;
     (async () => {
       const g = role === 'admin' 
-        ? await db.getGroupForAdmin(user.id) 
-        : await db.getGroupForMember(user.id);
+        ? await db.getGroupForAdmin(uid) 
+        : await db.getGroupForMember(uid);
       if (g) setGroupId(g.id);
     })();
-  }, [user?.id, role, groupId]);
+  }, [uid, role, groupId]);
 
   const [config, setConfig] = useState<GroupConfig | null>(null);
   const [members, setMembers] = useState<GroupMember[]>([]);

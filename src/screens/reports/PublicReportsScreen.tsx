@@ -19,6 +19,7 @@ function toMonthKey(date: Date) {
 
 export default function PublicReportsScreen({ navigation }: any) {
   const user = useAuthStore((s) => s.user);
+  const uid = useAuthStore((s) => s.uid);
   const [selectedMonth, setSelectedMonth] = useState(toMonthKey(new Date()));
   const [isLoading, setIsLoading] = useState(true);
   const [isOffline, setIsOffline] = useState(false);
@@ -72,9 +73,9 @@ export default function PublicReportsScreen({ navigation }: any) {
   }, [groupId, selectedMonth, isOffline]);
 
   const myContribution = useMemo(() => {
-    if (!report || !user?.uid) return null;
-    return report.contributions.find((c) => c.memberId === user.uid) ?? null;
-  }, [report, user?.uid]);
+    if (!report || !uid) return null;
+    return report.contributions.find((c) => c.memberId === uid) ?? null;
+  }, [report, uid]);
 
   const paidCount = report?.summary.paidCount ?? 0;
   const pendingCount = Math.max(0, (report?.summary.totalMembers ?? 0) - paidCount);
