@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Dimensions,
   FlatList,
   Modal,
@@ -43,7 +42,6 @@ function quarterMonths(year: number, quarter: number): string[] {
 }
 
 export default function ReportsScreen({ route, navigation }: any) {
-  const user = useAuthStore((s) => s.user);
   const role = useAuthStore((s) => s.role);
   const groupId = useAuthStore((s) => s.groupId);
 
@@ -156,6 +154,7 @@ export default function ReportsScreen({ route, navigation }: any) {
 
   useEffect(() => {
     loadReport();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reportType, selectedMonth, selectedQuarter, selectedYear, groupId]);
 
   const contributionRows: ReportContribution[] = monthlyData?.contributions ?? [];

@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Platform, ActivityIndicator }
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useFocusEffect } from '@react-navigation/native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../stores/authStore';
 import { Colors, Fonts, Radius } from '../constants/colors';
 
@@ -41,22 +41,40 @@ function NoGroupPlaceholder({ navigation, title }: { navigation: any; title: str
   );
 }
 
+// ─── Bannière "Mode Membre Actif" ────────────────────────────────────────────
+function MemberModeBanner() {
+  const { role, activeRole, restoreRole } = useAuthStore();
+  if (activeRole !== 'member' || role === 'member') return null;
+  const label = role === 'admin' ? 'Administrateur' : 'Trésorière';
+  return (
+    <View style={styles.memberBanner}>
+      <Ionicons name="swap-horizontal" size={15} color="#FFF" />
+      <Text style={styles.memberBannerText}>Mode membre actif</Text>
+      <TouchableOpacity onPress={restoreRole} style={styles.memberBannerBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <Text style={styles.memberBannerBtnText}>Retour {label}</Text>
+        <Ionicons name="arrow-forward" size={13} color={Colors.primary} />
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 function HomeDashboard({ navigation, route }: any) {
-  const role = useAuthStore(s => s.role);
-  if (role === 'admin')     return <AdminDashboardScreen navigation={navigation} route={route} />;
-  if (role === 'treasurer') return <TreasurerDashboardScreen navigation={navigation} route={route} />;
+  const activeRole = useAuthStore(s => s.activeRole);
+  if (activeRole === 'admin')     return <AdminDashboardScreen navigation={navigation} route={route} />;
+  if (activeRole === 'treasurer') return <TreasurerDashboardScreen navigation={navigation} route={route} />;
   return <MemberDashboardScreen navigation={navigation} route={route} />;
 }
 
 /** Tab "Contributions" : SCR-008 Admin | SCR-009-B Trésorière (ApprovalQueue) | SCR-010-B Membre (SubmitContribution) */
 function ContributionsTab(props: any) {
-  const role = useAuthStore(s => s.role);
+  const activeRole = useAuthStore(s => s.activeRole);
   const user = useAuthStore(s => s.user);
+  const uid = useAuthStore(s => s.uid);
   const groupId = useAuthStore(s => s.groupId);
   const [hasGroup, setHasGroup] = useState<boolean | null>(null);
 
   const refreshMembership = React.useCallback(() => {
-    if (role !== 'member' || !user) {
+    if (activeRole !== 'member' || !user) {
       setHasGroup(true);
       return;
     }
@@ -66,8 +84,8 @@ function ContributionsTab(props: any) {
       return;
     }
 
-    db.getGroupForMember(user.id).then(g => setHasGroup(!!g));
-  }, [groupId, role, user]);
+    db.getGroupForMember(uid || '').then(g => setHasGroup(!!g));
+  }, [groupId, activeRole, user, uid]);
 
   useEffect(() => {
     refreshMembership();
@@ -79,9 +97,8 @@ function ContributionsTab(props: any) {
     }, [refreshMembership])
   );
 
-  if (role === 'admin')     return <AdminPaymentTrackingScreen {...props} />;
-  // SCR-009-B : Trésorière → File d'approbation (actif)
-  if (role === 'treasurer') return <ApprovalQueueScreen {...props} />;
+  if (activeRole === 'admin')     return <AdminPaymentTrackingScreen {...props} />;
+  if (activeRole === 'treasurer') return <ApprovalQueueScreen {...props} />;
   
   if (hasGroup === null) return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.surface }}><ActivityIndicator color={Colors.primary} /></View>;
   if (!hasGroup) return <NoGroupPlaceholder navigation={props.navigation} title="Paiements inaccessibles" />;
@@ -92,13 +109,14 @@ function ContributionsTab(props: any) {
 
 /** Tab "Groupe" */
 function GroupTab(props: any) {
-  const role = useAuthStore(s => s.role);
+  const activeRole = useAuthStore(s => s.activeRole);
   const user = useAuthStore(s => s.user);
+  const uid = useAuthStore(s => s.uid);
   const groupId = useAuthStore(s => s.groupId);
   const [hasGroup, setHasGroup] = useState<boolean | null>(null);
 
   const refreshMembership = React.useCallback(() => {
-    if (role !== 'member' || !user) {
+    if (activeRole !== 'member' || !user) {
       setHasGroup(true);
       return;
     }
@@ -108,8 +126,8 @@ function GroupTab(props: any) {
       return;
     }
 
-    db.getGroupForMember(user.id).then(g => setHasGroup(!!g));
-  }, [groupId, role, user]);
+    db.getGroupForMember(uid || '').then(g => setHasGroup(!!g));
+  }, [groupId, activeRole, user, uid]);
 
   useEffect(() => {
     refreshMembership();
@@ -173,20 +191,54 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
 // ─── Navigator ────────────────────────────────────────────────────────────────
 export default function AppTabNavigator() {
   return (
-    <Tab.Navigator
-      tabBar={props => <CustomTabBar {...props} />}
-      screenOptions={{ headerShown: false }}
-    >
-      <Tab.Screen name="Accueil"  component={HomeDashboard}      />
-      <Tab.Screen name="Payer"    component={ContributionsTab}    />
-      <Tab.Screen name="Groupe"   component={GroupTab}   />
-      <Tab.Screen name="Profil"   component={ProfileScreen}        />
-    </Tab.Navigator>
+    <View style={{ flex: 1 }}>
+      <MemberModeBanner />
+      <Tab.Navigator
+        tabBar={props => <CustomTabBar {...props} />}
+        screenOptions={{ headerShown: false }}
+      >
+        <Tab.Screen name="Accueil"  component={HomeDashboard}      />
+        <Tab.Screen name="Payer"    component={ContributionsTab}    />
+        <Tab.Screen name="Groupe"   component={GroupTab}   />
+        <Tab.Screen name="Profil"   component={ProfileScreen}        />
+      </Tab.Navigator>
+    </View>
   );
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
+  memberBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.warning,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    paddingTop: Platform.OS === 'ios' ? 52 : 36,
+  },
+  memberBannerText: {
+    flex: 1,
+    fontFamily: Fonts.headline,
+    fontSize: 12,
+    color: '#FFF',
+    letterSpacing: 0.3,
+  },
+  memberBannerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FFF',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: Radius.full,
+  },
+  memberBannerBtnText: {
+    fontFamily: Fonts.headline,
+    fontSize: 11,
+    color: Colors.primary,
+  },
+
   tabBar: {
     flexDirection: 'row',
     justifyContent: 'space-around',

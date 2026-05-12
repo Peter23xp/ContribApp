@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"const pkg = require\\('./node_modules/@emailjs/browser/package.json'\\); console.log\\('main:', pkg.main\\); console.log\\('exports:', JSON.stringify\\(pkg.exports, null, 2\\)\\)\")",
+      "Bash(npm uninstall *)",
+      "Bash(npm install *)",
+      "Bash(npx tsc *)",
+      "Bash(node -e \"const pkg = require\\('./node_modules/expo-image-picker/package.json'\\); console.log\\(pkg.version\\);\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -X OPTIONS \"https://contributapp-storage.akilimalisafari001.workers.dev/\")",
+      "Bash(curl *)"
+    ]
+  }
+}

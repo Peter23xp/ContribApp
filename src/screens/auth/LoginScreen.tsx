@@ -1,12 +1,11 @@
 /**
- * LoginScreen.tsx — SCR-003-B v3.0
- * Connexion avec numéro de téléphone (username) + PIN à 6 chiffres.
- * Aucun OTP à la connexion directe — uniquement numéro + PIN.
+ * LoginScreen.tsx — SCR-003-B v4.0
+ * Connexion avec numéro de téléphone + PIN à 6 chiffres.
  * PIN oublié → BottomSheet → OTP envoyé par email → SCR-004-B (purpose=pin_reset)
  */
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, KeyboardAvoidingView, Platform,
+  Animated, Easing, View, Text, StyleSheet, KeyboardAvoidingView, Platform,
   TouchableOpacity, Keyboard, TouchableWithoutFeedback,
   ScrollView, StatusBar, Modal, ActivityIndicator,
 } from 'react-native';
@@ -14,17 +13,51 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Toast from 'react-native-toast-message';
 import { AppButton } from '../../components/common/AppButton';
 import { AppInput } from '../../components/common/AppInput';
-import { Colors } from '../../constants/colors';
+import { Colors, Fonts, Radius } from '../../constants/colors';
 import * as authService from '../../services/authService';
 import { useAuthStore } from '../../stores/authStore';
 import { AuthStackParamList } from '../../navigation/AuthNavigator';
 
-// App version (lecture depuis app.json via expo-constants si disponible)
 const APP_VERSION = '1.0.0';
 
 type Props = {
   navigation: NativeStackNavigationProp<AuthStackParamList, 'Login'>;
 };
+
+// ── Logo géométrique SVG-style ────────────────────────────────────────────────
+function BrandMark({ size = 64 }: { size?: number }) {
+  const thick = size * 0.065;
+  const inner = size * 0.35;
+  return (
+    <View style={{ width: size, height: size, justifyContent: 'center', alignItems: 'center' }}>
+      {/* Hexagone extérieur simulé par deux rectangles tournés */}
+      <View style={{
+        position: 'absolute',
+        width: size * 0.72, height: size * 0.72,
+        borderRadius: size * 0.18,
+        borderWidth: thick,
+        borderColor: 'rgba(255,255,255,0.9)',
+        transform: [{ rotate: '15deg' }],
+      }} />
+      <View style={{
+        position: 'absolute',
+        width: size * 0.72, height: size * 0.72,
+        borderRadius: size * 0.18,
+        borderWidth: thick * 0.6,
+        borderColor: 'rgba(255,255,255,0.3)',
+        transform: [{ rotate: '60deg' }],
+      }} />
+      {/* C central */}
+      <Text style={{
+        fontFamily: Fonts.display,
+        fontSize: size * 0.38,
+        color: '#FFFFFF',
+        lineHeight: size * 0.42,
+        marginTop: 2,
+      }}>C</Text>
+    </View>
+  );
+}
 
 export default function LoginScreen({ navigation }: Props) {
   const [phone, setPhone]             = useState('');
@@ -32,15 +65,52 @@ export default function LoginScreen({ navigation }: Props) {
   const [showPin, setShowPin]         = useState(false);
   const [isLoading, setIsLoading]     = useState(false);
   const [error, setError]             = useState<string | null>(null);
-  const [lockTimer, setLockTimer]     = useState(0); // secondes restantes de blocage
+  const [lockTimer, setLockTimer]     = useState(0);
 
-  // BottomSheet PIN oublié
   const [showForgotModal, setShowForgotModal] = useState(false);
   const [forgotPhone, setForgotPhone] = useState('');
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotError, setForgotError] = useState<string | null>(null);
 
+  const [showMigrationModal, setShowMigrationModal] = useState(false);
+  const [migrPhone, setMigrPhone]     = useState('');
+  const [migrOldPin, setMigrOldPin]   = useState('');
+  const [migrNewPin, setMigrNewPin]   = useState('');
+  const [migrConfirm, setMigrConfirm] = useState('');
+  const [showMigrNew, setShowMigrNew] = useState(false);
+  const [showMigrConf, setShowMigrConf] = useState(false);
+  const [migrLoading, setMigrLoading] = useState(false);
+  const [migrError, setMigrError]     = useState<string | null>(null);
+
   const setAuthData = useAuthStore(s => s.setAuthData);
+
+  // ── Animations d'entrée ────────────────────────────────────────────────────
+  const heroAnim  = useRef(new Animated.Value(0)).current;
+  const formAnim  = useRef(new Animated.Value(0)).current;
+  const logoScale = useRef(new Animated.Value(0.6)).current;
+  const logoOpacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.sequence([
+      Animated.parallel([
+        Animated.timing(heroAnim, {
+          toValue: 1, duration: 480, easing: Easing.out(Easing.cubic), useNativeDriver: true,
+        }),
+        Animated.spring(logoScale, {
+          toValue: 1, friction: 6, tension: 120, useNativeDriver: true,
+        }),
+        Animated.timing(logoOpacity, {
+          toValue: 1, duration: 400, useNativeDriver: true,
+        }),
+      ]),
+      Animated.timing(formAnim, {
+        toValue: 1, duration: 360, easing: Easing.out(Easing.quad), useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  const heroTranslateY = heroAnim.interpolate({ inputRange: [0, 1], outputRange: [-24, 0] });
+  const formTranslateY = formAnim.interpolate({ inputRange: [0, 1], outputRange: [40, 0] });
 
   // ── Countdown blocage ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -66,15 +136,8 @@ export default function LoginScreen({ navigation }: Props) {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await authService.login({
-        phone: '+243' + phone,
-        pin,
-      });
-
+      const response = await authService.login({ phone: '+243' + phone, pin });
       setAuthData(response);
-
-      // Navigation selon le rôle
-      // AppNavigator gère la redirection automatiquement via isAuthenticated
     } catch (err: any) {
       const msg = err?.message ?? '';
       if (msg.startsWith('INVALID_CREDENTIALS:')) {
@@ -86,6 +149,15 @@ export default function LoginScreen({ navigation }: Props) {
         setLockTimer(minutes * 60);
       } else if (msg === 'USER_NOT_FOUND') {
         setError('Numéro non trouvé. Vérifiez ou inscrivez-vous.');
+      } else if (msg === 'LEGACY_PIN_4_DIGITS') {
+        setMigrPhone(phone);
+        setMigrOldPin(pin);
+        setMigrNewPin('');
+        setMigrConfirm('');
+        setMigrError(null);
+        setShowMigrationModal(true);
+      } else if (msg === 'LEGACY_ACCOUNT_NEEDS_PIN' || msg === 'LEGACY_ACCOUNT_NEEDS_MIGRATION') {
+        setError("Ce compte n'a pas encore de PIN. Utilisez « PIN oublié » pour en définir un.");
       } else {
         setError(msg || 'Une erreur est survenue. Réessayez.');
       }
@@ -95,8 +167,36 @@ export default function LoginScreen({ navigation }: Props) {
     }
   };
 
-  // ── Formulaire valide ─────────────────────────────────────────────────────
-  const isFormValid = phone.length === 9 && pin.length === 6 && lockTimer === 0;
+  // ── Migration PIN 4 → 6 chiffres ─────────────────────────────────────────
+  const handleMigration = async () => {
+    setMigrError(null);
+    if (migrNewPin.length !== 6) {
+      setMigrError('Le nouveau PIN doit contenir exactement 6 chiffres.');
+      return;
+    }
+    if (migrNewPin !== migrConfirm) {
+      setMigrError('Les codes PIN ne correspondent pas.');
+      return;
+    }
+    setMigrLoading(true);
+    try {
+      const response = await authService.migrateLegacyPin('+243' + migrPhone, migrOldPin, migrNewPin);
+      setShowMigrationModal(false);
+      setAuthData(response);
+      Toast.show({ type: 'success', text1: 'PIN mis à jour !', text2: 'Votre compte utilise maintenant un PIN à 6 chiffres.' });
+    } catch (err: any) {
+      const msg = err?.message ?? '';
+      if (msg === 'INVALID_OLD_PIN') {
+        setMigrError('Ancien PIN incorrect. Vérifiez et réessayez.');
+      } else {
+        setMigrError(msg || 'Erreur lors de la mise à jour. Réessayez.');
+      }
+    } finally {
+      setMigrLoading(false);
+    }
+  };
+
+  const isFormValid = phone.length === 9 && pin.length >= 4 && pin.length <= 6 && lockTimer === 0;
 
   // ── PIN oublié — envoi OTP email ─────────────────────────────────────────
   const handleForgotPIN = async () => {
@@ -110,17 +210,10 @@ export default function LoginScreen({ navigation }: Props) {
       await authService.requestPinReset('+243' + forgotPhone);
       setShowForgotModal(false);
       setForgotPhone('');
-      Toast.show({
-        type: 'success',
-        text1: 'Code envoyé !',
-        text2: 'Vérifiez votre boîte mail.',
-      });
-      // On a besoin de l'email — requestPinReset récupère l'email depuis Firestore
-      // Pour naviguer vers OTP, on cherche l'email via le numéro
-      // (Il est récupéré dans requestPinReset mais non retourné — on navigue sans email affiché)
+      Toast.show({ type: 'success', text1: 'Code envoyé !', text2: 'Vérifiez votre boîte mail.' });
       navigation.navigate('OTP', {
         phone: '+243' + forgotPhone,
-        email: '***@***.***', // l'OTP est envoyé, l'email sera masqué
+        email: '***@***.***',
         purpose: 'pin_reset',
       });
     } catch (err: any) {
@@ -139,169 +232,236 @@ export default function LoginScreen({ navigation }: Props) {
   };
 
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+    <TouchableWithoutFeedback onPress={() => { if (!showForgotModal) Keyboard.dismiss(); }} accessible={false}>
       <View style={styles.container}>
         <StatusBar barStyle="light-content" backgroundColor={Colors.primary} />
 
-        {/* Zone haute */}
-        <View style={styles.topSection}>
-          <View style={styles.logoContainer}>
-            <Text style={styles.logoIcon}>💰</Text>
-          </View>
-          <Text style={styles.title}>Bon retour !</Text>
-          <Text style={styles.subtitle}>
-            Connectez-vous avec votre numéro et votre PIN
-          </Text>
-        </View>
+        {/* ── Zone héro ─────────────────────────────────────────────── */}
+        <Animated.View style={[styles.topSection, { opacity: heroAnim, transform: [{ translateY: heroTranslateY }] }]}>
+          {/* Décoration géométrique d'arrière-plan */}
+          <View style={styles.bgCircle1} />
+          <View style={styles.bgCircle2} />
 
-        {/* Formulaire */}
+          <Animated.View style={[styles.logoWrap, { transform: [{ scale: logoScale }], opacity: logoOpacity }]}>
+            <BrandMark size={72} />
+          </Animated.View>
+
+          <Text style={styles.appName}>ContribApp</Text>
+          <Text style={styles.title}>Bon retour !</Text>
+          <Text style={styles.subtitle}>Connectez-vous avec votre numéro et votre PIN</Text>
+        </Animated.View>
+
+        {/* ── Formulaire ────────────────────────────────────────────── */}
         <KeyboardAvoidingView
           style={styles.formWrapper}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <ScrollView
-            contentContainerStyle={styles.formContent}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            <AppInput
-              label="Numéro de téléphone"
-              subLabel="Votre identifiant de connexion"
-              subLabelColor={Colors.primary}
-              prefix="+243"
-              placeholder="97X XXX XXX"
-              value={phone}
-              onChangeText={v => {
-                setPhone(v.replace(/\D/g, ''));
-                setError(null);
-              }}
-              keyboardType="phone-pad"
-              maxLength={9}
-              autoFocus={!phone}
-            />
+          <Animated.View style={[{ flex: 1 }, { opacity: formAnim, transform: [{ translateY: formTranslateY }] }]}>
+            <ScrollView
+              contentContainerStyle={styles.formContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              {/* Pill indicateur */}
+              <View style={styles.sheetPill} />
 
-            <AppInput
-              label="Code PIN à 6 chiffres"
-              placeholder="••••••"
-              value={pin}
-              onChangeText={v => {
-                setPin(v.replace(/\D/g, ''));
-                setError(null);
-              }}
-              secureTextEntry={!showPin}
-              keyboardType="numeric"
-              maxLength={6}
-              rightIcon={
-                <TouchableOpacity onPress={() => setShowPin(!showPin)}>
-                  <Text style={styles.togglePin}>{showPin ? 'Cacher' : 'Voir'}</Text>
-                </TouchableOpacity>
-              }
-            />
+              <AppInput
+                label="Numéro de téléphone"
+                subLabel="Votre identifiant de connexion"
+                subLabelColor={Colors.primary}
+                prefix="+243"
+                placeholder="97X XXX XXX"
+                value={phone}
+                onChangeText={v => { setPhone(v.replace(/\D/g, '')); setError(null); }}
+                keyboardType="phone-pad"
+                maxLength={9}
+                autoFocus={!phone}
+              />
 
-            {/* Message d'erreur dynamique */}
-            {error && (
-              <View style={styles.errorBox}>
-                <Text style={styles.errorBoxText}>{error}</Text>
-                {lockTimer > 0 && (
-                  <>
-                    <Text style={styles.timerText}>
-                      Déblocage dans{' '}
-                      <Text style={styles.timerBold}>{formatTimer(lockTimer)}</Text>
-                    </Text>
-                    <TouchableOpacity
-                      style={{ marginTop: 8 }}
-                      onPress={() => {
-                        setShowForgotModal(true);
-                        setForgotPhone(phone);
-                      }}
-                    >
-                      <Text style={styles.resetPinLink}>Réinitialiser mon PIN →</Text>
-                    </TouchableOpacity>
-                  </>
-                )}
+              <AppInput
+                label="Code PIN"
+                placeholder="••••••"
+                value={pin}
+                onChangeText={v => { setPin(v.replace(/\D/g, '')); setError(null); }}
+                secureTextEntry={!showPin}
+                keyboardType="numeric"
+                maxLength={6}
+                rightIcon={
+                  <TouchableOpacity onPress={() => setShowPin(!showPin)}>
+                    <Text style={styles.togglePin}>{showPin ? 'Cacher' : 'Voir'}</Text>
+                  </TouchableOpacity>
+                }
+              />
+
+              {error && (
+                <View style={styles.errorBox}>
+                  <View style={styles.errorBar} />
+                  <View style={styles.errorContent}>
+                    <Text style={styles.errorBoxText}>{error}</Text>
+                    {lockTimer > 0 && (
+                      <>
+                        <Text style={styles.timerText}>
+                          Déblocage dans{' '}
+                          <Text style={styles.timerBold}>{formatTimer(lockTimer)}</Text>
+                        </Text>
+                        <TouchableOpacity
+                          style={{ marginTop: 8 }}
+                          onPress={() => { setShowForgotModal(true); setForgotPhone(phone); }}
+                        >
+                          <Text style={styles.resetPinLink}>Réinitialiser mon PIN →</Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
+                  </View>
+                </View>
+              )}
+
+              <AppButton
+                title="Se connecter"
+                onPress={handleLogin}
+                disabled={!isFormValid}
+                loading={isLoading}
+                loadingText="Connexion en cours..."
+                style={styles.loginButton}
+              />
+
+              <TouchableOpacity
+                style={styles.forgotPinLink}
+                onPress={() => { setShowForgotModal(true); setForgotPhone(phone); }}
+              >
+                <Text style={styles.forgotPinText}>PIN oublié ?</Text>
+              </TouchableOpacity>
+
+              <View style={styles.dividerRow}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>ou</Text>
+                <View style={styles.dividerLine} />
               </View>
-            )}
 
-            <AppButton
-              title="Se connecter"
-              onPress={handleLogin}
-              disabled={!isFormValid}
-              loading={isLoading}
-              loadingText="Connexion en cours..."
-              style={styles.loginButton}
-            />
+              <TouchableOpacity
+                style={styles.registerBtn}
+                onPress={() => navigation.navigate('Register')}
+              >
+                <Text style={styles.registerBtnText}>Créer un compte</Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.forgotPinLink}
-              onPress={() => { setShowForgotModal(true); setForgotPhone(phone); }}
-            >
-              <Text style={styles.forgotPinText}>PIN oublié ?</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.registerLink}
-              onPress={() => navigation.navigate('Register')}
-            >
-              <Text style={styles.registerLinkText}>
-                Pas encore de compte ?{' '}
-                <Text style={styles.registerLinkBold}>S&apos;inscrire →</Text>
-              </Text>
-            </TouchableOpacity>
-
-            <Text style={styles.version}>ContribApp RDC v{APP_VERSION}</Text>
-          </ScrollView>
+              <Text style={styles.version}>ContribApp RDC v{APP_VERSION}</Text>
+            </ScrollView>
+          </Animated.View>
         </KeyboardAvoidingView>
 
-        {/* BottomSheet — PIN oublié */}
-        <Modal
-          visible={showForgotModal}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setShowForgotModal(false)}
-        >
-          <TouchableWithoutFeedback onPress={() => setShowForgotModal(false)}>
+        {/* ── BottomSheet — PIN oublié ───────────────────────────────── */}
+        <Modal visible={showForgotModal} transparent animationType="slide" onRequestClose={() => setShowForgotModal(false)}>
+          <TouchableWithoutFeedback onPress={() => { Keyboard.dismiss(); setShowForgotModal(false); }}>
             <View style={styles.modalOverlay} />
           </TouchableWithoutFeedback>
-          <View style={styles.bottomSheet}>
-            <View style={styles.bottomSheetHandle} />
-            <Text style={styles.bottomSheetTitle}>Réinitialiser le PIN</Text>
-            <Text style={styles.bottomSheetSubtitle}>
-              Entrez votre numéro de téléphone. Vous recevrez un code par email.
-            </Text>
+          <KeyboardAvoidingView
+            style={styles.modalKeyboardWrapper}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 24 : 0}
+          >
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+              <View style={styles.bottomSheet}>
+                <View style={styles.bottomSheetHandle} />
+                <Text style={styles.bottomSheetTitle}>Réinitialiser le PIN</Text>
+                <Text style={styles.bottomSheetSubtitle}>
+                  Entrez votre numéro de téléphone. Vous recevrez un code par email.
+                </Text>
 
-            <AppInput
-              label="Votre numéro de téléphone"
-              prefix="+243"
-              placeholder="97X XXX XXX"
-              value={forgotPhone}
-              onChangeText={v => {
-                setForgotPhone(v.replace(/\D/g, ''));
-                setForgotError(null);
-              }}
-              keyboardType="phone-pad"
-              maxLength={9}
-              autoFocus
-            />
+                <AppInput
+                  label="Votre numéro de téléphone"
+                  prefix="+243"
+                  placeholder="97X XXX XXX"
+                  value={forgotPhone}
+                  onChangeText={v => { setForgotPhone(v.replace(/\D/g, '')); setForgotError(null); }}
+                  keyboardType="phone-pad"
+                  maxLength={9}
+                  autoFocus
+                />
 
-            {forgotError && (
-              <Text style={styles.forgotErrorText}>{forgotError}</Text>
-            )}
+                {forgotError && <Text style={styles.forgotErrorText}>{forgotError}</Text>}
 
-            <AppButton
-              title="Recevoir le code par email"
-              onPress={handleForgotPIN}
-              loading={forgotLoading}
-              disabled={forgotPhone.length !== 9 || forgotLoading}
-              style={{ marginTop: 16 }}
-            />
+                <AppButton
+                  title="Recevoir le code par email"
+                  onPress={handleForgotPIN}
+                  loading={forgotLoading}
+                  disabled={forgotPhone.length !== 9 || forgotLoading}
+                  style={{ marginTop: 16 }}
+                />
 
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={() => { setShowForgotModal(false); setForgotError(null); }}
-            >
-              <Text style={styles.cancelText}>Annuler</Text>
-            </TouchableOpacity>
-          </View>
+                <TouchableOpacity style={styles.cancelButton} onPress={() => { Keyboard.dismiss(); setShowForgotModal(false); setForgotError(null); }}>
+                  <Text style={styles.cancelText}>Annuler</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </KeyboardAvoidingView>
+        </Modal>
+
+        {/* ── Modal migration PIN 4 → 6 chiffres ────────────────────── */}
+        <Modal visible={showMigrationModal} transparent animationType="slide" onRequestClose={() => setShowMigrationModal(false)}>
+          <TouchableWithoutFeedback onPress={() => { Keyboard.dismiss(); setShowMigrationModal(false); }}>
+            <View style={styles.modalOverlay} />
+          </TouchableWithoutFeedback>
+          <KeyboardAvoidingView
+            style={styles.modalKeyboardWrapper}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 24 : 0}
+          >
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+              <View style={styles.bottomSheet}>
+                <View style={styles.bottomSheetHandle} />
+                <Text style={styles.bottomSheetTitle}>Mise à jour du PIN requise</Text>
+                <Text style={styles.bottomSheetSubtitle}>
+                  Votre compte utilise un ancien PIN à 4 chiffres. Pour votre sécurité, choisissez un nouveau PIN à 6 chiffres.
+                </Text>
+
+                <AppInput
+                  label="Nouveau PIN à 6 chiffres"
+                  placeholder="••••••"
+                  value={migrNewPin}
+                  onChangeText={v => { setMigrNewPin(v.replace(/\D/g, '')); setMigrError(null); }}
+                  secureTextEntry={!showMigrNew}
+                  keyboardType="numeric"
+                  maxLength={6}
+                  autoFocus
+                  rightIcon={
+                    <TouchableOpacity onPress={() => setShowMigrNew(!showMigrNew)}>
+                      <Text style={styles.togglePin}>{showMigrNew ? 'Cacher' : 'Voir'}</Text>
+                    </TouchableOpacity>
+                  }
+                />
+
+                <AppInput
+                  label="Confirmer le nouveau PIN"
+                  placeholder="••••••"
+                  value={migrConfirm}
+                  onChangeText={v => { setMigrConfirm(v.replace(/\D/g, '')); setMigrError(null); }}
+                  secureTextEntry={!showMigrConf}
+                  keyboardType="numeric"
+                  maxLength={6}
+                  rightIcon={
+                    <TouchableOpacity onPress={() => setShowMigrConf(!showMigrConf)}>
+                      <Text style={styles.togglePin}>{showMigrConf ? 'Cacher' : 'Voir'}</Text>
+                    </TouchableOpacity>
+                  }
+                />
+
+                {migrError && <Text style={styles.forgotErrorText}>{migrError}</Text>}
+
+                <AppButton
+                  title="Mettre à jour mon PIN"
+                  onPress={handleMigration}
+                  loading={migrLoading}
+                  disabled={migrNewPin.length !== 6 || migrConfirm.length !== 6 || migrLoading}
+                  style={{ marginTop: 16 }}
+                />
+
+                <TouchableOpacity style={styles.cancelButton} onPress={() => { setShowMigrationModal(false); setMigrError(null); }}>
+                  <Text style={styles.cancelText}>Annuler</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </KeyboardAvoidingView>
         </Modal>
       </View>
     </TouchableWithoutFeedback>
@@ -311,83 +471,163 @@ export default function LoginScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.primary },
 
+  // ── Héro ────────────────────────────────────────────────────
   topSection: {
-    flex: 0.38,
+    flex: 0.42,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 24,
-  },
-  logoContainer: {
-    width: 80, height: 80, borderRadius: 40,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    justifyContent: 'center', alignItems: 'center',
-    marginBottom: 14,
-  },
-  logoIcon: { fontSize: 38 },
-  title: { color: '#FFF', fontSize: 26, fontWeight: 'bold', textAlign: 'center' },
-  subtitle: {
-    color: 'rgba(255,255,255,0.75)', fontSize: 14,
-    marginTop: 6, textAlign: 'center', lineHeight: 20,
-  },
-
-  formWrapper: {
-    flex: 0.62,
-    backgroundColor: '#FFF',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
     overflow: 'hidden',
   },
-  formContent: { flexGrow: 1, padding: 28, paddingBottom: 40 },
-
-  togglePin: { color: Colors.primary, fontWeight: '600', fontSize: 13 },
-
-  errorBox: {
-    backgroundColor: '#FDECEA',
-    borderWidth: 1, borderColor: '#F5B7B1',
-    borderRadius: 10, padding: 14, marginBottom: 16,
+  bgCircle1: {
+    position: 'absolute',
+    width: 260, height: 260, borderRadius: 130,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    top: -80, right: -60,
   },
-  errorBoxText: { color: '#C0392B', fontSize: 13, fontWeight: '600', marginBottom: 4 },
-  timerText: { color: '#E74C3C', fontSize: 13, marginTop: 4 },
-  timerBold: { fontWeight: 'bold' },
-  resetPinLink: { color: '#E74C3C', fontWeight: '700', fontSize: 13 },
+  bgCircle2: {
+    position: 'absolute',
+    width: 180, height: 180, borderRadius: 90,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    bottom: 10, left: -50,
+  },
+  logoWrap: {
+    width: 88, height: 88, borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    justifyContent: 'center', alignItems: 'center',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  appName: {
+    fontFamily: Fonts.label,
+    fontSize: 11, color: 'rgba(255,255,255,0.5)',
+    letterSpacing: 3.5, textTransform: 'uppercase',
+    marginBottom: 8,
+  },
+  title: {
+    fontFamily: Fonts.display,
+    color: '#FFFFFF', fontSize: 28,
+    textAlign: 'center', letterSpacing: -0.5,
+  },
+  subtitle: {
+    fontFamily: Fonts.body,
+    color: 'rgba(255,255,255,0.65)', fontSize: 14,
+    marginTop: 8, textAlign: 'center', lineHeight: 21,
+  },
+
+  // ── Formulaire ──────────────────────────────────────────────
+  formWrapper: {
+    flex: 0.58,
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    overflow: 'hidden',
+  },
+  formContent: { flexGrow: 1, paddingHorizontal: 28, paddingTop: 8, paddingBottom: 40 },
+  sheetPill: {
+    width: 36, height: 4, borderRadius: 2,
+    backgroundColor: Colors.outlineVariant,
+    alignSelf: 'center', marginBottom: 24,
+  },
+
+  togglePin: {
+    fontFamily: Fonts.title,
+    color: Colors.primary, fontSize: 13,
+  },
+
+  // ── Erreur ──────────────────────────────────────────────────
+  errorBox: {
+    flexDirection: 'row',
+    backgroundColor: Colors.errorContainer,
+    borderRadius: Radius.lg,
+    marginBottom: 16,
+    overflow: 'hidden',
+  },
+  errorBar: {
+    width: 4, backgroundColor: Colors.error,
+  },
+  errorContent: { flex: 1, padding: 14 },
+  errorBoxText: {
+    fontFamily: Fonts.headline,
+    color: Colors.onErrorContainer, fontSize: 13, marginBottom: 2,
+  },
+  timerText: {
+    fontFamily: Fonts.body,
+    color: Colors.error, fontSize: 13, marginTop: 4,
+  },
+  timerBold: { fontFamily: Fonts.headline },
+  resetPinLink: {
+    fontFamily: Fonts.headline,
+    color: Colors.error, fontSize: 13,
+  },
 
   loginButton: { marginTop: 8 },
 
-  forgotPinLink: { marginTop: 20, alignItems: 'center' },
-  forgotPinText: { color: Colors.danger, fontSize: 15, fontWeight: '600' },
+  forgotPinLink: { marginTop: 18, alignItems: 'center' },
+  forgotPinText: {
+    fontFamily: Fonts.title,
+    color: Colors.danger, fontSize: 14,
+  },
 
-  registerLink: { marginTop: 20, alignItems: 'center' },
-  registerLinkText: { color: Colors.textSecondary, fontSize: 14 },
-  registerLinkBold: { color: Colors.primary, fontWeight: '700' },
+  // ── Divider + bouton secondaire ──────────────────────────────
+  dividerRow: {
+    flexDirection: 'row', alignItems: 'center',
+    marginVertical: 20, gap: 10,
+  },
+  dividerLine: { flex: 1, height: 1, backgroundColor: Colors.outlineVariant },
+  dividerText: {
+    fontFamily: Fonts.body,
+    color: Colors.textMuted, fontSize: 13,
+  },
+  registerBtn: {
+    height: 52, borderRadius: Radius.lg,
+    borderWidth: 1.5, borderColor: Colors.primary,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  registerBtnText: {
+    fontFamily: Fonts.headline,
+    color: Colors.primary, fontSize: 15,
+  },
 
   version: {
-    color: Colors.textSecondary, fontSize: 11,
-    textAlign: 'center', marginTop: 32, opacity: 0.7,
+    fontFamily: Fonts.body,
+    color: Colors.textMuted, fontSize: 11,
+    textAlign: 'center', marginTop: 28,
   },
 
-  // Modal
+  // ── Modal ────────────────────────────────────────────────────
   modalOverlay: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'rgba(7,30,39,0.5)',
   },
+  modalKeyboardWrapper: { flex: 1, justifyContent: 'flex-end' },
   bottomSheet: {
-    backgroundColor: '#FFF',
-    borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    padding: 24, paddingBottom: 40,
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 20, elevation: 10,
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    padding: 24, paddingBottom: Platform.OS === 'ios' ? 44 : 28,
+    shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 24, elevation: 12,
   },
   bottomSheetHandle: {
-    width: 40, height: 4, borderRadius: 2,
-    backgroundColor: '#E0E0E0', alignSelf: 'center', marginBottom: 20,
+    width: 36, height: 4, borderRadius: 2,
+    backgroundColor: Colors.outlineVariant,
+    alignSelf: 'center', marginBottom: 22,
   },
   bottomSheetTitle: {
-    fontSize: 18, fontWeight: '700', color: Colors.textPrimary, marginBottom: 8,
+    fontFamily: Fonts.display,
+    fontSize: 20, color: Colors.textPrimary, marginBottom: 8,
   },
   bottomSheetSubtitle: {
-    fontSize: 13, color: Colors.textSecondary, marginBottom: 20, lineHeight: 19,
+    fontFamily: Fonts.body,
+    fontSize: 14, color: Colors.textSecondary, marginBottom: 20, lineHeight: 20,
   },
-  forgotErrorText: { color: Colors.danger, fontSize: 13, marginTop: 4, marginBottom: 8 },
-  cancelButton: { marginTop: 16, alignItems: 'center', paddingVertical: 10 },
-  cancelText: { color: Colors.textSecondary, fontSize: 15, fontWeight: '600' },
+  forgotErrorText: {
+    fontFamily: Fonts.body,
+    color: Colors.danger, fontSize: 13, marginTop: 4, marginBottom: 8,
+  },
+  cancelButton: { marginTop: 14, alignItems: 'center', paddingVertical: 12 },
+  cancelText: {
+    fontFamily: Fonts.title,
+    color: Colors.textSecondary, fontSize: 15,
+  },
 });

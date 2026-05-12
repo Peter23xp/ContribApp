@@ -95,6 +95,14 @@ export async function hashPIN(pin: string): Promise<string> {
   );
 }
 
+/** Hache le PIN sans sel (format legacy — anciens comptes à 4 chiffres). */
+async function hashPINLegacy(pin: string): Promise<string> {
+  return Crypto.digestStringAsync(
+    Crypto.CryptoDigestAlgorithm.SHA256,
+    pin
+  );
+}
+
 /** Génère un token de session unique (64 caractères hex) */
 async function generateSessionToken(): Promise<string> {
   const bytes = await Crypto.getRandomBytesAsync(32);
@@ -287,6 +295,16 @@ export async function login(payload: LoginPayload): Promise<AuthResponse> {
   const userData = userDoc.data();
   const uid = userDoc.id;
 
+  // --- DÉTECTION ANCIEN COMPTE (MIGRATION) ---
+  // Si le compte n'a pas de PIN, c'est un compte de l'ancien flux.
+  if (!userData.pin_hash) {
+    if (userData.email) {
+      throw new Error('LEGACY_ACCOUNT_NEEDS_PIN'); // A un email, peut utiliser "PIN oublié"
+    } else {
+      throw new Error('LEGACY_ACCOUNT_NEEDS_MIGRATION'); // Ni email, ni PIN
+    }
+  }
+
   // Vérifier le blocage
   if (userData.locked_until) {
     const lockedUntil = userData.locked_until.toDate();
@@ -303,9 +321,19 @@ export async function login(payload: LoginPayload): Promise<AuthResponse> {
     });
   }
 
-  // Vérifier le PIN
+  // Vérifier le PIN — tester d'abord le format courant (6 chiffres + sel)
   const inputPinHash = await hashPIN(payload.pin);
-  if (inputPinHash !== userData.pin_hash) {
+  const pinMatchesNew = inputPinHash === userData.pin_hash;
+
+  // Détecter ancien compte : PIN 4 chiffres haché sans sel
+  if (!pinMatchesNew && payload.pin.length === 4) {
+    const legacyHash = await hashPINLegacy(payload.pin);
+    if (legacyHash === userData.pin_hash) {
+      throw new Error('LEGACY_PIN_4_DIGITS');
+    }
+  }
+
+  if (!pinMatchesNew) {
     const attempts = (userData.login_attempts || 0) + 1;
     const updateData: Record<string, any> = { login_attempts: attempts };
     if (attempts >= 5) {
@@ -388,6 +416,171 @@ export async function confirmPinReset(
     updated_at: serverTimestamp(),
   });
   await otpService.cleanupOTP(phone, 'pin_reset');
+}
+
+// ─── MIGRATION PIN 4 → 6 CHIFFRES ────────────────────────────────────────────
+
+/**
+ * Migre un ancien compte (PIN 4 chiffres sans sel) vers le nouveau format (6 chiffres + sel).
+ * Vérifie l'ancien PIN (hash sans sel) puis remplace par le nouveau hash avec sel.
+ * Crée ensuite une session locale valide.
+ */
+export async function migrateLegacyPin(
+  phone: string,
+  oldPin4: string,
+  newPin6: string
+): Promise<AuthResponse> {
+  const q = query(collection(db, 'users'), where('phone', '==', phone));
+  const snap = await getDocs(q);
+  if (snap.empty) throw new Error('USER_NOT_FOUND');
+
+  const userDoc = snap.docs[0];
+  const uid = userDoc.id;
+  const userData = userDoc.data();
+
+  // Vérifier l'ancien PIN (format legacy sans sel)
+  const oldPinLegacyHash = await hashPINLegacy(oldPin4);
+  if (oldPinLegacyHash !== userData.pin_hash) {
+    throw new Error('INVALID_OLD_PIN');
+  }
+
+  const newPinHash = await hashPIN(newPin6);
+  const sessionToken = await generateSessionToken();
+
+  await updateDoc(doc(db, 'users', uid), {
+    pin_hash: newPinHash,
+    active_session_token: sessionToken,
+    login_attempts: 0,
+    locked_until: null,
+    last_login: serverTimestamp(),
+    updated_at: serverTimestamp(),
+  });
+
+  const session: LocalSession = {
+    uid,
+    phone: userData.phone,
+    fullName: userData.full_name,
+    operator: userData.operator,
+    email: userData.email ?? '',
+    role: userData.role || 'member',
+    groupId: userData.active_group_id || null,
+    sessionToken,
+    createdAt: new Date().toISOString(),
+  };
+  await saveLocalSession(session);
+
+  return {
+    uid,
+    fullName: userData.full_name,
+    phone: userData.phone,
+    email: userData.email ?? '',
+    operator: userData.operator,
+    role: userData.role || 'member',
+    groupId: userData.active_group_id || null,
+  };
+}
+
+// ─── MIGRATION DES ANCIENS COMPTES ───────────────────────────────────────────
+
+/**
+ * Initie la migration d'un ancien compte qui n'a ni email ni PIN.
+ * Demande le `fullName` pour une vérification basique de l'identité.
+ */
+export async function initiateLegacyMigration(
+  phone: string,
+  fullName: string,
+  newEmail: string
+): Promise<void> {
+  const normalizedEmail = newEmail.toLowerCase().trim();
+
+  const q = query(collection(db, 'users'), where('phone', '==', phone));
+  const snap = await getDocs(q);
+  
+  if (snap.empty) throw new Error('USER_NOT_FOUND');
+  
+  const userData = snap.docs[0].data();
+
+  if (userData.pin_hash) {
+    throw new Error('ACCOUNT_ALREADY_MIGRATED');
+  }
+
+  // Vérification d'identité basique (Nom complet)
+  const dbName = (userData.full_name || '').toLowerCase().trim();
+  const inputName = fullName.toLowerCase().trim();
+  
+  if (dbName !== inputName) {
+    throw new Error('IDENTITY_VERIFICATION_FAILED');
+  }
+
+  // Vérifier unicité du nouvel email
+  const emailQ = query(collection(db, 'users'), where('email', '==', normalizedEmail));
+  const emailSnap = await getDocs(emailQ);
+  if (!emailSnap.empty) throw new Error('EMAIL_ALREADY_EXISTS');
+
+  // Envoyer OTP (on réutilise le purpose 'registration')
+  await otpService.sendOTP(normalizedEmail, phone, userData.full_name, 'registration');
+}
+
+/**
+ * Confirme la migration (OTP + Nouveau PIN)
+ */
+export async function confirmLegacyMigration(
+  phone: string,
+  newEmail: string,
+  newPin: string,
+  otpCode: string
+): Promise<AuthResponse> {
+  const normalizedEmail = newEmail.toLowerCase().trim();
+
+  // 1. Vérifier OTP
+  await otpService.verifyOTP(phone, 'registration', otpCode);
+
+  // 2. Récupérer l'utilisateur
+  const q = query(collection(db, 'users'), where('phone', '==', phone));
+  const snap = await getDocs(q);
+  if (snap.empty) throw new Error('USER_NOT_FOUND');
+  
+  const userDoc = snap.docs[0];
+  const uid = userDoc.id;
+  const userData = userDoc.data();
+
+  // 3. Hacher le PIN et créer session
+  const pinHash = await hashPIN(newPin);
+  const sessionToken = await generateSessionToken();
+
+  // 4. Mettre à jour Firestore avec l'email et le PIN
+  await updateDoc(doc(db, 'users', uid), {
+    email: normalizedEmail,
+    pin_hash: pinHash,
+    active_session_token: sessionToken,
+    updated_at: serverTimestamp(),
+  });
+
+  await otpService.cleanupOTP(phone, 'registration');
+
+  // 5. Sauvegarder la session locale
+  const session: LocalSession = {
+    uid,
+    phone: userData.phone,
+    fullName: userData.full_name,
+    operator: userData.operator,
+    email: normalizedEmail,
+    role: userData.role || 'member',
+    groupId: userData.active_group_id || null,
+    sessionToken,
+    createdAt: new Date().toISOString(),
+  };
+  await saveLocalSession(session);
+
+  return {
+    uid,
+    fullName: userData.full_name,
+    phone: userData.phone,
+    email: normalizedEmail,
+    operator: userData.operator,
+    role: userData.role || 'member',
+    groupId: userData.active_group_id || null,
+  };
 }
 
 // ─── CHANGEMENT DE PIN ────────────────────────────────────────────────────────

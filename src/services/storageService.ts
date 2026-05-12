@@ -1,5 +1,6 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { CLOUDFLARE_CONFIG } from '../config/cloudflare';
+import { FileSystemUploadType } from 'expo-file-system/legacy';
 
 /**
  * SERVICE DE STOCKAGE — Cloudflare R2
@@ -58,27 +59,27 @@ export async function uploadFile(
   const workerUrl = CLOUDFLARE_CONFIG.workerUrl;
   if (!workerUrl) throw new Error('CLOUDFLARE_WORKER_URL_MISSING');
 
+  const uploadSecret = CLOUDFLARE_CONFIG.uploadSecret;
+  if (!uploadSecret) throw new Error('CLOUDFLARE_UPLOAD_SECRET_MISSING');
+
   const key = `${category}/${finalFileName}`;
-  const uploadUrl = `${workerUrl}/upload/${key}`;
+  const uploadUrl = `${workerUrl}/upload/${encodeURIComponent(key)}`;
 
-  const fileResp = await fetch(localUri);
-  const blob = await fileResp.blob();
-
-  const uploadResponse = await fetch(uploadUrl, {
-    method: 'PUT',
+  const uploadResponse = await FileSystem.uploadAsync(uploadUrl, localUri, {
+    httpMethod: 'PUT',
+    uploadType: FileSystemUploadType.BINARY_CONTENT,
     headers: {
       'Content-Type': contentType,
+      'Authorization': `Bearer ${uploadSecret}`,
     },
-    body: blob,
   });
 
-  if (!uploadResponse.ok) {
-    const errorText = await uploadResponse.text();
-    console.error('R2 Upload Error:', uploadResponse.status, errorText);
+  if (uploadResponse.status < 200 || uploadResponse.status >= 300) {
+    console.error('R2 Upload Error:', uploadResponse.status, uploadResponse.body);
     throw new Error(`UPLOAD_FAILED (${uploadResponse.status})`);
   }
 
-  const result = await uploadResponse.json();
+  const result = JSON.parse(uploadResponse.body);
   return { url: result.url, key: result.key };
 }
 
@@ -87,11 +88,15 @@ export async function uploadFile(
  */
 export async function deleteFile(key: string): Promise<void> {
   const workerUrl = CLOUDFLARE_CONFIG.workerUrl;
-  if (!workerUrl) return;
+  const uploadSecret = CLOUDFLARE_CONFIG.uploadSecret;
+  if (!workerUrl || !uploadSecret) return;
 
   await fetch(`${workerUrl}/delete`, {
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${uploadSecret}`,
+    },
     body: JSON.stringify({ key }),
   });
 }

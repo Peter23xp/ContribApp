@@ -22,7 +22,7 @@ function Avatar({ name, size = 40, bgColor }: { name: string; size?: number; bgC
 }
 
 export default function AdminDashboardScreen({ navigation }: any) {
-  const { user, groupId: storeGroupId, role } = useAuthStore();
+  const { user, groupId: storeGroupId, role, uid } = useAuthStore();
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [group, setGroup] = useState<any>(null);
@@ -43,7 +43,7 @@ export default function AdminDashboardScreen({ navigation }: any) {
     
     // Fallback sur la recherche par admin_uid si non trouvé
     if (!g) {
-      g = await db.getGroupForAdmin(user.id);
+      g = await db.getGroupForAdmin(uid || '');
     }
 
     setGroup(g);
@@ -56,7 +56,7 @@ export default function AdminDashboardScreen({ navigation }: any) {
       setMembers(mems);
     }
     setIsLoading(false);
-  }, [user, storeGroupId]);
+  }, [user, storeGroupId, uid]);
 
   useEffect(() => { loadData(); }, [loadData]);
   useFocusEffect(

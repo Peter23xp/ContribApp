@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import * as Crypto from 'expo-crypto';
 import React, { useState } from 'react';
 import {
   Platform,
@@ -14,7 +13,8 @@ import Toast from 'react-native-toast-message';
 
 import { AppButton, LoadingOverlay, PINInputRow } from '../../components/common';
 import { Colors, Fonts, Radius, Shadow } from '../../constants/colors';
-import * as userService from '../../services/userService';
+import * as authService from '../../services/authService';
+import { useAuthStore } from '../../stores/authStore';
 
 export default function ChangePINScreen({ navigation }: any) {
   const [oldPin, setOldPin] = useState('');
@@ -27,9 +27,9 @@ export default function ChangePINScreen({ navigation }: any) {
   const [confirmPinError, setConfirmPinError] = useState<string | null>(null);
 
   const isValid =
-    oldPin.length === 4 &&
-    newPin.length === 4 &&
-    confirmPin.length === 4 &&
+    oldPin.length === 6 &&
+    newPin.length === 6 &&
+    confirmPin.length === 6 &&
     newPin === confirmPin;
 
   const handleOldPinChange = (value: string) => {
@@ -56,22 +56,15 @@ export default function ChangePINScreen({ navigation }: any) {
     }
   };
 
-  const hashPIN = async (pin: string): Promise<string> => {
-    return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, pin);
-  };
-
   const handleChangePIN = async () => {
     if (!isValid) return;
 
+    const uid = useAuthStore.getState().uid;
+    if (!uid) return;
+
     try {
       setIsLoading(true);
-      const oldPinHash = await hashPIN(oldPin);
-      const newPinHash = await hashPIN(newPin);
-
-      await userService.updatePIN({
-        currentPin: oldPinHash,
-        newPin: newPinHash,
-      });
+      await authService.changePin(uid, oldPin, newPin);
 
       Toast.show({
         type: 'success',
@@ -82,7 +75,7 @@ export default function ChangePINScreen({ navigation }: any) {
     } catch (error: any) {
       console.error('[ChangePINScreen] handleChangePIN error:', error);
 
-      if (error.message === 'INVALID_CURRENT_PIN') {
+      if (error.message === 'INVALID_OLD_PIN') {
         setOldPinError('Ancien PIN incorrect');
         setOldPin('');
         setNewPin('');
@@ -123,7 +116,7 @@ export default function ChangePINScreen({ navigation }: any) {
         <View style={s.instructionsBox}>
           <Ionicons name="shield-checkmark-outline" size={22} color={Colors.tertiary} />
           <Text style={s.instructionsText}>
-            Votre code PIN doit contenir exactement 4 chiffres. Choisissez une combinaison mémorisable mais difficile à deviner.
+            Votre code PIN doit contenir exactement 6 chiffres. Choisissez une combinaison mémorisable mais difficile à deviner.
           </Text>
         </View>
 
@@ -160,7 +153,7 @@ export default function ChangePINScreen({ navigation }: any) {
           <Text style={s.tipsTitle}>Conseils de sécurité</Text>
           <View style={s.tipRow}>
             <Ionicons name="checkmark-circle" size={16} color={Colors.secondary} />
-            <Text style={s.tipText}>N'utilisez pas de dates de naissance.</Text>
+            <Text style={s.tipText}>N&apos;utilisez pas de dates de naissance.</Text>
           </View>
           <View style={s.tipRow}>
             <Ionicons name="checkmark-circle" size={16} color={Colors.secondary} />

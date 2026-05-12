@@ -150,12 +150,12 @@ export function SubmitContributionScreen({ route, navigation }: any) {
 
   const copyToClipboard = async (text: string) => {
     if (!text) {
-      Alert.alert('Information', 'Aucun numero disponible pour le moment.');
+      Alert.alert('Information', 'Aucun numéro disponible pour le moment.');
       return;
     }
 
     await Clipboard.setStringAsync(text);
-    Alert.alert('Succes', 'Numero copie.');
+    Alert.alert('Succès', 'Numéro copié.');
   };
 
   const handlePickImage = () => {
@@ -168,7 +168,7 @@ export function SubmitContributionScreen({ route, navigation }: any) {
 
   const pickImage = async (source: 'camera' | 'gallery') => {
     const options: ImagePicker.ImagePickerOptions = {
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: 'images',
       quality: 0.85,
       base64: true,
       allowsEditing: true,
@@ -199,15 +199,24 @@ export function SubmitContributionScreen({ route, navigation }: any) {
       setGeminiResult(result);
 
       if (!result.isPaymentProof) {
-        Alert.alert('Erreur', "Cette image ne semble pas etre une confirmation de paiement Mobile Money.");
+        Alert.alert('Image non valide', "Cette image ne semble pas être une confirmation de paiement Mobile Money. Veuillez soumettre la capture de confirmation reçue après votre transfert.");
         setCaptureImage(null);
         setGeminiResult(null);
       } else if (result.confidence < 40) {
-        Alert.alert('Attention', "La capture est difficile a lire. Essayez une image plus nette.");
+        Alert.alert('Capture peu lisible', "L'image est difficile à analyser. Essayez une capture plus nette ou mieux éclairée.");
       }
     } catch (error: any) {
-      setAnalysisError("Analyse IA indisponible. La tresoriere examinera la capture manuellement.");
-      console.log('Gemini Error', error);
+      const msg = error?.message ?? '';
+      if (msg === 'GEMINI_API_KEY_MISSING') {
+        setAnalysisError("Clé API Gemini absente. Vérifiez EXPO_PUBLIC_GEMINI_API_KEY dans .env.");
+      } else if (msg === 'GEMINI_API_KEY_INVALID') {
+        setAnalysisError("Clé API Gemini invalide ou expirée. Vérifiez votre compte Google AI Studio.");
+      } else if (msg === 'GEMINI_QUOTA_EXCEEDED') {
+        setAnalysisError("Quota Gemini dépassé. La trésorière examinera la capture manuellement.");
+      } else {
+        setAnalysisError("Analyse IA indisponible. La trésorière examinera la capture manuellement.");
+      }
+      console.warn('[Gemini]', msg);
     } finally {
       setIsAnalyzing(false);
     }
@@ -233,20 +242,32 @@ export function SubmitContributionScreen({ route, navigation }: any) {
       const uploadMessage = uploadError?.message ?? String(uploadError);
       console.warn('[SubmitContribution] upload skipped:', uploadMessage);
 
-      if (uploadMessage.includes('FIREBASE_SESSION_REQUIRED')) {
+      if (uploadMessage.includes('CLOUDFLARE_WORKER_URL_MISSING')) {
         Alert.alert(
-          'Session Firebase requise',
-          "L'image ne peut pas etre envoyee vers R2 car cette connexion par PIN n'a pas cree de session Firebase active."
+          'Configuration incomplète',
+          "L'URL du Worker Cloudflare est absente. Vérifiez vos variables d'environnement."
         );
-      } else if (uploadMessage.includes('CLOUDFLARE_WORKER_URL_MISSING')) {
+      } else if (uploadMessage.includes('CLOUDFLARE_UPLOAD_SECRET_MISSING')) {
         Alert.alert(
-          'Configuration Cloudflare incomplete',
-          "L'URL du Worker Cloudflare est absente de l'environnement charge par l'application."
+          'Configuration incomplète',
+          "Le secret d'upload Cloudflare est absent. Vérifiez EXPO_PUBLIC_CF_UPLOAD_SECRET dans votre .env."
         );
-      } else if (uploadMessage.includes('PRESIGN_FAILED')) {
+      } else if (uploadMessage.includes('UPLOAD_FAILED')) {
         Alert.alert(
-          'Signature R2 refusee',
-          "Le Worker Cloudflare a refuse de signer l'upload. Verifiez le token Firebase, l'URL du Worker et la reponse du Worker."
+          'Échec de l\'upload',
+          `Le Worker R2 a refusé l'image (${uploadMessage}). La soumission continuera sans image.`
+        );
+      } else if (uploadMessage.includes('FILE_NOT_FOUND')) {
+        Alert.alert(
+          'Fichier introuvable',
+          "L'image sélectionnée est introuvable sur l'appareil. Veuillez en choisir une autre."
+        );
+        setIsSubmitting(false);
+        return;
+      } else {
+        Alert.alert(
+          'Erreur d\'upload',
+          `Impossible d'envoyer l'image : ${uploadMessage}. La soumission continuera sans image.`
         );
       }
     }
@@ -280,10 +301,10 @@ export function SubmitContributionScreen({ route, navigation }: any) {
       });
 
       Alert.alert(
-        'Succes',
+        'Succès',
         captureImageUrl
-          ? 'Capture soumise. En attente de validation par la tresoriere.'
-          : 'Soumission enregistree. La tresoriere examinera votre dossier.'
+          ? 'Capture soumise. En attente de validation par la trésorière.'
+          : 'Soumission enregistrée. La trésorière examinera votre dossier.'
       );
       navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
     } catch (error: any) {
@@ -300,7 +321,7 @@ export function SubmitContributionScreen({ route, navigation }: any) {
           [{ text: 'OK' }]
         );
       } else {
-        Alert.alert('Erreur', "Impossible d'enregistrer la soumission. Verifiez votre connexion et reessayez.");
+        Alert.alert('Erreur', "Impossible d'enregistrer la soumission. Vérifiez votre connexion et réessayez.");
       }
       console.error('[SubmitContribution] submitCapture error:', error);
     } finally {
@@ -315,23 +336,50 @@ export function SubmitContributionScreen({ route, navigation }: any) {
   if (normalizedStatus === 'paid') {
     return (
       <View style={styles.container}>
-        <StatusBar barStyle="dark-content" backgroundColor={Colors.surface} />
-        <View style={styles.topBar}>
-          <View style={styles.topBarLeft}>
-            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.topBarBtn} activeOpacity={0.7}>
-              <Ionicons name="arrow-back" size={22} color={Colors.onSurface} />
-            </TouchableOpacity>
-            <Text style={styles.topBarTitle}>Contribution Validée</Text>
+        <StatusBar barStyle="light-content" backgroundColor="#0D6B4E" />
+        <View style={styles.statusHeroPaid}>
+          <View style={styles.statusHeroIconWrap}>
+            <Ionicons name="checkmark-circle" size={64} color="#FFF" />
           </View>
+          <Text style={styles.statusHeroTitle}>Contribution validée</Text>
+          <Text style={styles.statusHeroSub}>
+            Votre paiement du mois de{'\n'}<Text style={{ fontWeight: '700' }}>{periodMonth}</Text> a été approuvé.
+          </Text>
         </View>
 
-        <View style={styles.statusCardPaid}>
-          <Ionicons name="checkmark-circle" size={48} color={Colors.statusPaid} />
-          <Text style={styles.statusTitle}>Contribution déjà approuvée</Text>
-          <Text style={styles.statusDesc}>
-            Votre paiement de ce mois est déjà validé. Aucun nouvel envoi n&apos;est nécessaire.
-          </Text>
-          <AppButton title="Retour au tableau de bord" onPress={() => navigation.navigate('Accueil')} variant="solid" />
+        <View style={styles.statusBody}>
+          <View style={styles.statusDetailCard}>
+            <View style={styles.statusDetailRow}>
+              <View style={styles.statusDetailItem}>
+                <Text style={styles.statusDetailLabel}>Montant</Text>
+                <Text style={[styles.statusDetailValue, { color: Colors.statusPaid }]}>{amount.toLocaleString('fr-FR')} CDF</Text>
+              </View>
+              <View style={styles.statusDetailDivider} />
+              <View style={styles.statusDetailItem}>
+                <Text style={styles.statusDetailLabel}>Période</Text>
+                <Text style={styles.statusDetailValue}>{periodMonth}</Text>
+              </View>
+              <View style={styles.statusDetailDivider} />
+              <View style={styles.statusDetailItem}>
+                <Text style={styles.statusDetailLabel}>Statut</Text>
+                <Text style={[styles.statusDetailValue, { color: Colors.statusPaid }]}>Approuvé</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.statusInfoBox}>
+            <Ionicons name="shield-checkmark-outline" size={18} color={Colors.statusPaid} />
+            <Text style={styles.statusInfoText}>
+              Aucune action requise. Votre trésorière a confirmé la réception de ce paiement.
+            </Text>
+          </View>
+
+          <AppButton
+            title="Retour au tableau de bord"
+            onPress={() => navigation.navigate('Accueil')}
+            variant="solid"
+            style={{ marginTop: 8 }}
+          />
         </View>
       </View>
     );
@@ -340,23 +388,69 @@ export function SubmitContributionScreen({ route, navigation }: any) {
   if (normalizedStatus === 'pending_approval') {
     return (
       <View style={styles.container}>
-        <StatusBar barStyle="dark-content" backgroundColor={Colors.surface} />
-        <View style={styles.topBar}>
-          <View style={styles.topBarLeft}>
-            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.topBarBtn} activeOpacity={0.7}>
-              <Ionicons name="arrow-back" size={22} color={Colors.onSurface} />
-            </TouchableOpacity>
-            <Text style={styles.topBarTitle}>En Attente</Text>
+        <StatusBar barStyle="light-content" backgroundColor="#7B5300" />
+        <View style={styles.statusHeroPending}>
+          <View style={styles.statusHeroIconWrap}>
+            <Ionicons name="hourglass-outline" size={56} color="#FFF" />
           </View>
+          <Text style={styles.statusHeroTitle}>En cours de vérification</Text>
+          <Text style={styles.statusHeroSub}>
+            Votre capture a été transmise à{'\n'}la trésorière pour validation.
+          </Text>
         </View>
 
-        <View style={styles.statusCardPending}>
-          <Ionicons name="time" size={48} color={Colors.statusPending} />
-          <Text style={styles.statusTitle}>Capture déjà soumise</Text>
-          <Text style={styles.statusDesc}>
-            Votre capture est en cours de vérification par la trésorière.
-          </Text>
-          <AppButton title="Soumettre une nouvelle capture" onPress={() => setStatus(null)} variant="outline" />
+        <View style={styles.statusBody}>
+          <View style={styles.statusDetailCard}>
+            <View style={styles.statusDetailRow}>
+              <View style={styles.statusDetailItem}>
+                <Text style={styles.statusDetailLabel}>Montant</Text>
+                <Text style={[styles.statusDetailValue, { color: Colors.statusPending }]}>{amount.toLocaleString('fr-FR')} CDF</Text>
+              </View>
+              <View style={styles.statusDetailDivider} />
+              <View style={styles.statusDetailItem}>
+                <Text style={styles.statusDetailLabel}>Période</Text>
+                <Text style={styles.statusDetailValue}>{periodMonth}</Text>
+              </View>
+              <View style={styles.statusDetailDivider} />
+              <View style={styles.statusDetailItem}>
+                <Text style={styles.statusDetailLabel}>Statut</Text>
+                <Text style={[styles.statusDetailValue, { color: Colors.statusPending }]}>En attente</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.statusStepsCard}>
+            <View style={styles.statusStep}>
+              <View style={[styles.statusStepDot, styles.statusStepDotDone]}><Ionicons name="checkmark" size={12} color="#FFF" /></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.statusStepTitle}>Capture soumise</Text>
+                <Text style={styles.statusStepDesc}>Votre preuve de paiement a été reçue.</Text>
+              </View>
+            </View>
+            <View style={styles.statusStepLine} />
+            <View style={styles.statusStep}>
+              <View style={[styles.statusStepDot, styles.statusStepDotActive]}><Ionicons name="time-outline" size={12} color="#FFF" /></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.statusStepTitle}>Vérification en cours</Text>
+                <Text style={styles.statusStepDesc}>La trésorière examine votre capture.</Text>
+              </View>
+            </View>
+            <View style={styles.statusStepLine} />
+            <View style={styles.statusStep}>
+              <View style={styles.statusStepDot}><Ionicons name="ellipsis-horizontal" size={12} color={Colors.textMuted} /></View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.statusStepTitle, { color: Colors.textMuted }]}>Validation finale</Text>
+                <Text style={styles.statusStepDesc}>Vous recevrez une notification.</Text>
+              </View>
+            </View>
+          </View>
+
+          <AppButton
+            title="Soumettre une nouvelle capture"
+            onPress={() => setStatus(null)}
+            variant="outline"
+            style={{ marginTop: 8 }}
+          />
         </View>
       </View>
     );
@@ -387,11 +481,11 @@ export function SubmitContributionScreen({ route, navigation }: any) {
             <Text style={styles.heroMetricValue}>{amount.toLocaleString('fr-FR')} CDF</Text>
           </View>
           <View style={styles.heroMetric}>
-            <Text style={styles.heroMetricLabel}>Periode</Text>
+            <Text style={styles.heroMetricLabel}>Période</Text>
             <Text style={styles.heroMetricValue}>{periodMonth}</Text>
           </View>
           <View style={styles.heroMetric}>
-            <Text style={styles.heroMetricLabel}>Operateur</Text>
+            <Text style={styles.heroMetricLabel}>Opérateur</Text>
             <Text style={styles.heroMetricValue}>{operatorTreasurer.toUpperCase()}</Text>
           </View>
         </View>
@@ -406,18 +500,18 @@ export function SubmitContributionScreen({ route, navigation }: any) {
             <View style={styles.amountCard}>
               <Text style={styles.amountLabel}>Montant attendu</Text>
               <Text style={styles.amountDueText}>{amount.toLocaleString('fr-FR')} CDF</Text>
-              <Text style={styles.amountDetailText}>Periode : {periodMonth}</Text>
+              <Text style={styles.amountDetailText}>Période : {periodMonth}</Text>
             </View>
 
             <View style={styles.treasurerCard}>
               <View style={styles.treasurerRow}>
                 <Ionicons name="information-circle" size={24} color={Colors.info} />
-                <Text style={styles.treasurerCardTitle}>Envoyez le paiement a</Text>
+                <Text style={styles.treasurerCardTitle}>Envoyez le paiement à</Text>
               </View>
               <Text style={styles.treasurerName}>{treasurerName}</Text>
               <Text style={styles.treasurerNumber}>{treasurerNumber || 'Numero indisponible'}</Text>
               <AppButton
-                title="Copier le numero"
+                title="Copier le numéro"
                 onPress={() => copyToClipboard(treasurerNumber)}
                 variant="outline"
                 style={{ marginTop: 8 }}
@@ -430,11 +524,11 @@ export function SubmitContributionScreen({ route, navigation }: any) {
               <Text style={styles.instructionsTitle}>Instructions</Text>
               <Text style={styles.instructionLine}>1. Ouvrez votre application Mobile Money ({operatorTreasurer}).</Text>
               <Text style={styles.instructionLine}>
-                2. Envoyez {amount.toLocaleString('fr-FR')} CDF au numero {treasurerNumber || 'du tresorier'}.
+                2. Envoyez {amount.toLocaleString('fr-FR')} CDF au numéro {treasurerNumber || 'du trésorier'}.
               </Text>
               <Text style={styles.instructionLine}>3. Attendez la confirmation de la transaction.</Text>
               <Text style={styles.instructionLine}>
-                4. Faites une capture d&apos;ecran de l&apos;alerte ou du SMS de confirmation.
+                4. Faites une capture d&apos;écran de l&apos;alerte ou du SMS de confirmation.
               </Text>
               <Text style={styles.instructionLine}>5. Revenez ici et soumettez la capture.</Text>
             </View>
@@ -526,7 +620,7 @@ export function SubmitContributionScreen({ route, navigation }: any) {
                   </Text>
                 ) : (
                   <Text style={styles.matchWarnText}>
-                    Montant detecte : {geminiResult.amount || 'N/A'} CDF. Montant attendu : {amount} CDF. La tresoriere verifiera la difference.
+                    Montant détecté : {geminiResult.amount || 'N/A'} CDF. Montant attendu : {amount} CDF. La trésorière vérifiera la différence.
                   </Text>
                 )}
               </View>
@@ -535,13 +629,13 @@ export function SubmitContributionScreen({ route, navigation }: any) {
             <View style={styles.infoNoteCard}>
               <Ionicons name="information-circle" size={24} color={Colors.info} />
               <Text style={styles.infoNoteText}>
-                Votre capture sera examinee par la tresoriere. Vous recevrez une notification apres validation.
+                Votre capture sera examinée par la trésorière. Vous recevrez une notification après validation.
               </Text>
             </View>
 
             <AppInput
-              label="Message pour la tresoriere (optionnel)"
-              placeholder="Ex: J'ai paye en deux fois, voici la premiere partie..."
+              label="Message pour la trésorière (optionnel)"
+              placeholder="Ex : J'ai payé en deux fois, voici la première partie…"
               value={memberNote}
               onChangeText={setMemberNote}
               multiline
@@ -651,37 +745,159 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.headline,
     color: Colors.onSurface,
   },
-  statusCardPaid: {
-    padding: 24,
-    backgroundColor: '#E8F5E9',
+  // ── Status screens (paid / pending) ──────────────────────────────────────────
+  statusHeroPaid: {
+    backgroundColor: '#0D6B4E',
+    paddingTop: Platform.OS === 'ios' ? 72 : 56,
+    paddingBottom: 40,
+    paddingHorizontal: 24,
     alignItems: 'center',
-    justifyContent: 'center',
-    margin: 16,
-    borderRadius: Radius.xl,
-    ...Shadow.card,
+    borderBottomLeftRadius: 36,
+    borderBottomRightRadius: 36,
   },
-  statusCardPending: {
-    padding: 24,
-    backgroundColor: '#FFF3E0',
+  statusHeroPending: {
+    backgroundColor: '#7B5300',
+    paddingTop: Platform.OS === 'ios' ? 72 : 56,
+    paddingBottom: 40,
+    paddingHorizontal: 24,
     alignItems: 'center',
+    borderBottomLeftRadius: 36,
+    borderBottomRightRadius: 36,
+  },
+  statusHeroIconWrap: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: 'rgba(255,255,255,0.15)',
     justifyContent: 'center',
-    margin: 16,
-    borderRadius: Radius.xl,
-    ...Shadow.card,
-  },
-  statusTitle: {
-    fontSize: 20,
-    fontFamily: Fonts.headline,
-    color: Colors.onSurface,
-    marginVertical: 12,
-    textAlign: 'center',
-  },
-  statusDesc: {
-    textAlign: 'center',
-    color: Colors.textSecondary,
+    alignItems: 'center',
     marginBottom: 20,
-    lineHeight: 20,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  statusHeroTitle: {
+    fontFamily: Fonts.display,
+    fontSize: 24,
+    color: '#FFF',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  statusHeroSub: {
     fontFamily: Fonts.body,
+    fontSize: 15,
+    color: 'rgba(255,255,255,0.8)',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  statusBody: {
+    flex: 1,
+    padding: 20,
+    paddingTop: 24,
+  },
+  statusDetailCard: {
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderRadius: Radius.xxl,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant + '50',
+    padding: 20,
+    marginBottom: 16,
+    ...Shadow.card,
+  },
+  statusDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statusDetailItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statusDetailDivider: {
+    width: 1,
+    height: 36,
+    backgroundColor: Colors.outlineVariant,
+    marginHorizontal: 8,
+  },
+  statusDetailLabel: {
+    fontFamily: Fonts.label,
+    fontSize: 11,
+    color: Colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 6,
+  },
+  statusDetailValue: {
+    fontFamily: Fonts.headline,
+    fontSize: 14,
+    color: Colors.onSurface,
+  },
+  statusInfoBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: '#E8F5E9',
+    borderRadius: Radius.lg,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: Colors.statusPaid + '30',
+  },
+  statusInfoText: {
+    flex: 1,
+    fontFamily: Fonts.body,
+    fontSize: 13,
+    color: Colors.statusPaid,
+    lineHeight: 19,
+  },
+  statusStepsCard: {
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderRadius: Radius.xxl,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant + '50',
+    padding: 20,
+    marginBottom: 16,
+    ...Shadow.card,
+  },
+  statusStep: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 14,
+  },
+  statusStepLine: {
+    width: 2,
+    height: 20,
+    backgroundColor: Colors.outlineVariant,
+    marginLeft: 14,
+    marginVertical: 3,
+  },
+  statusStepDot: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: Colors.surfaceContainerHigh,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: Colors.outlineVariant,
+  },
+  statusStepDotDone: {
+    backgroundColor: Colors.statusPaid,
+    borderColor: Colors.statusPaid,
+  },
+  statusStepDotActive: {
+    backgroundColor: Colors.statusPending,
+    borderColor: Colors.statusPending,
+  },
+  statusStepTitle: {
+    fontFamily: Fonts.headline,
+    fontSize: 14,
+    color: Colors.onSurface,
+    marginBottom: 2,
+  },
+  statusStepDesc: {
+    fontFamily: Fonts.body,
+    fontSize: 12,
+    color: Colors.textSecondary,
+    lineHeight: 17,
   },
   amountCard: {
     backgroundColor: Colors.primary,

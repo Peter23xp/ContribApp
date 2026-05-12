@@ -39,6 +39,7 @@ function TopBar() {
 
 export default function TreasurerDashboardScreen({ navigation }: any) {
   const user = useAuthStore(st => st.user);
+  const uid = useAuthStore(st => st.uid);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [group, setGroup] = useState<any>(null);
@@ -65,7 +66,7 @@ export default function TreasurerDashboardScreen({ navigation }: any) {
 
   const loadData = useCallback(async () => {
     if (!user) return;
-    const g = await db.getGroupForMember(user.id) ?? await db.getGroupForAdmin(user.id);
+    const g = await db.getGroupForMember(uid || '') ?? await db.getGroupForAdmin(uid || '');
     setGroup(g);
     if (g) {
       const [contribs, mems, recent] = await Promise.all([

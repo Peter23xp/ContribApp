@@ -180,7 +180,10 @@ export const joinGroup = async (userId: string, groupId: string): Promise<void> 
       month,
       amount: groupData?.contribution_amount ?? groupData?.monthly_amount ?? 0,
       penalty_amount: 0,
-      status: 'EN_ATTENTE',
+      // 'not_submitted' = placeholder créé à l'inscription, aucune capture envoyée
+      // Ne pas utiliser 'EN_ATTENTE' ici — cela serait confondu avec une vraie soumission
+      status: 'not_submitted',
+      is_placeholder: true,
       created_at: serverTimestamp(),
     });
   }

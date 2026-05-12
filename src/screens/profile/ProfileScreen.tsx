@@ -38,6 +38,7 @@ import type { MobileOperator } from '../../services/authService';
 import type { UserProfile } from '../../services/userService';
 import * as userService from '../../services/userService';
 import { useAuthStore } from '../../stores/authStore';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -54,7 +55,7 @@ const ROLE_CONFIG: Record<string, { label: RoleLabel; color: RoleColor; bg: stri
 // ─── Composant principal ──────────────────────────────────────
 
 export default function ProfileScreen({ navigation }: any) {
-  const { user, logout } = useAuthStore();
+  const { logout, role, activeRole, switchToMemberMode, restoreRole } = useAuthStore();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -144,7 +145,7 @@ export default function ProfileScreen({ navigation }: any) {
     }
 
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: 'images',
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
@@ -167,7 +168,7 @@ export default function ProfileScreen({ navigation }: any) {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: 'images',
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
@@ -188,7 +189,7 @@ export default function ProfileScreen({ navigation }: any) {
         text1: 'Photo mise à jour',
         text2: 'Votre photo de profil a été modifiée',
       });
-    } catch (error) {
+    } catch {
       Toast.show({
         type: 'error',
         text1: 'Erreur',
@@ -209,7 +210,7 @@ export default function ProfileScreen({ navigation }: any) {
         text1: 'Photo supprimée',
         text2: 'Votre photo de profil a été supprimée',
       });
-    } catch (error) {
+    } catch {
       Toast.show({
         type: 'error',
         text1: 'Erreur',
@@ -226,7 +227,7 @@ export default function ProfileScreen({ navigation }: any) {
     try {
       const updatedProfile = await userService.updatePreferences({ [key]: value });
       setProfile(updatedProfile);
-    } catch (error) {
+    } catch {
       Toast.show({
         type: 'error',
         text1: 'Erreur',
@@ -255,7 +256,7 @@ export default function ProfileScreen({ navigation }: any) {
                 text1: 'Déconnecté',
                 text2: 'À bientôt !',
               });
-            } catch (error) {
+            } catch {
               // Déconnecter quand même localement
               await logout();
             }
@@ -291,7 +292,7 @@ export default function ProfileScreen({ navigation }: any) {
         text1: 'Nom mis à jour',
         text2: 'Votre nom a été modifié avec succès',
       });
-    } catch (error) {
+    } catch {
       Toast.show({
         type: 'error',
         text1: 'Erreur',
@@ -321,7 +322,7 @@ export default function ProfileScreen({ navigation }: any) {
         text1: 'Opérateur mis à jour',
         text2: 'Votre opérateur a été modifié avec succès',
       });
-    } catch (error) {
+    } catch {
       Toast.show({
         type: 'error',
         text1: 'Erreur',
@@ -417,7 +418,7 @@ export default function ProfileScreen({ navigation }: any) {
       }
 
       // Récupérer le push token
-      const token = (await Notifications.getExpoPushTokenAsync()).data;
+      await Notifications.getExpoPushTokenAsync();
       await userService.updatePreferences({ pushEnabled: true });
       await loadProfile();
       Toast.show({
@@ -447,7 +448,7 @@ export default function ProfileScreen({ navigation }: any) {
         text1: 'Langue mise à jour',
         text2: 'La langue de l\'application a été modifiée',
       });
-    } catch (error) {
+    } catch {
       Toast.show({
         type: 'error',
         text1: 'Erreur',
@@ -475,7 +476,7 @@ export default function ProfileScreen({ navigation }: any) {
         text1: 'Devise mise à jour',
         text2: 'La devise d\'affichage a été modifiée',
       });
-    } catch (error) {
+    } catch {
       Toast.show({
         type: 'error',
         text1: 'Erreur',
@@ -569,6 +570,89 @@ export default function ProfileScreen({ navigation }: any) {
             </View>
           </View>
         </View>
+
+        {/* Section : Mode de vue — visible uniquement pour admin et trésorier */}
+        {(role === 'admin' || role === 'treasurer') && (
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>Mode de vue</Text>
+            <View style={s.modeSwitchCard}>
+
+              {/* En-tête explicatif */}
+              <View style={s.modeSwitchHeader}>
+                <View style={s.modeSwitchIconWrap}>
+                  <MaterialCommunityIcons name="swap-horizontal-bold" size={22} color={Colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.modeSwitchTitle}>
+                    {role === 'admin' ? 'Administrateur' : 'Trésorière'}
+                  </Text>
+                  <Text style={s.modeSwitchDesc}>
+                    Basculez en mode membre pour soumettre votre propre contribution.
+                  </Text>
+                </View>
+              </View>
+
+              {/* Deux boutons de sélection */}
+              <View style={s.modeRow}>
+
+                {/* Bouton rôle principal */}
+                <TouchableOpacity
+                  style={[s.modeBtn, activeRole !== 'member' && s.modeBtnActive]}
+                  onPress={restoreRole}
+                  activeOpacity={0.75}
+                >
+                  <MaterialCommunityIcons
+                    name={role === 'admin' ? 'shield-crown-outline' : 'account-cash-outline'}
+                    size={20}
+                    color={activeRole !== 'member' ? Colors.onPrimary : Colors.textSecondary}
+                  />
+                  <Text style={[s.modeBtnLabel, activeRole !== 'member' && s.modeBtnLabelActive]}>
+                    {role === 'admin' ? 'Admin' : 'Trésorière'}
+                  </Text>
+                  {activeRole !== 'member' && (
+                    <View style={s.modeActiveDot} />
+                  )}
+                </TouchableOpacity>
+
+                {/* Bouton mode membre */}
+                <TouchableOpacity
+                  style={[s.modeBtn, activeRole === 'member' && s.modeBtnMemberActive]}
+                  onPress={switchToMemberMode}
+                  activeOpacity={0.75}
+                >
+                  <MaterialCommunityIcons
+                    name="account-outline"
+                    size={20}
+                    color={activeRole === 'member' ? '#FFF' : Colors.textSecondary}
+                  />
+                  <Text style={[s.modeBtnLabel, activeRole === 'member' && s.modeBtnLabelActive]}>
+                    Membre
+                  </Text>
+                  {activeRole === 'member' && (
+                    <View style={s.modeActiveDot} />
+                  )}
+                </TouchableOpacity>
+
+              </View>
+
+              {/* Info contextuelle selon le mode actif */}
+              <View style={[s.modeInfoBox, activeRole === 'member' ? s.modeInfoBoxActive : s.modeInfoBoxDefault]}>
+                <Ionicons
+                  name={activeRole === 'member' ? 'information-circle' : 'information-circle-outline'}
+                  size={15}
+                  color={activeRole === 'member' ? Colors.warning : Colors.textMuted}
+                />
+                <Text style={[s.modeInfoText, activeRole === 'member' && s.modeInfoTextActive]}>
+                  {activeRole === 'member'
+                    ? 'Mode membre actif — vous voyez les écrans de contribution comme un membre.'
+                    : `Mode ${role === 'admin' ? 'administrateur' : 'trésorière'} — accès complet à la gestion du groupe.`
+                  }
+                </Text>
+              </View>
+
+            </View>
+          </View>
+        )}
 
         {/* Section : Mon Profil */}
         <View style={s.section}>
@@ -800,7 +884,7 @@ export default function ProfileScreen({ navigation }: any) {
       >
         <View style={s.modalOverlay}>
           <View style={s.modalBox}>
-            <Text style={s.modalTitle}>Changer d'opérateur</Text>
+            <Text style={s.modalTitle}>Changer d&apos;opérateur</Text>
             <OperatorSelector
               value={editOperator}
               onChange={setEditOperator}
@@ -1050,6 +1134,110 @@ const s = StyleSheet.create({
     fontFamily: Fonts.headline,
     fontSize: 13,
     color: Colors.onSurface,
+  },
+
+  // ── Mode switcher ──────────────────────────────────────────────────────────
+  modeSwitchCard: {
+    marginHorizontal: 16,
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderRadius: Radius.xxl,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant + '50',
+    padding: 18,
+    gap: 16,
+    ...Shadow.card,
+  },
+  modeSwitchHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  modeSwitchIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.primaryFixed + '50',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modeSwitchTitle: {
+    fontFamily: Fonts.headline,
+    fontSize: 15,
+    color: Colors.onSurface,
+    marginBottom: 2,
+  },
+  modeSwitchDesc: {
+    fontFamily: Fonts.body,
+    fontSize: 12,
+    color: Colors.textSecondary,
+    lineHeight: 17,
+  },
+  modeRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  modeBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: Radius.xl,
+    borderWidth: 1.5,
+    borderColor: Colors.outlineVariant,
+    backgroundColor: Colors.surfaceContainerLow,
+    position: 'relative',
+  },
+  modeBtnActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  modeBtnMemberActive: {
+    backgroundColor: Colors.warning,
+    borderColor: Colors.warning,
+  },
+  modeBtnLabel: {
+    fontFamily: Fonts.headline,
+    fontSize: 13,
+    color: Colors.textSecondary,
+  },
+  modeBtnLabelActive: {
+    color: '#FFF',
+  },
+  modeActiveDot: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.7)',
+  },
+  modeInfoBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    padding: 12,
+    borderRadius: Radius.lg,
+  },
+  modeInfoBoxDefault: {
+    backgroundColor: Colors.surfaceContainerLow,
+  },
+  modeInfoBoxActive: {
+    backgroundColor: Colors.warning + '18',
+    borderWidth: 1,
+    borderColor: Colors.warning + '40',
+  },
+  modeInfoText: {
+    flex: 1,
+    fontFamily: Fonts.body,
+    fontSize: 12,
+    color: Colors.textMuted,
+    lineHeight: 17,
+  },
+  modeInfoTextActive: {
+    color: Colors.warning,
   },
 
   // Sections

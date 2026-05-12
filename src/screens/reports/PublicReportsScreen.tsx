@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 import { PieChart } from 'react-native-chart-kit';
@@ -18,7 +18,6 @@ function toMonthKey(date: Date) {
 }
 
 export default function PublicReportsScreen({ navigation }: any) {
-  const user = useAuthStore((s) => s.user);
   const uid = useAuthStore((s) => s.uid);
   const [selectedMonth, setSelectedMonth] = useState(toMonthKey(new Date()));
   const [isLoading, setIsLoading] = useState(true);

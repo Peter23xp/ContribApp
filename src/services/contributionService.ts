@@ -511,9 +511,20 @@ export async function checkAlreadyPaid(
     ),
   ]);
 
-  const doc = snapNew.docs[0] ?? snapLegacy.docs[0];
-  if (!doc) return null;
-  return { status: normalizeContributionStatus(doc.data().status), id: doc.id };
+  // Fusionner les deux résultats, exclure les placeholders créés à l'inscription
+  const allDocs = [...snapNew.docs, ...snapLegacy.docs];
+  const realDoc = allDocs.find(d => {
+    const data = d.data();
+    // Ignorer les placeholders (créés automatiquement lors du joinGroup)
+    if (data.is_placeholder === true) return false;
+    // Ignorer les statuts "not_submitted" et "EN_ATTENTE" sans capture réelle
+    const st = (data.status ?? '').toString().trim().toLowerCase();
+    if (st === 'not_submitted') return false;
+    return true;
+  });
+
+  if (!realDoc) return null;
+  return { status: normalizeContributionStatus(realDoc.data().status), id: realDoc.id };
 }
 
 // Alias utilisé dans les écrans
@@ -522,13 +533,27 @@ export { checkAlreadyPaid as getMemberContributionStatus };
 // ─── submitContribution ───────────────────────────────────────────────────────
 
 export async function submitContribution(data: ContributionSubmission): Promise<string> {
-  // Idempotence
+  // Idempotence — uniquement sur les vraies soumissions (pas les placeholders)
   const existing = await checkAlreadyPaid(data.groupId, data.memberUid, data.periodMonth);
   if (existing?.status === 'paid') throw new Error('ALREADY_PAID');
   if (existing?.status === 'pending_approval') throw new Error('ALREADY_PENDING');
 
-  // Créer la contribution
-  const ref = await addDoc(collection(db, 'contributions'), {
+  // Chercher un éventuel placeholder (is_placeholder=true) à recycler
+  const [snapNew, snapLegacy] = await Promise.all([
+    getDocs(query(collection(db, 'contributions'),
+      where('group_id', '==', data.groupId),
+      where('member_uid', '==', data.memberUid),
+      where('period_month', '==', data.periodMonth),
+      where('is_placeholder', '==', true))),
+    getDocs(query(collection(db, 'contributions'),
+      where('group_id', '==', data.groupId),
+      where('user_id', '==', data.memberUid),
+      where('month', '==', data.periodMonth),
+      where('is_placeholder', '==', true))),
+  ]);
+  const placeholderDoc = snapNew.docs[0] ?? snapLegacy.docs[0];
+
+  const contributionPayload = {
     group_id: data.groupId,
     member_uid: data.memberUid,
     member_name: data.memberName,
@@ -536,16 +561,34 @@ export async function submitContribution(data: ContributionSubmission): Promise<
     amount_due: data.amountDue,
     currency: data.currency,
     status: 'pending_approval',
-    capture_image_url: data.captureImageUrl ?? null,      // null si R2 indisponible
-    capture_image_path: data.captureImagePath ?? null,    // null si R2 indisponible
+    capture_image_url: data.captureImageUrl ?? null,
+    capture_image_path: data.captureImagePath ?? null,
     capture_uploaded_at: data.captureImageUrl ? serverTimestamp() : null,
     member_note: data.memberNote ?? null,
     gemini_analysis: data.geminiAnalysis ?? null,
     is_late: false,
+    is_placeholder: false,
     penalty_amount: 0,
-    created_at: serverTimestamp(),
     updated_at: serverTimestamp(),
-  });
+  };
+
+  let refId: string;
+
+  if (placeholderDoc) {
+    // Recycler le placeholder existant
+    await updateDoc(placeholderDoc.ref, {
+      ...contributionPayload,
+      created_at: serverTimestamp(),
+    });
+    refId = placeholderDoc.id;
+  } else {
+    // Créer une nouvelle contribution
+    const newRef = await addDoc(collection(db, 'contributions'), {
+      ...contributionPayload,
+      created_at: serverTimestamp(),
+    });
+    refId = newRef.id;
+  }
 
   // Notifier la trésorière
   const groupDoc = await getDoc(doc(db, 'groups', data.groupId));
@@ -556,13 +599,13 @@ export async function submitContribution(data: ContributionSubmission): Promise<
       type: 'new_submission',
       title: 'Nouvelle capture à valider',
       body: `${data.memberName} a soumis une capture pour ${data.periodMonth}`,
-      data: { contribution_id: ref.id, group_id: data.groupId, month: data.periodMonth },
+      data: { contribution_id: refId, group_id: data.groupId, month: data.periodMonth },
       is_read: false,
       created_at: serverTimestamp(),
     });
   }
 
-  return ref.id;
+  return refId;
 }
 
 // ─── approveContribution ──────────────────────────────────────────────────────

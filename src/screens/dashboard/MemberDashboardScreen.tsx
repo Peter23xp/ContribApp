@@ -56,8 +56,13 @@ function TopBar() {
   return (
     <View style={s.topBar}>
       <View style={s.topBarLeft}>
-        <MaterialCommunityIcons name="bank" size={22} color="#004d40" />
+        <View style={s.topBarLogoWrap}>
+          <MaterialCommunityIcons name="bank-outline" size={18} color={Colors.primary} />
+        </View>
         <Text style={s.topBarTitle}>ContribApp</Text>
+        <View style={s.topBarBadge}>
+          <Text style={s.topBarBadgeText}>RDC</Text>
+        </View>
       </View>
       <TouchableOpacity style={s.topBarBtn}>
         <MaterialCommunityIcons name="bell-outline" size={22} color={Colors.onSurfaceVariant} />
@@ -241,6 +246,7 @@ function HeroCardRejected({ contribution, onPay }: { contribution: any; onPay: (
 // ─── ÉCRAN PRINCIPAL ──────────────────────────────────────────────────────────
 export default function MemberDashboardScreen({ navigation }: any) {
   const user = useAuthStore(st => st.user);
+  const uid = useAuthStore(st => st.uid);
   const setGroupId = useAuthStore(st => st.setGroupId);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -258,7 +264,7 @@ export default function MemberDashboardScreen({ navigation }: any) {
   const loadData = useCallback(async () => {
     if (!user) return;
     try {
-      const g = await db.getGroupForMember(user.id);
+      const g = await db.getGroupForMember(uid || '');
       setGroup(g);
       if (!g) {
         setContribution(null);
@@ -269,9 +275,9 @@ export default function MemberDashboardScreen({ navigation }: any) {
       }
       if (g) {
         const [c, allC, recent, members] = await Promise.all([
-          db.getMemberContribution(user.id, g.id),
+          db.getMemberContribution(uid || '', g.id),
           db.getContributionsForMonth(g.id),
-          db.getRecentPaymentsForMember(user.id, 3).catch(() => [] as any[]),
+          db.getRecentPaymentsForMember(uid || '', 3).catch(() => [] as any[]),
           db.getMembersOfGroup(g.id).catch(() => [] as any[]),
         ]);
         // Normaliser le montant de la contribution :
@@ -291,7 +297,7 @@ export default function MemberDashboardScreen({ navigation }: any) {
                 amount_due: groupMonthlyAmount,
                 penalty_amount: 0,
                 status: 'EN_ATTENTE',
-                user_id: user.id,
+                user_id: uid || '',
                 group_id: g.id,
                 month: db.getCurrentMonthKey(),
               }
@@ -318,7 +324,7 @@ export default function MemberDashboardScreen({ navigation }: any) {
               full_name: m.full_name,
               totalPaid,
               paidCount: paid.length,
-              isCurrentUser: m.id === user.id,
+              isCurrentUser: m.id === uid,
             };
           })
           .sort((a: any, b: any) => {
@@ -358,9 +364,9 @@ export default function MemberDashboardScreen({ navigation }: any) {
     try {
       const foundGroup = await db.getGroupByInviteCode(inviteCode);
       if (!foundGroup) { setJoinError('Code invalide. Vérifiez et réessayez.'); setJoining(false); return; }
-      const alreadyIn = await db.isAlreadyMember(user.id, foundGroup.id);
+      const alreadyIn = await db.isAlreadyMember(uid || '', foundGroup.id);
       if (alreadyIn) { setJoinError('Vous êtes déjà membre.'); setJoining(false); return; }
-      await db.joinGroup(user.id, foundGroup.id);
+      await db.joinGroup(uid || '', foundGroup.id);
       setGroupId(foundGroup.id);
       setShowJoinModal(false); setInviteCode('');
       Toast.show({ type: 'success', text1: 'Bienvenue !', text2: `Vous avez rejoint "${foundGroup.name}".` });
@@ -377,8 +383,8 @@ export default function MemberDashboardScreen({ navigation }: any) {
       amount:        withPenalty ? base + penalty : base,
       includePenalty: withPenalty && penalty > 0,
       groupId:       group?.id   ?? '',
-      memberUid:     user?.id    ?? '',
-      memberName:    user?.full_name ?? '',
+      memberUid:     uid         ?? '',
+      memberName:    user?.fullName ?? '',
       periodMonth:   db.getCurrentMonthKey(),
     });
   };
@@ -453,12 +459,18 @@ export default function MemberDashboardScreen({ navigation }: any) {
       >
         {/* ── Balance ─────────────────────────────────────────────────── */}
         <View style={s.balanceSection}>
-          <Text style={s.balLabel}>TOTAL GROUP BALANCE</Text>
-          <View style={s.balRow}>
-            <Text style={s.balAmount}>
-              {isLoading ? '...' : totalBalance.toLocaleString('fr-FR')}
-            </Text>
-            <Text style={s.balCurrency}> CDF</Text>
+          <View style={s.balanceCard}>
+            <View style={s.balanceCardDecor} />
+            <Text style={s.balLabel}>SOLDE TOTAL DU GROUPE</Text>
+            <View style={s.balRow}>
+              <Text style={s.balAmount}>
+                {isLoading ? '···' : totalBalance.toLocaleString('fr-FR')}
+              </Text>
+              <Text style={s.balCurrency}> CDF</Text>
+            </View>
+            {group?.name ? (
+              <Text style={s.groupNameLabel}>{group.name}</Text>
+            ) : null}
           </View>
 
           {/* 2 status cards */}
@@ -479,7 +491,7 @@ export default function MemberDashboardScreen({ navigation }: any) {
             </View>
             <View style={s.statusCard}>
               <MaterialCommunityIcons name="calendar-today" size={24} color={Colors.tertiary} style={{ marginBottom: 12 }} />
-              <Text style={s.statusLabel}>PROCHAINE ECHEANCE</Text>
+              <Text style={s.statusLabel}>PROCHAINE ÉCHÉANCE</Text>
               <Text style={[s.statusValue, { color: Colors.onSurface }]}>{dueDay} {dueMonthLabel}</Text>
             </View>
           </View>
@@ -504,7 +516,7 @@ export default function MemberDashboardScreen({ navigation }: any) {
         {!status && (
           <TouchableOpacity style={s.payBtn} activeOpacity={0.88} onPress={() => goToPayment()}>
             <MaterialCommunityIcons name="cash-multiple" size={22} color="#FFF" />
-            <Text style={s.payBtnText}>Pay Now</Text>
+            <Text style={s.payBtnText}>Payer maintenant</Text>
           </TouchableOpacity>
         )}
 
@@ -530,7 +542,7 @@ export default function MemberDashboardScreen({ navigation }: any) {
         {/* ── Latest Activity ─────────────────────────────────────────── */}
         <View style={s.section}>
           <View style={s.sectionHeader}>
-            <Text style={s.sectionTitle}>Activite recente</Text>
+            <Text style={s.sectionTitle}>Activité récente</Text>
             <TouchableOpacity onPress={() => navigation.navigate('Historique')}><Text style={s.seeAll}>Voir tout</Text></TouchableOpacity>
           </View>
           <View style={s.activityContainer}>
@@ -542,11 +554,11 @@ export default function MemberDashboardScreen({ navigation }: any) {
               recentPayments.map((p: any, i: number) => (
                 <TouchableOpacity key={p.id ?? i} style={s.actItem} activeOpacity={0.7}>
                   <View style={s.actAvatarWrap}>
-                    <Avatar name={p.full_name ?? user?.full_name ?? '?'} size={48} bg={Colors.surfaceVariant} />
+                    <Avatar name={p.full_name ?? user?.fullName ?? '?'} size={48} bg={Colors.surfaceVariant} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={s.actName}>{p.full_name ?? user?.full_name ?? '—'}</Text>
-                    <Text style={s.actSub}>Contribution confirmee</Text>
+                    <Text style={s.actName}>{p.full_name ?? user?.fullName ?? '—'}</Text>
+                    <Text style={s.actSub}>Contribution confirmée</Text>
                   </View>
                   <View style={{ alignItems: 'flex-end' }}>
                     <Text style={s.actAmount}>+{Math.round((p.amount ?? 0) / 1000)}k</Text>
@@ -563,11 +575,11 @@ export default function MemberDashboardScreen({ navigation }: any) {
 
         {/* ── Top Members ─────────────────────────────────────────────── */}
         <View style={{ marginBottom: 24 }}>
-          <Text style={[s.sectionTitle, { marginBottom: 16 }]}>Meilleurs cotisants</Text>
+          <Text style={[s.sectionTitle, { marginBottom: 16 }]}>Meilleurs cotisants 🏆</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20 }} contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}>
             {topMembers.length === 0 ? (
               <View style={s.memberCard}>
-                <Text style={s.memberName}>Aucune donnee</Text>
+                <Text style={s.memberName}>Aucune donnée</Text>
               </View>
             ) : (
               topMembers.map((member: any, index: number) => (
@@ -686,30 +698,65 @@ const s = StyleSheet.create({
     shadowColor: Colors.onSurface, shadowOpacity: 0.05, shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 }, elevation: 2,
   },
-  topBarLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  topBarTitle: { fontFamily: Fonts.display, fontSize: 20, color: '#004d40' },
+  topBarLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  topBarLogoWrap: {
+    width: 32, height: 32, borderRadius: 8,
+    backgroundColor: Colors.primaryFixed + '30',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  topBarTitle: { fontFamily: Fonts.display, fontSize: 20, color: Colors.primary },
+  topBarBadge: {
+    paddingHorizontal: 6, paddingVertical: 2,
+    borderRadius: Radius.sm,
+    backgroundColor: Colors.primaryFixed + '40',
+  },
+  topBarBadgeText: {
+    fontFamily: Fonts.label, fontSize: 9,
+    color: Colors.primary, letterSpacing: 1, fontWeight: '700',
+  },
   topBarBtn: { padding: 8, borderRadius: Radius.full },
   scroll: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 20 },
 
   // Balance
   balanceSection: { marginBottom: 24 },
-  balLabel: { fontFamily: Fonts.label, fontSize: 12, fontWeight: '600', color: Colors.onSurfaceVariant, letterSpacing: 1.2, marginBottom: 6 },
-  balRow: { flexDirection: 'row', alignItems: 'baseline', marginBottom: 24 },
-  balAmount: { fontFamily: Fonts.display, fontSize: 40, color: Colors.primary, letterSpacing: -1 },
-  balCurrency: { fontFamily: Fonts.headline, fontSize: 20, color: Colors.primaryContainer },
-  statusGrid: { flexDirection: 'row', gap: 16 },
+  balanceCard: {
+    backgroundColor: Colors.primary,
+    borderRadius: Radius.xxl,
+    padding: 24,
+    marginBottom: 16,
+    overflow: 'hidden',
+    ...Shadow.fab,
+  },
+  balanceCardDecor: {
+    position: 'absolute', right: -40, top: -40,
+    width: 160, height: 160, borderRadius: 80,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  groupNameLabel: {
+    fontFamily: Fonts.body,
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.55)',
+    letterSpacing: 0.5,
+    marginTop: -18,
+    marginBottom: 4,
+  },
+  balLabel: { fontFamily: Fonts.label, fontSize: 11, fontWeight: '600', color: 'rgba(255,255,255,0.55)', letterSpacing: 1.5, marginBottom: 6 },
+  balRow: { flexDirection: 'row', alignItems: 'baseline', marginBottom: 8 },
+  balAmount: { fontFamily: Fonts.display, fontSize: 42, color: '#FFFFFF', letterSpacing: -1 },
+  balCurrency: { fontFamily: Fonts.headline, fontSize: 20, color: 'rgba(255,255,255,0.6)', marginLeft: 4 },
+  statusGrid: { flexDirection: 'row', gap: 12 },
   statusCard: {
     flex: 1, backgroundColor: Colors.surfaceContainerLowest, borderRadius: Radius.xl,
-    padding: 20, borderWidth: 1, borderColor: Colors.outlineVariant + '26', ...Shadow.card,
+    padding: 16, borderWidth: 1, borderColor: Colors.outlineVariant + '30', ...Shadow.card,
   },
-  statusLabel: { fontFamily: Fonts.label, fontSize: 10, fontWeight: '600', color: Colors.onSurfaceVariant, letterSpacing: 0.8, marginBottom: 4 },
-  statusValue: { fontFamily: Fonts.headline, fontSize: 18 },
+  statusLabel: { fontFamily: Fonts.label, fontSize: 10, color: Colors.onSurfaceVariant, letterSpacing: 1, marginBottom: 4 },
+  statusValue: { fontFamily: Fonts.headline, fontSize: 16 },
 
   // Hero Cards
-  heroCard: { borderRadius: Radius.xl, padding: 20, marginBottom: 24, borderWidth: 1.5 },
-  heroCardPaid: { backgroundColor: '#e8f8ef', borderColor: '#27ae60' },
-  heroCardPending: { backgroundColor: '#fff3e0', borderColor: '#f39c12' },
-  heroCardLate: { backgroundColor: '#fdedec', borderColor: '#e74c3c' },
+  heroCard: { borderRadius: Radius.xxl, padding: 20, marginBottom: 24, borderWidth: 1.5, overflow: 'hidden' },
+  heroCardPaid: { backgroundColor: '#edfaf3', borderColor: '#27ae60' },
+  heroCardPending: { backgroundColor: '#fff8f0', borderColor: '#f39c12' },
+  heroCardLate: { backgroundColor: '#fff1f0', borderColor: '#e74c3c' },
   heroCardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   heroTitle: { fontFamily: Fonts.headline, fontSize: 16, flex: 1, marginRight: 8 },
   heroAmount: { fontFamily: Fonts.display, fontSize: 28, letterSpacing: -1, marginVertical: 8 },

@@ -94,6 +94,7 @@ function Tooltip({ text }: { text: string }) {
 
 export default function GroupConfigScreen({ navigation, route }: any) {
   const user = useAuthStore(state => state.user);
+  const uid = useAuthStore(state => state.uid);
   const groupId: string | undefined = route?.params?.groupId;
   const isEdit = !!groupId;
 
@@ -142,14 +143,14 @@ export default function GroupConfigScreen({ navigation, route }: any) {
       { text: 'Prendre une photo', onPress: async () => {
           const { status } = await ImagePicker.requestCameraPermissionsAsync();
           if (status !== 'granted') return Alert.alert('Permission requise', 'Accès à la caméra refusé.');
-          const result = await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [1, 1], quality: 1 });
+          const result = await ImagePicker.launchCameraAsync({ mediaTypes: 'images', allowsEditing: true, aspect: [1, 1], quality: 1 });
           if (!result.canceled) processPhoto(result.assets[0].uri);
         }
       },
       { text: 'Choisir dans la galerie', onPress: async () => {
           const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
           if (status !== 'granted') return Alert.alert('Permission requise', 'Accès à la galerie refusé.');
-          const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [1, 1], quality: 1 });
+          const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: 'images', allowsEditing: true, aspect: [1, 1], quality: 1 });
           if (!result.canceled) processPhoto(result.assets[0].uri);
         }
       },
@@ -214,11 +215,11 @@ export default function GroupConfigScreen({ navigation, route }: any) {
       }
 
       if (isEdit && groupId) {
-        await updateGroup(groupId, payload, user?.id ?? '');
+        await updateGroup(groupId, payload, uid ?? '');
         Toast.show({ type: 'success', text1: 'Configuration sauvegardée' });
         navigation.goBack();
       } else {
-        await createGroup(payload, user?.id ?? '');
+        await createGroup(payload, uid ?? '');
         Toast.show({ type: 'success', text1: 'Groupe créé !' });
         navigation.navigate('DashboardTab');
       }

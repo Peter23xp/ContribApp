@@ -67,6 +67,9 @@ export const Colors = {
   card: '#FFFFFF',
   border: '#BFC9C4',
   offline: '#FFF3CD',
+
+  gold: '#C9A84C',
+  goldMuted: 'rgba(201,168,76,0.15)',
 };
 
 // ── Typographie (correspond au design Stitch) ──────────────

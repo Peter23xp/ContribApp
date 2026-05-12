@@ -4,7 +4,7 @@
  * OTP stockés temporairement dans Firestore (collection otp_codes).
  * Le code OTP est haché SHA-256 avant stockage — jamais en clair dans Firestore.
  */
-import emailjs from '@emailjs/browser';
+// SDK EmailJS retiré — on appelle l'API REST directement (plus fiable en React Native)
 import * as Crypto from 'expo-crypto';
 import {
   doc, setDoc, getDoc, updateDoc, deleteDoc,
@@ -100,36 +100,48 @@ export async function sendOTP(
     verified: false,
   } as OTPRecord);
 
-  // Envoyer via EmailJS
+  // Envoyer via l'API REST EmailJS (fetch direct — plus fiable que le SDK en React Native)
   try {
-    const isConfigured =
-      EMAILJS_CONFIG.serviceId &&
-      EMAILJS_CONFIG.templateId &&
-      EMAILJS_CONFIG.publicKey;
-
-    if (!isConfigured) {
-      // Mode dev sans EmailJS configuré — affiche le code dans la console
-      console.warn('[otpService] EmailJS non configuré. Code OTP (dev only):', otpCode);
-      return;
+    if (!EMAILJS_CONFIG.serviceId || !EMAILJS_CONFIG.templateId || !EMAILJS_CONFIG.publicKey) {
+      await deleteDoc(doc(db, 'otp_codes', docKey));
+      console.error('[otpService] EmailJS non configuré — vérifiez EXPO_PUBLIC_EMAILJS_* dans .env.development');
+      throw new Error('EMAILJS_NOT_CONFIGURED');
     }
 
-    await emailjs.send(
-      EMAILJS_CONFIG.serviceId,
-      EMAILJS_CONFIG.templateId,
-      {
-        to_name: recipientName,
-        to_email: email,
-        otp_code: otpCode,
+    const payload = {
+      service_id:  EMAILJS_CONFIG.serviceId,
+      template_id: EMAILJS_CONFIG.templateId,
+      user_id:     EMAILJS_CONFIG.publicKey,
+      ...(EMAILJS_CONFIG.privateKey ? { accessToken: EMAILJS_CONFIG.privateKey } : {}),
+      template_params: {
+        to_name:    recipientName,
+        to_email:   email,
+        email:      email,      // doublon — couvre les deux noms possibles dans le template
+        otp_code:   otpCode,
         expires_in: '10 minutes',
       },
-      EMAILJS_CONFIG.publicKey
-    );
-  } catch (emailError: any) {
-    // Rollback : supprimer le document Firestore si l'email échoue
-    await deleteDoc(doc(db, 'otp_codes', docKey));
+    };
 
-    if (emailError?.status === 422) throw new Error('INVALID_EMAIL');
-    if (emailError?.status === 429) throw new Error('EMAILJS_QUOTA_EXCEEDED');
+    const res = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      console.error('[otpService] EmailJS REST error:', { status: res.status, text });
+      await deleteDoc(doc(db, 'otp_codes', docKey));
+      if (res.status === 422) throw new Error('INVALID_EMAIL');
+      if (res.status === 429) throw new Error('EMAILJS_QUOTA_EXCEEDED');
+      throw new Error('EMAIL_SEND_FAILED');
+    }
+  } catch (emailError: any) {
+    const known = ['EMAILJS_NOT_CONFIGURED','INVALID_EMAIL','EMAILJS_QUOTA_EXCEEDED','EMAIL_SEND_FAILED'];
+    if (known.includes(emailError?.message)) throw emailError;
+
+    await deleteDoc(doc(db, 'otp_codes', docKey));
+    console.error('[otpService] fetch error:', emailError?.message);
     throw new Error('EMAIL_SEND_FAILED');
   }
 }

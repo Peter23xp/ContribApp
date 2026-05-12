@@ -20,7 +20,8 @@ interface AuthState {
     operator: string;
     profilePhotoUrl: string | null;
   } | null;
-  role: 'admin' | 'treasurer' | 'member' | null;
+  role: 'admin' | 'treasurer' | 'member' | null;       // rôle Firestore réel, ne change jamais
+  activeRole: 'admin' | 'treasurer' | 'member' | null;  // rôle utilisé par la navigation
   groupId: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -30,6 +31,8 @@ interface AuthState {
   setAuthData: (data: AuthResponse) => void;
   setGroupId: (groupId: string) => void;
   logout: () => Promise<void>;
+  switchToMemberMode: () => void;
+  restoreRole: () => void;
 
   // Compatibilité avec les composants existants
   setAuthenticatedUser: (payload: {
@@ -43,6 +46,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   uid: null,
   user: null,
   role: null,
+  activeRole: null,
   groupId: null,
   isAuthenticated: false,
   isLoading: true,
@@ -83,6 +87,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       // Session valide — restaurer l'état (pin_hash JAMAIS dans le store)
+      const restoredRole = userData.role || 'member';
       set({
         uid: session.uid,
         user: {
@@ -92,7 +97,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           operator: userData.operator,
           profilePhotoUrl: userData.profile_photo_url ?? null,
         },
-        role: userData.role || 'member',
+        role: restoredRole,
+        activeRole: restoredRole,
         groupId: userData.active_group_id || null,
         isAuthenticated: true,
         isLoading: false,
@@ -112,6 +118,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
               profilePhotoUrl: null,
             },
             role: session.role,
+            activeRole: session.role,
             groupId: session.groupId,
             isAuthenticated: true,
             isLoading: false,
@@ -136,6 +143,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         profilePhotoUrl: null,
       },
       role: data.role,
+      activeRole: data.role,
       groupId: data.groupId,
       isAuthenticated: true,
     });
@@ -154,13 +162,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       uid: null,
       user: null,
       role: null,
+      activeRole: null,
       groupId: null,
       isAuthenticated: false,
     });
   },
 
+  switchToMemberMode: () => {
+    const { role } = get();
+    if (role === 'admin' || role === 'treasurer') {
+      set({ activeRole: 'member' });
+    }
+  },
+
+  restoreRole: () => {
+    const { role } = get();
+    set({ activeRole: role });
+  },
+
   // ── Compatibilité legacy (utilisé par certains écrans existants) ──────────
   setAuthenticatedUser: async ({ user, role, groupId = null }) => {
+    const castRole = role as 'admin' | 'treasurer' | 'member';
     set({
       uid: user.id,
       user: {
@@ -170,7 +192,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         operator: user.operator,
         profilePhotoUrl: user.profile_photo_url ?? null,
       },
-      role: role as 'admin' | 'treasurer' | 'member',
+      role: castRole,
+      activeRole: castRole,
       groupId: groupId ?? null,
       isAuthenticated: true,
       isLoading: false,

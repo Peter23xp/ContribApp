@@ -1,20 +1,11 @@
 /**
- * PINInputRow.tsx — Composant partagé Module 06
- * 
- * Champ de saisie PIN avec :
- *  - Label flottant (style AppInput)
- *  - 4 points masqués (clavier numérique uniquement)
- *  - Bouton œil pour afficher/masquer
- *  - Message d'erreur sous le champ
- * 
- * Réutilise la logique du champ PIN de SCR-002 (OTPScreen)
+ * PINInputRow.tsx — Composant partagé Module 06 v2.0
+ * Champ PIN 6 chiffres avec label, masquage, et état d'erreur raffiné.
  */
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Colors, Fonts, Radius } from '../../constants/colors';
-
-// ─── Types ───────────────────────────────────────────────────
 
 interface Props {
   label:        string;
@@ -24,8 +15,6 @@ interface Props {
   error?:       string | null;
   disabled?:    boolean;
 }
-
-// ─── Composant principal ─────────────────────────────────────
 
 export function PINInputRow({
   label,
@@ -37,29 +26,29 @@ export function PINInputRow({
 }: Props) {
   const [isVisible, setIsVisible] = useState(false);
 
-  const toggleVisibility = () => setIsVisible(prev => !prev);
-
   return (
     <View style={s.container}>
       <Text style={s.label}>{label}</Text>
-      <View style={[s.inputWrapper, error ? s.inputError : null]}>
+      <View style={[s.inputWrapper, error ? s.inputError : disabled ? s.inputDisabled : null]}>
         <TextInput
-          style={s.input}
+          style={[s.input, disabled && s.inputTextDisabled]}
           value={value}
           onChangeText={onChange}
           keyboardType="number-pad"
-          maxLength={4}
+          maxLength={6}
           secureTextEntry={!isVisible}
           placeholderTextColor={Colors.textMuted}
-          placeholder="••••"
+          placeholder="••••••"
           editable={!disabled}
+          selectionColor={Colors.primary}
         />
         {showToggle && (
           <TouchableOpacity
-            onPress={toggleVisibility}
+            onPress={() => setIsVisible(prev => !prev)}
             style={s.eyeButton}
             activeOpacity={0.6}
             disabled={disabled}
+            hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
           >
             <Ionicons
               name={isVisible ? 'eye-off-outline' : 'eye-outline'}
@@ -69,53 +58,69 @@ export function PINInputRow({
           </TouchableOpacity>
         )}
       </View>
-      {error && <Text style={s.errorText}>{error}</Text>}
+      {error ? (
+        <View style={s.errorRow}>
+          <Ionicons name="alert-circle-outline" size={13} color={Colors.danger} />
+          <Text style={s.errorText}>{error}</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
 
-// ─── Styles ──────────────────────────────────────────────────
-
 const s = StyleSheet.create({
   container: {
-    marginBottom: 16,
+    marginBottom: 18,
   },
   label: {
-    marginBottom: 6,
+    marginBottom: 8,
     color: Colors.textPrimary,
     fontFamily: Fonts.headline,
     fontSize: 14,
-    fontWeight: '600',
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: Colors.border,
-    borderRadius: Radius.md,
-    paddingHorizontal: 12,
-    backgroundColor: Colors.card,
-    height: 48,
+    borderRadius: Radius.lg,
+    paddingHorizontal: 14,
+    backgroundColor: Colors.surfaceContainerLowest,
+    height: 56,
   },
   inputError: {
     borderColor: Colors.danger,
+    backgroundColor: Colors.errorContainer + '40',
+  },
+  inputDisabled: {
+    backgroundColor: Colors.surfaceContainerHigh,
+    borderColor: Colors.outlineVariant,
   },
   input: {
     flex: 1,
     color: Colors.textPrimary,
-    fontFamily: Fonts.body,
-    fontSize: 16,
-    letterSpacing: 4,  // espacement entre les caractères pour effet "points"
+    fontFamily: Fonts.headline,
+    fontSize: 20,
+    letterSpacing: 6,
     height: '100%',
+  },
+  inputTextDisabled: {
+    color: Colors.textMuted,
   },
   eyeButton: {
     padding: 4,
     marginLeft: 8,
   },
+  errorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 6,
+  },
   errorText: {
     color: Colors.danger,
     fontSize: 12,
-    marginTop: 4,
     fontFamily: Fonts.body,
+    flex: 1,
   },
 });
