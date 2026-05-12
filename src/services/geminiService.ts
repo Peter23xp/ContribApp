@@ -64,18 +64,10 @@ const EMPTY_RESULT: GeminiAnalysis = {
   warningFlags: ['reponse_ia_invalide'],
 };
 
-export async function analyzePaymentCapture(
-  imageBase64: string,
-  expectedAmount: number,
-  expectedCurrency: 'CDF' | 'USD',
-  expectedOperator?: string
-): Promise<GeminiAnalysis> {
-  const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
-  if (!apiKey || apiKey === 'votre_cle_api_gemini_ici') {
-    throw new Error('GEMINI_API_KEY_MISSING');
-  }
+const RETRY_DELAYS_MS = [5000, 15000]; // 2 tentatives : attendre 5s puis 15s
 
-  const response = await fetch(
+async function callGeminiAPI(apiKey: string, imageBase64: string): Promise<Response> {
+  return fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
     {
       method: 'POST',
@@ -95,6 +87,27 @@ export async function analyzePaymentCapture(
       }),
     }
   );
+}
+
+export async function analyzePaymentCapture(
+  imageBase64: string,
+  expectedAmount: number,
+  expectedCurrency: 'CDF' | 'USD',
+  expectedOperator?: string
+): Promise<GeminiAnalysis> {
+  const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+  if (!apiKey || apiKey === 'votre_cle_api_gemini_ici') {
+    throw new Error('GEMINI_API_KEY_MISSING');
+  }
+
+  let response = await callGeminiAPI(apiKey, imageBase64);
+
+  // Retry avec backoff si quota dépassé (429)
+  for (const delay of RETRY_DELAYS_MS) {
+    if (response.status !== 429) break;
+    await new Promise(resolve => setTimeout(resolve, delay));
+    response = await callGeminiAPI(apiKey, imageBase64);
+  }
 
   if (response.status === 429) throw new Error('GEMINI_QUOTA_EXCEEDED');
   if (response.status === 400) throw new Error('GEMINI_INVALID_REQUEST');

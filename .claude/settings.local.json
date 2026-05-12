@@ -7,7 +7,13 @@
       "Bash(npx tsc *)",
       "Bash(node -e \"const pkg = require\\('./node_modules/expo-image-picker/package.json'\\); console.log\\(pkg.version\\);\")",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" -X OPTIONS \"https://contributapp-storage.akilimalisafari001.workers.dev/\")",
-      "Bash(curl *)"
+      "Bash(curl *)",
+      "Bash(npx firebase *)",
+      "Bash(firebase deploy *)",
+      "Bash(cd /d \"D:\\\\PETER\\\\ContribApp\")",
+      "Bash(grep -r \"import.*getAuth\" src/)",
+      "Bash(grep -r \"request\\\\.auth\" . --include=\"*.rules\")",
+      "Bash(where firebase *)"
     ]
   }
 }

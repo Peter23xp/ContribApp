@@ -152,7 +152,7 @@ export default function TreasurerDashboardScreen({ navigation }: any) {
               </View>
               <TouchableOpacity
                 style={[s.exportBtn, { backgroundColor: '#FF9800', marginBottom: 0, height: 44 }]}
-                onPress={() => navigation.navigate('ApprovalQueueScreen')}
+                onPress={() => navigation.navigate('ApprovalQueue')}
               >
                 <Text style={s.exportBtnText}>Valider maintenant</Text>
               </TouchableOpacity>

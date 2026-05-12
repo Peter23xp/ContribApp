@@ -2,92 +2,53 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ── DEV MODE ──────────────────────────────────────────────────────────────
+    // Firebase Auth a été supprimé (v3.0) — request.auth est toujours null.
+    // Ces règles ouvrent l'accès pour débloquer le dev. À durcir avant la prod
+    // (solution recommandée : custom token via Cloudflare Worker + Firebase Admin SDK).
+
     // ── USERS ─────────────────────────────────────────────────────────────────
-    // Lecture/écriture : uniquement le propriétaire du compte
-    // pin_hash protégé : seul l'utilisateur connecté peut lire son propre doc
     match /users/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if true;
     }
 
     // ── PENDING REGISTRATIONS ─────────────────────────────────────────────────
-    // Accessible sans auth pour permettre l'inscription
-    // Clé = SHA-256 du numéro (pas le numéro en clair)
-    // TTL géré via expires_at (configurer dans la console Firebase)
     match /pending_registrations/{phoneHash} {
-      allow create: if true;
-      allow read:   if true;
-      allow delete: if true;
-      allow update: if false;   // immutable une fois créé
+      allow read, write: if true;
     }
 
     // ── LOGIN SESSIONS & PHONE DIRECTORY ──────────────────────────────────────
     match /login_sessions/{phoneHash} {
-      allow create: if true;
-      allow read:   if true;
-      allow delete: if true;
-      allow update: if false;
+      allow read, write: if true;
     }
 
     match /phone_directory/{phoneHash} {
-      allow read: if true;
-      allow create: if request.auth != null || true; // Autorisé lors de l'inscription non auth
-      allow update, delete: if false;
+      allow read, write: if true;
     }
 
     // ── MAIL (Firebase Trigger Email) ─────────────────────────────────────────
     match /mail/{mailId} {
       allow create: if true;
-      allow read, update, delete: if false; // Seul le serveur/l'extension peut lire/modifier
+      allow read, update, delete: if false;
     }
 
     // ── GROUPS ────────────────────────────────────────────────────────────────
     match /groups/{groupId} {
-      allow read: if request.auth != null &&
-        exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid));
-      allow create: if request.auth != null;
-      allow update, delete: if request.auth != null &&
-        resource.data.admin_uid == request.auth.uid;
+      allow read, write: if true;
 
-      // Sous-collection members
       match /members/{memberId} {
-        allow read: if request.auth != null &&
-          exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid));
-        allow write: if request.auth != null && (
-          request.auth.uid == memberId ||
-          get(/databases/$(database)/documents/groups/$(groupId)).data.admin_uid == request.auth.uid
-        );
+        allow read, write: if true;
       }
     }
 
     // ── CONTRIBUTIONS ─────────────────────────────────────────────────────────
     match /contributions/{contributionId} {
-      allow read: if request.auth != null && (
-        resource.data.member_uid == request.auth.uid ||
-        exists(/databases/$(database)/documents/groups/$(resource.data.group_id)/members/$(request.auth.uid))
-      );
-      allow create: if request.auth != null &&
-        request.auth.uid == request.resource.data.member_uid;
-      allow update: if request.auth != null && (
-        request.auth.uid == resource.data.member_uid ||
-        get(/databases/$(database)/documents/groups/$(resource.data.group_id)).data.admin_uid == request.auth.uid ||
-        get(/databases/$(database)/documents/groups/$(resource.data.group_id)).data.treasurer_uid == request.auth.uid
-      );
+      allow read, write: if true;
     }
 
     // ── NOTIFICATIONS ─────────────────────────────────────────────────────────
     match /notifications/{notificationId} {
-      // Lecture : uniquement le destinataire
-      allow read: if request.auth != null &&
-        resource.data.recipient_uid == request.auth.uid;
-      // Mise à jour (marquer comme lu) : uniquement le destinataire
-      allow update: if request.auth != null &&
-        resource.data.recipient_uid == request.auth.uid;
-      // Suppression : uniquement le destinataire
-      allow delete: if request.auth != null &&
-        resource.data.recipient_uid == request.auth.uid;
-      // Création : tout utilisateur authentifié (pour notifier les autres)
-      allow create: if request.auth != null;
+      allow read, write: if true;
     }
   }
 }

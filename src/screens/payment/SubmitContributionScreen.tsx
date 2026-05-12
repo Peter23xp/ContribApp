@@ -240,7 +240,8 @@ export function SubmitContributionScreen({ route, navigation }: any) {
       captureImagePath = fileName;
     } catch (uploadError: any) {
       const uploadMessage = uploadError?.message ?? String(uploadError);
-      console.warn('[SubmitContribution] upload skipped:', uploadMessage);
+      console.warn('[SubmitContribution] upload failed:', uploadMessage);
+      setIsSubmitting(false);
 
       if (uploadMessage.includes('CLOUDFLARE_WORKER_URL_MISSING')) {
         Alert.alert(
@@ -252,24 +253,23 @@ export function SubmitContributionScreen({ route, navigation }: any) {
           'Configuration incomplète',
           "Le secret d'upload Cloudflare est absent. Vérifiez EXPO_PUBLIC_CF_UPLOAD_SECRET dans votre .env."
         );
-      } else if (uploadMessage.includes('UPLOAD_FAILED')) {
-        Alert.alert(
-          'Échec de l\'upload',
-          `Le Worker R2 a refusé l'image (${uploadMessage}). La soumission continuera sans image.`
-        );
       } else if (uploadMessage.includes('FILE_NOT_FOUND')) {
         Alert.alert(
           'Fichier introuvable',
           "L'image sélectionnée est introuvable sur l'appareil. Veuillez en choisir une autre."
         );
-        setIsSubmitting(false);
-        return;
+      } else if (uploadMessage.includes('UPLOAD_FAILED')) {
+        Alert.alert(
+          'Échec de l\'envoi',
+          "L'image n'a pas pu être envoyée. Vérifiez votre connexion et réessayez."
+        );
       } else {
         Alert.alert(
           'Erreur d\'upload',
-          `Impossible d'envoyer l'image : ${uploadMessage}. La soumission continuera sans image.`
+          `Impossible d'envoyer l'image : ${uploadMessage}. Réessayez.`
         );
       }
+      return;
     }
 
     try {

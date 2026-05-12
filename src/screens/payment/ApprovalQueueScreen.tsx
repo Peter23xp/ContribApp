@@ -9,7 +9,7 @@ import {
   Image,
   ActivityIndicator,
 } from 'react-native';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -101,15 +101,23 @@ export function ApprovalQueueScreen({ navigation }: any) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!groupId) {
+      setLoading(false);
+      setAllItems([]);
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
+    const q = query(collection(db, 'contributions'), where('group_id', '==', groupId));
+
     const unsubscribe = onSnapshot(
-      collection(db, 'contributions'),
+      q,
       (snapshot) => {
         const rows = snapshot.docs
           .map((doc) => mapContributionDoc(doc.id, doc.data()))
-          .filter((item) => !!item.groupId && (!groupId || item.groupId === groupId));
+          .filter((item) => !!item.groupId);
 
         setAllItems(rows);
         setLoading(false);

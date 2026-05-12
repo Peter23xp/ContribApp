@@ -300,7 +300,7 @@ export function ReviewCaptureScreen({ route, navigation }: any) {
 
           <CapturePreviewCard
             imageUrl={contribution.captureImageUrl || ''}
-            geminiResult={null}
+            geminiResult={contribution.geminiAnalysis ?? null}
             isAnalyzing={false}
             status={statusVariant}
           />

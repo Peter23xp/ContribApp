@@ -63,7 +63,7 @@ export async function uploadFile(
   if (!uploadSecret) throw new Error('CLOUDFLARE_UPLOAD_SECRET_MISSING');
 
   const key = `${category}/${finalFileName}`;
-  const uploadUrl = `${workerUrl}/upload/${encodeURIComponent(key)}`;
+  const uploadUrl = `${workerUrl}/upload/${category}/${encodeURIComponent(finalFileName)}`;
 
   const uploadResponse = await FileSystem.uploadAsync(uploadUrl, localUri, {
     httpMethod: 'PUT',
