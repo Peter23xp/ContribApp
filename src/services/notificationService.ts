@@ -4,7 +4,7 @@
  */
 import {
   addDoc, doc, getDocs, updateDoc, deleteDoc, query, collection,
-  where, orderBy, limit, onSnapshot, serverTimestamp, writeBatch,
+  where, onSnapshot, serverTimestamp, writeBatch,
   getCountFromServer,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
@@ -50,16 +50,21 @@ export async function getNotifications(
   recipientUid: string,
   filters?: { is_read?: boolean; type?: NotificationType; pageSize?: number }
 ): Promise<any[]> {
-  const constraints: any[] = [
-    where('recipient_uid', '==', recipientUid),
-    orderBy('created_at', 'desc'),
-    limit(filters?.pageSize ?? 30),
-  ];
-  if (filters?.type) constraints.push(where('type', '==', filters.type));
+  const constraints: any[] = [where('recipient_uid', '==', recipientUid)];
   if (filters?.is_read !== undefined) constraints.push(where('is_read', '==', filters.is_read));
 
   const snap = await getDocs(query(collection(db, 'notifications'), ...constraints));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const pageSize = filters?.pageSize ?? 30;
+
+  return snap.docs
+    .map(d => ({ id: d.id, ...d.data() } as any))
+    .filter((n: any) => !filters?.type || n.type === filters.type)
+    .sort((a: any, b: any) => {
+      const ta = a.created_at?.toDate?.()?.getTime() ?? 0;
+      const tb = b.created_at?.toDate?.()?.getTime() ?? 0;
+      return tb - ta;
+    })
+    .slice(0, pageSize);
 }
 
 // ─── subscribeToNotifications ─────────────────────────────────────────────────
@@ -71,10 +76,15 @@ export function subscribeToNotifications(
   return onSnapshot(
     query(collection(db, 'notifications'),
       where('recipient_uid', '==', recipientUid),
-      where('is_read', '==', false),
-      orderBy('created_at', 'desc')),
+      where('is_read', '==', false)),
     (snap) => {
-      const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const items = snap.docs
+        .map(d => ({ id: d.id, ...d.data() } as any))
+        .sort((a: any, b: any) => {
+          const ta = a.created_at?.toDate?.()?.getTime() ?? 0;
+          const tb = b.created_at?.toDate?.()?.getTime() ?? 0;
+          return tb - ta;
+        });
       callback(items.length, items);
     }
   );

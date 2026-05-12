@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import { View, StyleSheet, Animated } from 'react-native';
 import { Colors, Radius } from '../../constants/colors';
 
 interface Props {
@@ -25,8 +25,8 @@ export function ProgressBar({ current, total, color = Colors.secondary, height =
 
   return (
     <View>
-      {/* Track — surfaceVariant sans bordure */}
       <View style={[styles.track, { height, backgroundColor: Colors.surfaceContainerHigh }]}>
+        {/* Background glow strip */}
         <Animated.View
           style={[
             styles.fill,
@@ -41,15 +41,21 @@ export function ProgressBar({ current, total, color = Colors.secondary, height =
             },
           ]}
         />
+        {/* Subtle shimmer overlay on the fill */}
+        <Animated.View
+          style={[
+            styles.shimmer,
+            {
+              height,
+              borderRadius: Radius.full,
+              width: animWidth.interpolate({
+                inputRange: [0, 1],
+                outputRange: ['0%', '100%'],
+              }),
+            },
+          ]}
+        />
       </View>
-      {showLabel && (
-        <View style={styles.labelRow}>
-          <Text style={styles.label}>{current} / {total}</Text>
-          <Text style={[styles.pct, { color: barColor }]}>
-            {total > 0 ? Math.round(pct * 100) : 0}%
-          </Text>
-        </View>
-      )}
     </View>
   );
 }
@@ -59,19 +65,13 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full,
     overflow: 'hidden',
     width: '100%',
+    backgroundColor: Colors.surfaceContainerHigh,
   },
   fill: {},
-  labelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 6,
-  },
-  label: {
-    fontSize: 12,
-    color: Colors.onSurfaceVariant,
-  },
-  pct: {
-    fontSize: 12,
-    fontWeight: '700',
+  shimmer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    backgroundColor: 'rgba(255,255,255,0.2)',
   },
 });

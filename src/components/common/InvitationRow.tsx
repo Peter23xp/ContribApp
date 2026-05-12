@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Colors, Fonts, Radius } from '../../constants/colors';
+import { fmtDate } from '../../utils/formatDate';
 
 export interface InvitationData {
   id: string;
@@ -17,11 +18,7 @@ interface Props {
 export function InvitationRow({ invitation, onCancelPress }: Props) {
   const isPending = invitation.status === 'pending';
   
-  const formatDate = (isoStr: string) => {
-    return new Date(isoStr).toLocaleDateString('fr-FR', {
-      day: '2-digit', month: 'short', year: 'numeric'
-    });
-  };
+  const formatDate = (value: any) => fmtDate(value, { day: '2-digit', month: 'short', year: 'numeric' });
 
   const maskPhone = (phone: string) => {
     if (phone.length < 8) return phone;

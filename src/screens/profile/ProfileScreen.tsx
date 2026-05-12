@@ -39,6 +39,7 @@ import type { UserProfile } from '../../services/userService';
 import * as userService from '../../services/userService';
 import { useAuthStore } from '../../stores/authStore';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { fmtDateTime } from '../../utils/formatDate';
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -705,13 +706,7 @@ export default function ProfileScreen({ navigation }: any) {
                 icon="time-outline"
                 label="Dernière connexion"
                 type="info"
-                value={new Date(profile.lastLogin.date).toLocaleDateString('fr-FR', {
-                  day: '2-digit',
-                  month: 'short',
-                  year: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
+                value={fmtDateTime(profile.lastLogin.date)}
                 subtitle={profile.lastLogin.city}
               />
             )}

@@ -35,6 +35,7 @@ import {
   type ContributionSummary,
 } from '../../services/contributionService';
 import { useAuthStore } from '../../stores/authStore';
+import { fmtDate } from '../../utils/formatDate';
 
 const MONTHS_FR = [
   'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
@@ -66,15 +67,8 @@ function parseYearMonth(ym: string): Date {
   return new Date(y, m - 1, 1);
 }
 
-function formatContributionDate(iso?: string): string {
-  if (!iso) return 'Date indisponible';
-  try {
-    return new Date(iso).toLocaleDateString('fr-FR', {
-      day: '2-digit', month: 'short', year: 'numeric',
-    });
-  } catch {
-    return iso;
-  }
+function formatContributionDate(value: any): string {
+  return fmtDate(value, { day: '2-digit', month: 'short', year: 'numeric' }, 'Date indisponible');
 }
 
 function getOperatorMeta(operator?: string) {

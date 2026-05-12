@@ -17,6 +17,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors, Fonts, Radius } from '../../constants/colors';
 import { StatusBadge, type PaymentStatus } from './StatusBadge';
 import type { MemberRole } from '../../services/groupService';
+import { fmtDate } from '../../utils/formatDate';
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -133,9 +134,7 @@ export function SwipeableMemberRow({ member, onRemind, onEditRole, onSuspend }: 
     [member, onEditRole, onSuspend, closeSwipe],
   );
 
-  const joinDateLabel = member.joinDate
-    ? new Date(member.joinDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
-    : '';
+  const joinDateLabel = fmtDate(member.joinDate, { day: '2-digit', month: 'short', year: 'numeric' }, '');
 
   return (
     <Swipeable

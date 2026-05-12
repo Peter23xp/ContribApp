@@ -10,6 +10,7 @@ import {
   Timestamp, serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { safeDate } from '../utils/formatDate';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -100,13 +101,24 @@ export const getMembersOfGroup = async (groupId: string): Promise<any[]> => {
   const members: any[] = [];
   for (const memberDoc of sourceDocs) {
     const data = memberDoc.data();
-    // Use user_id if present, else uid
     const userId = data.user_id || data.uid;
     if (!userId) continue;
     const userDoc = await getDoc(doc(db, 'users', userId));
-    if (userDoc.exists()) {
-      members.push({ id: userId, ...userDoc.data(), member_role: data.role });
-    }
+    // Merge member doc fields first (joined_at, status, role), then overlay user profile
+    // so that full_name/phone from the user doc take priority.
+    const userData = userDoc.exists() ? userDoc.data() : {};
+    members.push({
+      id: userId,
+      // member-doc fields (joined_at, status are only here)
+      joined_at: data.joined_at ?? null,
+      status: data.status ?? 'active',
+      // user-profile fields override member-doc fields for display data
+      ...userData,
+      // ensure full_name falls back to member doc or uid
+      full_name: userData.full_name || data.full_name || null,
+      phone: userData.phone || data.phone || '',
+      member_role: data.role ?? 'member',
+    });
   }
   return members;
 };
@@ -267,24 +279,20 @@ export const getMemberContribution = async (userId: string, groupId: string, mon
 };
 
 export const getRecentPaymentsForMember = async (userId: string, limitCount = 3): Promise<any[]> => {
-  // Try member_uid field first (new schema), then user_id (legacy schema)
+  // orderBy removed — composite indexes not guaranteed; sort client-side instead
   const [snapNew, snapLegacy] = await Promise.all([
     getDocs(
       query(
         collection(db, 'contributions'),
         where('member_uid', '==', userId),
-        where('status', 'in', ['paid', 'PAYE', 'approved']),
-        orderBy('approved_at', 'desc'),
-        firestoreLimit(limitCount)
+        where('status', 'in', ['paid', 'PAYE', 'approved'])
       )
     ).catch(() => ({ docs: [] as any[] })),
     getDocs(
       query(
         collection(db, 'contributions'),
         where('user_id', '==', userId),
-        where('status', 'in', ['paid', 'PAYE', 'approved']),
-        orderBy('paid_at', 'desc'),
-        firestoreLimit(limitCount)
+        where('status', 'in', ['paid', 'PAYE', 'approved'])
       )
     ).catch(() => ({ docs: [] as any[] })),
   ]);
@@ -295,35 +303,37 @@ export const getRecentPaymentsForMember = async (userId: string, limitCount = 3)
   }
 
   return Array.from(docsById.values())
-    .slice(0, limitCount)
     .map((d) => ({
       id: d.id,
       ...d.data(),
       user_id: d.data().member_uid ?? d.data().user_id ?? userId,
       amount: d.data().amount_paid ?? d.data().amount_due ?? d.data().amount ?? 0,
       paid_at: d.data().approved_at ?? d.data().paid_at ?? null,
-    }));
+    }))
+    .sort((a, b) => {
+      const ta = safeDate(a.paid_at)?.getTime() ?? 0;
+      const tb = safeDate(b.paid_at)?.getTime() ?? 0;
+      return tb - ta;
+    })
+    .slice(0, limitCount);
 };
 
 
 export const getRecentPaymentsForGroup = async (groupId: string, limitCount = 5): Promise<any[]> => {
+  // orderBy removed — composite indexes not guaranteed; sort client-side instead
   const [snapNew, snapLegacy] = await Promise.all([
     getDocs(
       query(
         collection(db, 'contributions'),
         where('group_id', '==', groupId),
-        where('status', 'in', ['paid', 'approved']),
-        orderBy('approved_at', 'desc'),
-        firestoreLimit(limitCount)
+        where('status', 'in', ['paid', 'approved'])
       )
     ).catch(() => ({ docs: [] as any[] })),
     getDocs(
       query(
         collection(db, 'contributions'),
         where('group_id', '==', groupId),
-        where('status', '==', 'PAYE'),
-        orderBy('paid_at', 'desc'),
-        firestoreLimit(limitCount)
+        where('status', '==', 'PAYE')
       )
     ).catch(() => ({ docs: [] as any[] })),
   ]);
@@ -333,11 +343,28 @@ export const getRecentPaymentsForGroup = async (groupId: string, limitCount = 5)
     docsById.set(d.id, d);
   }
 
+  // Sort newest first client-side, then fetch user names for top N
+  const sorted = Array.from(docsById.values())
+    .map((d) => {
+      const data = d.data();
+      return {
+        _doc: d,
+        paid_at: data.approved_at ?? data.paid_at ?? null,
+      };
+    })
+    .sort((a, b) => {
+      const ta = safeDate(a.paid_at)?.getTime() ?? 0;
+      const tb = safeDate(b.paid_at)?.getTime() ?? 0;
+      return tb - ta;
+    })
+    .slice(0, limitCount)
+    .map(({ _doc }) => _doc);
+
   const results: any[] = [];
-  for (const d of Array.from(docsById.values()).slice(0, limitCount)) {
+  for (const d of sorted) {
     const data = d.data();
     const userId = data.member_uid ?? data.user_id ?? data.userId;
-    const userDoc = userId ? await getDoc(doc(db, 'users', userId)) : null;
+    const userDoc = userId ? await getDoc(doc(db, 'users', userId)).catch(() => null) : null;
     results.push({
       id: d.id,
       ...data,
@@ -345,7 +372,7 @@ export const getRecentPaymentsForGroup = async (groupId: string, limitCount = 5)
       amount: data.amount_paid ?? data.amount_due ?? data.amount ?? 0,
       paid_at: data.approved_at ?? data.paid_at ?? null,
       status: data.status === 'paid' || data.status === 'approved' ? 'PAYE' : data.status,
-      full_name: userDoc?.exists() ? userDoc.data()?.full_name : '?',
+      full_name: userDoc?.exists?.() ? userDoc.data()?.full_name : (data.member_name ?? data.memberName ?? '?'),
     });
   }
 

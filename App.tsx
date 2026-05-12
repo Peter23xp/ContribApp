@@ -8,6 +8,7 @@ import { View, ActivityIndicator } from 'react-native';
 import AppNavigator from './src/navigation/AppNavigator';
 import Toast from 'react-native-toast-message';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useAuthStore } from './src/stores/authStore';
 import { Colors } from './src/constants/colors';
 import { initEmailJS } from './src/config/emailjs';
@@ -48,9 +49,11 @@ export default function App() {
   }
 
   return (
-    <SafeAreaProvider>
-      <AppNavigator />
-      <Toast />
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <AppNavigator />
+        <Toast />
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

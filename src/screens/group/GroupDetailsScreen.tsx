@@ -77,14 +77,14 @@ export default function GroupDetailsScreen({ navigation, route }: any) {
   const uid = useAuthStore(state => state.uid);
   const role = useAuthStore(state => state.role);
   const isPaid = true; // Fallback ou logique depuis Zustand
-  
+
   const [groupId, setGroupId] = useState<string | undefined>(route?.params?.groupId);
 
   useEffect(() => {
     if (groupId || !uid) return;
     (async () => {
-      const g = role === 'admin' 
-        ? await db.getGroupForAdmin(uid) 
+      const g = role === 'admin'
+        ? await db.getGroupForAdmin(uid)
         : await db.getGroupForMember(uid);
       if (g) setGroupId(g.id);
     })();
@@ -93,7 +93,7 @@ export default function GroupDetailsScreen({ navigation, route }: any) {
   const [config, setConfig] = useState<GroupConfig | null>(null);
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [inviteCode, setInviteCode] = useState<InviteCode | null>(null);
-  
+
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
@@ -136,9 +136,8 @@ export default function GroupDetailsScreen({ navigation, route }: any) {
     loadData();
   };
 
-  // ── Helpers ──
-  const adminEditParams = { groupId }; // params pour la route config modifier
-  
+  const adminEditParams = { groupId };
+
   const maskedPhone = (phone: string) => {
     if (!phone || phone.length < 4) return phone;
     return role === 'admin' ? phone : `+243 *** *** ${phone.slice(-3)}`;
@@ -150,7 +149,6 @@ export default function GroupDetailsScreen({ navigation, route }: any) {
     return parts.length > 1 ? (parts[0][0] + parts[1][0]).toUpperCase() : parts[0].substring(0,2).toUpperCase();
   };
 
-  // ── Renders Composants ──
   const activeMembersCount = members.filter(m => m.status === 'active').length;
   const membersPreview = members.slice(0, 5);
 
@@ -160,52 +158,76 @@ export default function GroupDetailsScreen({ navigation, route }: any) {
 
   return (
     <View style={s.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={Colors.surface} />
+      <StatusBar barStyle="light-content" backgroundColor={Colors.primary} />
 
-      {/* 🏙️ TOP BAR STANDARD (Skill UI) */}
-      <View style={s.topBar}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+      {/* ── Hero Header (Primary Banner) ── */}
+      <View style={s.heroBanner}>
+        <View style={s.heroBannerTop}>
           {navigation.canGoBack() && (
-            <TouchableOpacity onPress={() => navigation.goBack()} style={{ padding: 4 }}>
-              <MaterialCommunityIcons name="arrow-left" size={24} color={Colors.onSurface} />
+            <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn}>
+              <MaterialCommunityIcons name="arrow-left" size={22} color="rgba(255,255,255,0.9)" />
             </TouchableOpacity>
           )}
-          <Text style={s.topBarTitle} numberOfLines={1}>{config?.name || 'Groupe'}</Text>
+          <View style={{ flex: 1 }} />
+          {role === 'admin' && (
+            <TouchableOpacity onPress={goEdit} style={s.editBtn}>
+              <MaterialCommunityIcons name="pencil" size={18} color="rgba(255,255,255,0.9)" />
+              <Text style={s.editBtnText}>Modifier</Text>
+            </TouchableOpacity>
+          )}
         </View>
-        {role === 'admin' && (
-          <TouchableOpacity onPress={goEdit} style={s.editBtnIcon}>
-             <MaterialCommunityIcons name="pencil" size={22} color={Colors.primary} />
-          </TouchableOpacity>
-        )}
-      </View>
 
-      <ScrollView
-        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 160 }}
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={Colors.primary} />}
-      >
-        {/* 🏙️ EN-TÊTE DÉTAILS VISUELS */}
-        <View style={s.heroCard}>
-          <View style={s.heroPhotoWrap}>
+        <View style={s.heroContent}>
+          <View style={s.heroAvatarWrap}>
             {config?.photoUrl ? (
-              <Image source={{ uri: config.photoUrl }} style={s.heroPhoto} />
+              <Image source={{ uri: config.photoUrl }} style={s.heroAvatar} />
             ) : (
-              <View style={[s.heroPhoto, { backgroundColor: Colors.surfaceContainerHigh }]}>
-                <Text style={s.heroInitials}>{getInitials(config?.name)}</Text>
+              <View style={s.heroAvatarFallback}>
+                <Text style={s.heroAvatarInitials}>{getInitials(config?.name)}</Text>
               </View>
             )}
           </View>
           <View style={s.heroMeta}>
-            <Text style={s.heroTitle}>{config?.name || '...'}</Text>
-            {config?.description && <Text style={s.heroDesc} numberOfLines={2}>{config.description}</Text>}
+            <Text style={s.heroEyebrow}>Groupe de cotisation</Text>
+            <Text style={s.heroTitle} numberOfLines={1}>{config?.name || '...'}</Text>
+            {config?.description ? (
+              <Text style={s.heroDesc} numberOfLines={2}>{config.description}</Text>
+            ) : null}
           </View>
         </View>
 
-        {isOffline && <OfflineBanner />}
+        {/* Stats Row inside Banner */}
+        <View style={s.heroStats}>
+          <View style={s.heroStatCell}>
+            <Text style={s.heroStatValue}>{activeMembersCount}</Text>
+            <Text style={s.heroStatLabel}>Membres actifs</Text>
+          </View>
+          <View style={s.heroStatDivider} />
+          <View style={s.heroStatCell}>
+            <Text style={s.heroStatValue}>{config?.monthlyAmount?.toLocaleString('fr-FR') ?? '—'}</Text>
+            <Text style={s.heroStatLabel}>Montant CDF</Text>
+          </View>
+          <View style={s.heroStatDivider} />
+          <View style={s.heroStatCell}>
+            <Text style={s.heroStatValue}>{config?.dueDay ?? '—'}</Text>
+            <Text style={s.heroStatLabel}>Jour d'échéance</Text>
+          </View>
+        </View>
+      </View>
 
-        <View style={{ marginTop: 8 }}>
-          {/* ════ INFORMATIONS GÉNÉRALES ════ */}
-          <Text style={s.sectionTitle}>Informations générales</Text>
+      {isOffline && <OfflineBanner />}
+
+      <ScrollView
+        contentContainerStyle={s.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={Colors.primary} />}
+      >
+        {/* ════ INFORMATIONS GÉNÉRALES ════ */}
+        <View style={s.sectionBlock}>
+          <View style={s.sectionHeader}>
+            <View style={s.sectionAccent} />
+            <Text style={s.sectionTitle}>Informations générales</Text>
+          </View>
           {isLoading ? <SkeletonBlock /> : (
             <View style={s.card}>
               <GroupInfoRow icon="account-group" label="Nom du groupe" value={config?.name ?? ''} onEditPress={role === 'admin' ? goEdit : undefined} />
@@ -217,101 +239,133 @@ export default function GroupDetailsScreen({ navigation, route }: any) {
               )}
             </View>
           )}
+        </View>
 
-          {/* ════ PARAMÈTRES FINANCIERS ════ */}
-          <Text style={s.sectionTitle}>Paramètres financiers</Text>
+        {/* ════ PARAMÈTRES FINANCIERS ════ */}
+        <View style={s.sectionBlock}>
+          <View style={s.sectionHeader}>
+            <View style={[s.sectionAccent, { backgroundColor: Colors.gold }]} />
+            <Text style={s.sectionTitle}>Paramètres financiers</Text>
+          </View>
           {isLoading ? <SkeletonBlock /> : (
             <View style={s.card}>
               <GroupInfoRow icon="cash-multiple" label="Montant mensuel" value={`${config?.monthlyAmount} ${config?.currency}`} />
               <GroupInfoRow icon="calendar-check" label="Jour d'échéance" value={`Le ${config?.dueDay} de chaque mois`} />
-              <GroupInfoRow 
-                icon="alert-circle-outline" 
-                label="Pénalité de retard" 
-                value={config?.penaltyAmount ? `${config.penaltyAmount} ${config.currency}` : 'Aucune pénalité'} 
+              <GroupInfoRow
+                icon="alert-circle-outline"
+                label="Pénalité de retard"
+                value={config?.penaltyAmount ? `${config.penaltyAmount} ${config.currency}` : 'Aucune pénalité'}
               />
-              <GroupInfoRow 
-                icon="eye-outline" 
-                label="Contributions visibles" 
-                value={config?.paymentsVisible ? 'Oui (par tous)' : 'Non (Admin/Tréso uniquement)'} 
+              <GroupInfoRow
+                icon="eye-outline"
+                label="Contributions visibles"
+                value={config?.paymentsVisible ? 'Oui (par tous)' : 'Non (Admin/Tréso uniquement)'}
               />
-              <GroupInfoRow 
-                icon="shield-check" 
-                label="Approbation manuelle" 
-                value={config?.requireApproval ? 'Activée' : 'Désactivée'} 
+              <GroupInfoRow
+                icon="shield-check"
+                label="Approbation manuelle"
+                value={config?.requireApproval ? 'Activée' : 'Désactivée'}
               />
             </View>
           )}
+        </View>
 
-          {/* ════ TRÉSORIÈRE ════ */}
-          <Text style={s.sectionTitle}>Trésorière</Text>
+        {/* ════ TRÉSORIÈRE ════ */}
+        <View style={s.sectionBlock}>
+          <View style={s.sectionHeader}>
+            <View style={[s.sectionAccent, { backgroundColor: Colors.info }]} />
+            <Text style={s.sectionTitle}>Trésorière</Text>
+          </View>
           {isLoading ? <SkeletonBlock /> : (
-            <View style={s.card}>
-              <View style={s.treasurerRow}>
-                <View style={s.treasurerAvatar}><Text style={s.treasurerAvatarTxt}>{config?.treasurerName.charAt(0) ?? 'T'}</Text></View>
+            <View style={s.treasurerCard}>
+              <View style={s.treasurerTop}>
+                <View style={s.treasurerAvatar}>
+                  <Text style={s.treasurerAvatarTxt}>{config?.treasurerName.charAt(0) ?? 'T'}</Text>
+                </View>
                 <View style={{ flex: 1 }}>
                   <Text style={s.treasurerName}>{config?.treasurerName ?? 'Non définie'}</Text>
                   <Text style={s.treasurerPhone}>{maskedPhone(config?.treasurerPhone ?? '')}</Text>
-                  {config?.treasurerOperator && (
-                    <View style={s.operatorBadge}>
-                      <Text style={s.operatorBadgeText}>{config.treasurerOperator.toUpperCase()}</Text>
-                    </View>
-                  )}
                 </View>
                 {role === 'admin' && (
                   <TouchableOpacity onPress={goEdit} style={s.treasurerEditBtn}>
+                    <MaterialCommunityIcons name="pencil-outline" size={16} color={Colors.primary} />
                     <Text style={s.treasurerEditTxt}>Modifier</Text>
                   </TouchableOpacity>
                 )}
               </View>
+              {config?.treasurerOperator ? (
+                <View style={s.treasurerFooter}>
+                  <View style={s.operatorPill}>
+                    <MaterialCommunityIcons name="phone" size={13} color={Colors.primary} />
+                    <Text style={s.operatorPillText}>{config.treasurerOperator.toUpperCase()}</Text>
+                  </View>
+                </View>
+              ) : null}
             </View>
           )}
+        </View>
 
-          {/* ════ MEMBRES (Aperçu) ════ */}
-          <Text style={s.sectionTitle}>Membres ({activeMembersCount} actifs)</Text>
+        {/* ════ MEMBRES (Aperçu) ════ */}
+        <View style={s.sectionBlock}>
+          <View style={s.sectionHeader}>
+            <View style={[s.sectionAccent, { backgroundColor: Colors.statusPaid }]} />
+            <Text style={s.sectionTitle}>Membres</Text>
+            <View style={s.memberCountBadge}>
+              <Text style={s.memberCountText}>{activeMembersCount} actifs</Text>
+            </View>
+          </View>
           {isLoading ? <SkeletonBlock /> : (
             <View style={s.card}>
               {membersPreview.map((m, idx) => (
                 <View key={m.uid} style={{ borderBottomWidth: idx < membersPreview.length - 1 ? StyleSheet.hairlineWidth : 0, borderColor: Colors.outlineVariant + '40' }}>
-                  <MemberCard 
+                  <MemberCard
                     member={{
                       id: m.uid,
-                      fullName: m.full_name ?? m.uid,
+                      fullName: m.full_name || m.phone || 'Membre',
                       phone: m.phone ?? '',
-                      role: m.role as any,
-                      status: m.status as any,
-                      paymentStatus: m.paymentStatus as any,
-                    } as any} 
-                    showSwipeActions={false} 
-                    onActionPress={() => {}} 
+                      role: (m.role as any) ?? 'member',
+                      status: (m.status as any) ?? 'active',
+                      paymentStatus: (m.paymentStatus as any) ?? null,
+                      joinedAt: m.joined_at
+                        ? (typeof m.joined_at?.toDate === 'function'
+                            ? m.joined_at.toDate().toISOString()
+                            : String(m.joined_at))
+                        : new Date().toISOString(),
+                    } as any}
+                    showSwipeActions={false}
+                    onActionPress={() => {}}
                   />
                 </View>
               ))}
-              
+
               {members.length > 5 && (
-                <TouchableOpacity 
-                  style={s.seeAllMembersBtn} 
+                <TouchableOpacity
+                  style={s.seeAllBtn}
                   onPress={() => role === 'admin' ? navigation.navigate('MemberManagement') : setShowAllMembersModal(true)}
+                  activeOpacity={0.8}
                 >
-                  <Text style={s.seeAllMembersText}>Voir les {members.length} membres</Text>
-                  <MaterialCommunityIcons name="arrow-right" size={18} color={Colors.primary} />
+                  <Text style={s.seeAllBtnText}>Voir les {members.length} membres</Text>
+                  <MaterialCommunityIcons name="arrow-right" size={16} color={Colors.primary} />
                 </TouchableOpacity>
               )}
             </View>
           )}
-
         </View>
+
+        {/* Bottom spacing for actions bar */}
+        <View style={{ height: 160 }} />
       </ScrollView>
 
       {/* ════ ACTIONS EN BAS SELON RÔLE ════ */}
       <View style={s.bottomActions}>
          {role === 'admin' && (
-           <>
+           <View style={s.actionsInner}>
              <AppButton title="Gérer les membres" onPress={() => navigation.navigate('MemberManagement')} />
-             <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
+             <View style={s.actionsSecondRow}>
                <AppButton title="Inviter" onPress={() => navigation.navigate('Invitations')} variant="outline" style={{ flex: 1 }} />
-               <AppButton title="Modifier" onPress={goEdit} variant="outline" style={{ flex: 1 }} />
+               <AppButton title="Modifier le groupe" onPress={goEdit} variant="outline" style={{ flex: 1 }} />
              </View>
-           </>
+           </View>
          )}
 
          {role === 'treasurer' && (
@@ -319,18 +373,18 @@ export default function GroupDetailsScreen({ navigation, route }: any) {
          )}
 
          {role === 'member' && (
-           <>
+           <View style={s.actionsInner}>
              {isPaid ? (
                <AppButton title="Contribution payée ce mois ✓" onPress={() => {}} disabled />
              ) : (
                <AppButton title="Payer ma contribution" onPress={() => navigation.navigate('Payer')} />
              )}
-             <AppButton title="Mon historique" onPress={() => navigation.navigate('Historique')} variant="outline" style={{ marginTop: 12 }} />
-           </>
+             <AppButton title="Mon historique" onPress={() => navigation.navigate('Historique')} variant="outline" style={{ marginTop: 10 }} />
+           </View>
          )}
       </View>
 
-      {/* BOTTOM SHEET MODAL (Membres pour Trésorière / Membre) */}
+      {/* BOTTOM SHEET MODAL */}
       <BottomSheet visible={showAllMembersModal} title="Tous les membres" onClose={() => setShowAllMembersModal(false)}>
          <FlatList
            data={members}
@@ -341,17 +395,22 @@ export default function GroupDetailsScreen({ navigation, route }: any) {
              const hidePaymentBadge = role === 'member' && !config?.paymentsVisible;
              return (
                <View style={{ borderBottomWidth: StyleSheet.hairlineWidth, borderColor: Colors.outlineVariant + '30', paddingHorizontal: 16 }}>
-                 <MemberCard 
+                 <MemberCard
                    member={{
                      id: item.uid,
-                     fullName: item.full_name ?? item.uid,
+                     fullName: item.full_name || item.phone || 'Membre',
                      phone: item.phone ?? '',
-                     role: item.role as any,
-                     status: item.status as any,
-                     paymentStatus: hidePaymentBadge ? null : (item.paymentStatus as any),
-                   } as any} 
-                   showSwipeActions={false} 
-                   onActionPress={() => {}} 
+                     role: (item.role as any) ?? 'member',
+                     status: (item.status as any) ?? 'active',
+                     paymentStatus: hidePaymentBadge ? null : ((item.paymentStatus as any) ?? null),
+                     joinedAt: item.joined_at
+                       ? (typeof item.joined_at?.toDate === 'function'
+                           ? item.joined_at.toDate().toISOString()
+                           : String(item.joined_at))
+                       : new Date().toISOString(),
+                   } as any}
+                   showSwipeActions={false}
+                   onActionPress={() => {}}
                  />
                </View>
              );
@@ -366,71 +425,318 @@ export default function GroupDetailsScreen({ navigation, route }: any) {
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.surface },
 
-  // TopBar Standard design
-  topBar: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: Colors.surface,
-    paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 52 : 36, paddingBottom: 12,
-    shadowColor: Colors.onSurface, shadowOpacity: 0.05, shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 }, elevation: 2, zIndex: 10,
+  // ── Hero Banner ──
+  heroBanner: {
+    backgroundColor: Colors.primary,
+    paddingTop: Platform.OS === 'ios' ? 52 : 36,
+    paddingBottom: 0,
   },
-  topBarTitle: { fontFamily: Fonts.display, fontSize: 20, color: Colors.onSurface },
-  editBtnIcon: { padding: 8, backgroundColor: Colors.surfaceContainerHigh, borderRadius: Radius.full },
+  heroBannerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  editBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: Radius.full,
+  },
+  editBtnText: {
+    fontFamily: Fonts.title,
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.9)',
+  },
+  heroContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  heroAvatarWrap: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 2.5,
+    borderColor: 'rgba(255,255,255,0.3)',
+    overflow: 'hidden',
+    flexShrink: 0,
+  },
+  heroAvatar: { width: '100%', height: '100%' },
+  heroAvatarFallback: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: Colors.gold,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  heroAvatarInitials: {
+    fontFamily: Fonts.display,
+    fontSize: 22,
+    color: Colors.primary,
+  },
+  heroMeta: { flex: 1 },
+  heroEyebrow: {
+    fontFamily: Fonts.label,
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.6)',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 3,
+  },
+  heroTitle: {
+    fontFamily: Fonts.display,
+    fontSize: 20,
+    color: '#FFFFFF',
+    lineHeight: 26,
+    marginBottom: 3,
+  },
+  heroDesc: {
+    fontFamily: Fonts.body,
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.7)',
+    lineHeight: 17,
+  },
+  heroStats: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(0,0,0,0.18)',
+  },
+  heroStatCell: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  heroStatDivider: {
+    width: 1,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    marginVertical: 8,
+  },
+  heroStatValue: {
+    fontFamily: Fonts.display,
+    fontSize: 18,
+    color: Colors.gold,
+    lineHeight: 22,
+  },
+  heroStatLabel: {
+    fontFamily: Fonts.label,
+    fontSize: 9,
+    color: 'rgba(255,255,255,0.6)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.7,
+    marginTop: 2,
+  },
 
-  // Hero Card Profile
-  heroCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 16,
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingBottom: 24,
+  },
+
+  sectionBlock: {
+    marginBottom: 20,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  sectionAccent: {
+    width: 4,
+    height: 16,
+    borderRadius: 2,
+    backgroundColor: Colors.primary,
+  },
+  sectionTitle: {
+    fontFamily: Fonts.headline,
+    fontSize: 15,
+    color: Colors.onSurface,
+    flex: 1,
+  },
+  memberCountBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.statusPaid + '18',
+  },
+  memberCountText: {
+    fontFamily: Fonts.label,
+    fontSize: 11,
+    color: Colors.statusPaid,
+    fontWeight: '700',
+  },
+
+  card: {
     backgroundColor: Colors.surfaceContainerLowest,
-    borderRadius: Radius.xl, padding: 20, marginBottom: 16,
-    borderWidth: 1, borderColor: Colors.outlineVariant + '26',
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant + '30',
+    overflow: 'hidden',
     ...Shadow.card,
   },
-  heroPhotoWrap: {
-    width: 64, height: 64, borderRadius: 32,
-    borderWidth: 2, borderColor: Colors.surface, overflow: 'hidden',
+
+  seeAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.outlineVariant + '40',
   },
-  heroPhoto: { width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' },
-  heroInitials: { fontFamily: Fonts.headline, fontSize: 24, color: Colors.primary },
-  heroMeta: { flex: 1, gap: 4 },
-  heroTitle: { fontFamily: Fonts.headline, fontSize: 18, color: Colors.onSurface },
-  heroDesc: { fontFamily: Fonts.body, fontSize: 13, color: Colors.onSurfaceVariant, lineHeight: 18 },
+  seeAllBtnText: {
+    fontFamily: Fonts.title,
+    fontSize: 13,
+    color: Colors.primary,
+  },
 
-  sectionTitle: { fontFamily: Fonts.headline, fontSize: 16, color: Colors.onSurface, marginLeft: 4, marginBottom: 8, marginTop: 12 },
-  
-  card: { backgroundColor: Colors.surfaceContainerLowest, borderRadius: Radius.xl, marginBottom: 12, ...Shadow.card, overflow: 'hidden' },
+  // ── Treasurer Card ──
+  treasurerCard: {
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant + '30',
+    overflow: 'hidden',
+    ...Shadow.card,
+  },
+  treasurerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    padding: 16,
+  },
+  treasurerAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Colors.goldMuted,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: Colors.gold + '40',
+    flexShrink: 0,
+  },
+  treasurerAvatarTxt: {
+    fontFamily: Fonts.display,
+    fontSize: 20,
+    color: Colors.primary,
+  },
+  treasurerName: {
+    fontFamily: Fonts.headline,
+    fontSize: 15,
+    color: Colors.onSurface,
+    marginBottom: 2,
+  },
+  treasurerPhone: {
+    fontFamily: Fonts.body,
+    fontSize: 13,
+    color: Colors.onSurfaceVariant,
+  },
+  treasurerEditBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    padding: 6,
+  },
+  treasurerEditTxt: {
+    fontFamily: Fonts.title,
+    fontSize: 12,
+    color: Colors.primary,
+  },
+  treasurerFooter: {
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.outlineVariant + '40',
+    paddingTop: 10,
+  },
+  operatorPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: Colors.primary + '10',
+    borderRadius: Radius.full,
+  },
+  operatorPillText: {
+    fontFamily: Fonts.label,
+    fontSize: 11,
+    color: Colors.primary,
+    fontWeight: '700',
+  },
 
-  seeAllMembersBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.outlineVariant + '40' },
-  seeAllMembersText: { fontFamily: Fonts.title, fontSize: 14, color: Colors.primary },
-
-  treasurerRow: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16 },
-  treasurerAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.surfaceContainerHigh, justifyContent: 'center', alignItems: 'center' },
-  treasurerAvatarTxt: { fontFamily: Fonts.headline, fontSize: 18, color: Colors.primary },
-  treasurerName: { fontFamily: Fonts.headline, fontSize: 15, color: Colors.onSurface },
-  treasurerPhone: { fontFamily: Fonts.body, fontSize: 13, color: Colors.onSurfaceVariant, marginTop: 2 },
-  operatorBadge: { alignSelf: 'flex-start', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, backgroundColor: Colors.surfaceContainerLow, marginTop: 4 },
-  operatorBadgeText: { fontFamily: Fonts.label, fontSize: 10, color: Colors.onSurfaceVariant },
-  treasurerEditBtn: { padding: 8, alignSelf: 'flex-start' },
-  treasurerEditTxt: { fontFamily: Fonts.title, fontSize: 13, color: Colors.primary },
-
-  bottomActions: { 
-    position: 'absolute', bottom: 0, left: 0, right: 0, 
+  // ── Bottom Actions ──
+  bottomActions: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
     backgroundColor: Colors.surface,
-    paddingHorizontal: 20, paddingTop: 16, paddingBottom: Platform.OS === 'ios' ? 32 : 20,
-    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.outlineVariant + '40',
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: Platform.OS === 'ios' ? 32 : 20,
+    borderTopWidth: 1,
+    borderTopColor: Colors.outlineVariant + '30',
     ...Shadow.card,
+  },
+  actionsInner: {
+    gap: 0,
+  },
+  actionsSecondRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 10,
   },
 });
 
 const sk = StyleSheet.create({
-  card: { backgroundColor: Colors.surfaceContainerLowest, borderRadius: Radius.xl, padding: 20, gap: 14, marginBottom: 16, ...Shadow.card },
-  line: { height: 12, backgroundColor: Colors.surfaceContainerHigh, borderRadius: Radius.sm },
+  card: {
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderRadius: Radius.xl,
+    padding: 20,
+    gap: 14,
+    marginBottom: 4,
+    ...Shadow.card,
+  },
+  line: {
+    height: 12,
+    backgroundColor: Colors.surfaceContainerHigh,
+    borderRadius: Radius.sm,
+  },
 });
 
 const bs = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(7,30,39,0.5)' },
-  sheet: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: Colors.surfaceContainerLowest, borderTopLeftRadius: Radius.xxl, borderTopRightRadius: Radius.xxl, paddingBottom: Platform.OS === 'ios' ? 36 : 24, zIndex: 100 },
-  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.outlineVariant, alignSelf: 'center', marginTop: 12 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.outlineVariant + '50' },
+  sheet: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderTopLeftRadius: Radius.xxl, borderTopRightRadius: Radius.xxl,
+    paddingBottom: Platform.OS === 'ios' ? 36 : 24,
+    zIndex: 100,
+  },
+  handle: {
+    width: 40, height: 4, borderRadius: 2,
+    backgroundColor: Colors.outlineVariant,
+    alignSelf: 'center', marginTop: 12,
+  },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 20, paddingVertical: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.outlineVariant + '50',
+  },
   title: { fontFamily: Fonts.headline, fontSize: 18, color: Colors.onSurface },
   closeBtn: { padding: 4 },
 });

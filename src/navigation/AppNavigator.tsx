@@ -39,6 +39,7 @@ import GroupDetailsScreen     from '../screens/group/GroupDetailsScreen';
 import FullHistoryScreen      from '../screens/history/FullHistoryScreen';
 import MyHistoryScreen        from '../screens/history/MyHistoryScreen';
 import ChangePINScreen        from '../screens/profile/ChangePINScreen';
+import NotificationCenterScreen from '../screens/notifications/NotificationCenterScreen';
 
 // ── Stubs écrans futurs (évitent une erreur de navigation) ──
 const FutureScreen = () => <View style={{ flex: 1, backgroundColor: Colors.surface }} />;
@@ -74,6 +75,9 @@ export type RootStackParamList = {
   Invitations:      undefined;
   GroupDetails:     undefined;
   ChangePIN:        undefined;
+
+  // Notifications
+  Notifications:    undefined;
 
   // Stubs futurs
   MemberProfile:    { memberId: string };
@@ -175,6 +179,7 @@ export default function AppNavigator() {
           <Stack.Screen name="ChangePIN" component={ChangePINScreen} />
 
           {/* Stubs futurs */}
+          <Stack.Screen name="Notifications" component={NotificationCenterScreen} />
           <Stack.Screen name="MemberProfile" component={FutureScreen} />
           <Stack.Screen name="Historique"    component={HistoryEntry} />
         </Stack.Navigator>

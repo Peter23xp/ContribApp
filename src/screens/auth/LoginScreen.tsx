@@ -24,37 +24,50 @@ type Props = {
   navigation: NativeStackNavigationProp<AuthStackParamList, 'Login'>;
 };
 
-// ── Logo géométrique SVG-style ────────────────────────────────────────────────
+// ── BrandMark — gold coin motif ────────────────────────────────────────────────
 function BrandMark({ size = 64 }: { size?: number }) {
-  const thick = size * 0.065;
-  const inner = size * 0.35;
   return (
     <View style={{ width: size, height: size, justifyContent: 'center', alignItems: 'center' }}>
-      {/* Hexagone extérieur simulé par deux rectangles tournés */}
+      {/* Outer decorative ring */}
       <View style={{
         position: 'absolute',
-        width: size * 0.72, height: size * 0.72,
-        borderRadius: size * 0.18,
-        borderWidth: thick,
-        borderColor: 'rgba(255,255,255,0.9)',
-        transform: [{ rotate: '15deg' }],
+        width: size * 0.96, height: size * 0.96,
+        borderRadius: size * 0.22,
+        borderWidth: 1.5,
+        borderColor: 'rgba(201,168,76,0.4)',
+        transform: [{ rotate: '12deg' }],
       }} />
+      {/* Secondary ring */}
       <View style={{
         position: 'absolute',
-        width: size * 0.72, height: size * 0.72,
-        borderRadius: size * 0.18,
-        borderWidth: thick * 0.6,
-        borderColor: 'rgba(255,255,255,0.3)',
-        transform: [{ rotate: '60deg' }],
+        width: size * 0.78, height: size * 0.78,
+        borderRadius: size * 0.16,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.12)',
+        transform: [{ rotate: '57deg' }],
       }} />
-      {/* C central */}
-      <Text style={{
-        fontFamily: Fonts.display,
-        fontSize: size * 0.38,
-        color: '#FFFFFF',
-        lineHeight: size * 0.42,
-        marginTop: 2,
-      }}>C</Text>
+      {/* Gold coin */}
+      <View style={{
+        width: size * 0.62,
+        height: size * 0.62,
+        borderRadius: size * 0.31,
+        backgroundColor: Colors.gold,
+        alignItems: 'center',
+        justifyContent: 'center',
+        shadowColor: Colors.gold,
+        shadowOpacity: 0.4,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 4 },
+        elevation: 6,
+      }}>
+        <Text style={{
+          fontFamily: Fonts.display,
+          fontSize: size * 0.32,
+          color: Colors.primary,
+          lineHeight: size * 0.38,
+          marginTop: 2,
+        }}>C</Text>
+      </View>
     </View>
   );
 }
@@ -238,15 +251,21 @@ export default function LoginScreen({ navigation }: Props) {
 
         {/* ── Zone héro ─────────────────────────────────────────────── */}
         <Animated.View style={[styles.topSection, { opacity: heroAnim, transform: [{ translateY: heroTranslateY }] }]}>
-          {/* Décoration géométrique d'arrière-plan */}
-          <View style={styles.bgCircle1} />
-          <View style={styles.bgCircle2} />
+          {/* Decorative gold horizontal line */}
+          <View style={styles.goldAccentLine} />
+          {/* Subtle grid pattern */}
+          <View style={styles.bgDotGrid} />
 
           <Animated.View style={[styles.logoWrap, { transform: [{ scale: logoScale }], opacity: logoOpacity }]}>
-            <BrandMark size={72} />
+            <BrandMark size={76} />
           </Animated.View>
 
-          <Text style={styles.appName}>ContribApp</Text>
+          <View style={styles.brandRow}>
+            <Text style={styles.appName}>CONTRIB</Text>
+            <View style={styles.rdcChip}>
+              <Text style={styles.rdcChipText}>RDC</Text>
+            </View>
+          </View>
           <Text style={styles.title}>Bon retour !</Text>
           <Text style={styles.subtitle}>Connectez-vous avec votre numéro et votre PIN</Text>
         </Animated.View>
@@ -262,7 +281,7 @@ export default function LoginScreen({ navigation }: Props) {
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
-              {/* Pill indicateur */}
+              {/* Sheet handle */}
               <View style={styles.sheetPill} />
 
               <AppInput
@@ -363,6 +382,9 @@ export default function LoginScreen({ navigation }: Props) {
             <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
               <View style={styles.bottomSheet}>
                 <View style={styles.bottomSheetHandle} />
+                <View style={styles.bottomSheetIcon}>
+                  <Text style={styles.bottomSheetIconText}>🔑</Text>
+                </View>
                 <Text style={styles.bottomSheetTitle}>Réinitialiser le PIN</Text>
                 <Text style={styles.bottomSheetSubtitle}>
                   Entrez votre numéro de téléphone. Vous recevrez un code par email.
@@ -386,7 +408,7 @@ export default function LoginScreen({ navigation }: Props) {
                   onPress={handleForgotPIN}
                   loading={forgotLoading}
                   disabled={forgotPhone.length !== 9 || forgotLoading}
-                  style={{ marginTop: 16 }}
+                  style={{ marginTop: 8 }}
                 />
 
                 <TouchableOpacity style={styles.cancelButton} onPress={() => { Keyboard.dismiss(); setShowForgotModal(false); setForgotError(null); }}>
@@ -479,61 +501,96 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     overflow: 'hidden',
   },
-  bgCircle1: {
+
+  // Decorative horizontal gold line
+  goldAccentLine: {
     position: 'absolute',
-    width: 260, height: 260, borderRadius: 130,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    top: -80, right: -60,
+    height: 1,
+    left: 32,
+    right: 32,
+    bottom: 32,
+    backgroundColor: 'rgba(201,168,76,0.25)',
   },
-  bgCircle2: {
+  bgDotGrid: {
     position: 'absolute',
-    width: 180, height: 180, borderRadius: 90,
+    width: 280,
+    height: 280,
+    top: -60,
+    right: -60,
+    borderRadius: 140,
     backgroundColor: 'rgba(255,255,255,0.03)',
-    bottom: 10, left: -50,
-  },
-  logoWrap: {
-    width: 88, height: 88, borderRadius: 24,
-    backgroundColor: 'rgba(255,255,255,0.10)',
-    justifyContent: 'center', alignItems: 'center',
-    marginBottom: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
+    borderColor: 'rgba(255,255,255,0.04)',
+  },
+
+  logoWrap: {
+    marginBottom: 20,
+  },
+
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
   },
   appName: {
-    fontFamily: Fonts.label,
-    fontSize: 11, color: 'rgba(255,255,255,0.5)',
-    letterSpacing: 3.5, textTransform: 'uppercase',
-    marginBottom: 8,
+    fontFamily: Fonts.display,
+    fontSize: 22,
+    color: '#FFFFFF',
+    letterSpacing: 5,
   },
+  rdcChip: {
+    backgroundColor: Colors.gold,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 5,
+  },
+  rdcChipText: {
+    fontFamily: Fonts.title,
+    fontSize: 10,
+    color: Colors.primary,
+    letterSpacing: 1,
+  },
+
   title: {
     fontFamily: Fonts.display,
-    color: '#FFFFFF', fontSize: 28,
-    textAlign: 'center', letterSpacing: -0.5,
+    color: '#FFFFFF',
+    fontSize: 26,
+    textAlign: 'center',
+    letterSpacing: -0.3,
+    marginBottom: 6,
   },
   subtitle: {
     fontFamily: Fonts.body,
-    color: 'rgba(255,255,255,0.65)', fontSize: 14,
-    marginTop: 8, textAlign: 'center', lineHeight: 21,
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 19,
+    paddingHorizontal: 16,
   },
 
   // ── Formulaire ──────────────────────────────────────────────
   formWrapper: {
     flex: 0.58,
-    backgroundColor: Colors.surfaceContainerLowest,
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: 36,
+    borderTopRightRadius: 36,
     overflow: 'hidden',
   },
   formContent: { flexGrow: 1, paddingHorizontal: 28, paddingTop: 8, paddingBottom: 40 },
   sheetPill: {
-    width: 36, height: 4, borderRadius: 2,
+    width: 40,
+    height: 4,
+    borderRadius: 2,
     backgroundColor: Colors.outlineVariant,
-    alignSelf: 'center', marginBottom: 24,
+    alignSelf: 'center',
+    marginBottom: 28,
   },
 
   togglePin: {
     fontFamily: Fonts.title,
-    color: Colors.primary, fontSize: 13,
+    color: Colors.primary,
+    fontSize: 13,
   },
 
   // ── Erreur ──────────────────────────────────────────────────
@@ -545,21 +602,27 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   errorBar: {
-    width: 4, backgroundColor: Colors.error,
+    width: 4,
+    backgroundColor: Colors.error,
   },
   errorContent: { flex: 1, padding: 14 },
   errorBoxText: {
     fontFamily: Fonts.headline,
-    color: Colors.onErrorContainer, fontSize: 13, marginBottom: 2,
+    color: Colors.onErrorContainer,
+    fontSize: 13,
+    marginBottom: 2,
   },
   timerText: {
     fontFamily: Fonts.body,
-    color: Colors.error, fontSize: 13, marginTop: 4,
+    color: Colors.error,
+    fontSize: 13,
+    marginTop: 4,
   },
   timerBold: { fontFamily: Fonts.headline },
   resetPinLink: {
     fontFamily: Fonts.headline,
-    color: Colors.error, fontSize: 13,
+    color: Colors.error,
+    fontSize: 13,
   },
 
   loginButton: { marginTop: 8 },
@@ -567,67 +630,111 @@ const styles = StyleSheet.create({
   forgotPinLink: { marginTop: 18, alignItems: 'center' },
   forgotPinText: {
     fontFamily: Fonts.title,
-    color: Colors.danger, fontSize: 14,
+    color: Colors.danger,
+    fontSize: 14,
   },
 
   // ── Divider + bouton secondaire ──────────────────────────────
   dividerRow: {
-    flexDirection: 'row', alignItems: 'center',
-    marginVertical: 20, gap: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 22,
+    gap: 12,
   },
   dividerLine: { flex: 1, height: 1, backgroundColor: Colors.outlineVariant },
   dividerText: {
     fontFamily: Fonts.body,
-    color: Colors.textMuted, fontSize: 13,
+    color: Colors.textMuted,
+    fontSize: 12,
+    letterSpacing: 0.5,
   },
   registerBtn: {
-    height: 52, borderRadius: Radius.lg,
-    borderWidth: 1.5, borderColor: Colors.primary,
-    justifyContent: 'center', alignItems: 'center',
+    height: 54,
+    borderRadius: Radius.xl,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
   },
   registerBtnText: {
     fontFamily: Fonts.headline,
-    color: Colors.primary, fontSize: 15,
+    color: Colors.primary,
+    fontSize: 15,
   },
 
   version: {
     fontFamily: Fonts.body,
-    color: Colors.textMuted, fontSize: 11,
-    textAlign: 'center', marginTop: 28,
+    color: Colors.textMuted,
+    fontSize: 11,
+    textAlign: 'center',
+    marginTop: 28,
+    letterSpacing: 0.5,
   },
 
   // ── Modal ────────────────────────────────────────────────────
   modalOverlay: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: 'rgba(7,30,39,0.5)',
+    backgroundColor: 'rgba(7,30,39,0.55)',
   },
   modalKeyboardWrapper: { flex: 1, justifyContent: 'flex-end' },
   bottomSheet: {
     backgroundColor: Colors.surfaceContainerLowest,
-    borderTopLeftRadius: 28, borderTopRightRadius: 28,
-    padding: 24, paddingBottom: Platform.OS === 'ios' ? 44 : 28,
-    shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 24, elevation: 12,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    padding: 28,
+    paddingBottom: Platform.OS === 'ios' ? 48 : 32,
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 12,
   },
   bottomSheetHandle: {
-    width: 36, height: 4, borderRadius: 2,
+    width: 40, height: 4, borderRadius: 2,
     backgroundColor: Colors.outlineVariant,
-    alignSelf: 'center', marginBottom: 22,
+    alignSelf: 'center', marginBottom: 20,
+  },
+  bottomSheetIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: Colors.goldMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(201,168,76,0.2)',
+  },
+  bottomSheetIconText: {
+    fontSize: 24,
   },
   bottomSheetTitle: {
     fontFamily: Fonts.display,
-    fontSize: 20, color: Colors.textPrimary, marginBottom: 8,
+    fontSize: 20,
+    color: Colors.textPrimary,
+    marginBottom: 8,
+    textAlign: 'center',
   },
   bottomSheetSubtitle: {
     fontFamily: Fonts.body,
-    fontSize: 14, color: Colors.textSecondary, marginBottom: 20, lineHeight: 20,
+    fontSize: 14,
+    color: Colors.textSecondary,
+    marginBottom: 22,
+    lineHeight: 21,
+    textAlign: 'center',
   },
   forgotErrorText: {
     fontFamily: Fonts.body,
-    color: Colors.danger, fontSize: 13, marginTop: 4, marginBottom: 8,
+    color: Colors.danger,
+    fontSize: 13,
+    marginTop: 4,
+    marginBottom: 8,
   },
   cancelButton: { marginTop: 14, alignItems: 'center', paddingVertical: 12 },
   cancelText: {
     fontFamily: Fonts.title,
-    color: Colors.textSecondary, fontSize: 15,
+    color: Colors.textSecondary,
+    fontSize: 15,
   },
 });

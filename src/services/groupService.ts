@@ -31,7 +31,8 @@ export interface GroupMember {
   operator?: string;
   role: string;
   status: string;
-  paymentStatus?: string;
+  paymentStatus?: string | null;
+  joined_at?: any;
 }
 
 export interface GroupData {
@@ -184,7 +185,7 @@ export async function getGroupMembers(groupId: string): Promise<GroupMember[]> {
   return snap.docs.map(d => ({
     uid: d.id,
     ...d.data(),
-    paymentStatus: contribMap[d.id] ?? 'pending',
+    paymentStatus: contribMap[d.id] ?? null,
   })) as GroupMember[];
 }
 
@@ -421,7 +422,6 @@ export async function isAlreadyMember(userId: string, groupId: string): Promise<
 }
 
 export async function joinGroup(userId: string, groupId: string): Promise<void> {
-  await joinGroupByCode('', userId); // passthrough
   await setDoc(doc(db, 'groups', groupId, 'members', userId), {
     uid: userId, role: 'member', status: 'active', joined_at: serverTimestamp(),
   });

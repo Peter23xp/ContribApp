@@ -31,6 +31,7 @@ import type { Notification } from '../../components/common/NotificationItem';
 import { Colors, Fonts, Radius } from '../../constants/colors';
 import * as notificationService from '../../services/notificationService';
 import { useNotificationStore } from '../../stores/notificationStore';
+import { useAuthStore } from '../../stores/authStore';
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -43,7 +44,20 @@ interface GroupedNotifications {
 
 // ─── Composant principal ──────────────────────────────────────
 
+function normalizeNotification(raw: any) {
+  const ts = raw.created_at;
+  const createdAt = ts?.toDate
+    ? ts.toDate().toISOString()
+    : typeof ts === 'string' ? ts : new Date().toISOString();
+  return {
+    ...raw,
+    createdAt,
+    isRead: raw.is_read ?? raw.isRead ?? false,
+  };
+}
+
 export default function NotificationCenterScreen({ navigation }: any) {
+  const uid = useAuthStore(st => st.uid);
   const { notifications, unreadCount, setNotifications, setUnreadCount, markAsRead, markAllAsRead, removeNotification, removeReadNotifications } = useNotificationStore();
 
   const [isLoading, setIsLoading] = useState(true);
@@ -55,23 +69,26 @@ export default function NotificationCenterScreen({ navigation }: any) {
 
   const pollingInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const initialLoadDone = useRef(false);
+
   // ── Chargement initial ──
+  const notificationsRef = useRef<any[]>([]);
+
   const loadNotifications = useCallback(async (pageNum = 1, append = false) => {
     try {
       if (!append) setIsLoading(true);
 
-      const response = await notificationService.getNotifications('ALL', { pageSize: 30 });
-      const items: any[] = response;
-      
-      if (append) {
-        setNotifications([...notifications, ...items]);
-      } else {
-        setNotifications(items);
-      }
-      
+      const response = await notificationService.getNotifications(uid ?? '', { pageSize: 30 });
+      const items: any[] = response.map(normalizeNotification);
+
+      const merged: any[] = append ? [...notificationsRef.current, ...items] : items;
+      notificationsRef.current = merged;
+      setNotifications(merged as any);
+
       setUnreadCount(items.filter((n: any) => !n.isRead).length);
       setHasMore(items.length === 30);
       setPage(pageNum);
+      initialLoadDone.current = true;
     } catch (error) {
       console.error('[NotificationCenterScreen] loadNotifications error:', error);
       Toast.show({
@@ -83,34 +100,35 @@ export default function NotificationCenterScreen({ navigation }: any) {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [notifications, setNotifications, setUnreadCount]);
+  }, [uid, setNotifications, setUnreadCount]);
 
   useEffect(() => {
     loadNotifications();
   }, []);
 
-  // ── Polling (toutes les 60s) ──
+  // ── Polling (toutes les 60s) — démarre uniquement après le premier chargement ──
   const startPolling = useCallback(() => {
     if (pollingInterval.current) return;
 
     pollingInterval.current = setInterval(async () => {
+      if (!initialLoadDone.current) return;
       try {
-        const response: any[] = await notificationService.getNotifications('ALL', { pageSize: 10 });
-        
-        // Comparer avec la liste locale et ajouter les nouvelles
-        const existingIds = new Set(notifications.map((n: any) => n.id));
-        const newNotifications = response.filter((n: any) => !existingIds.has(n.id));
-        
-        if (newNotifications.length > 0) {
-          setNotifications([...newNotifications, ...notifications]);
-          const newUnread = newNotifications.filter((n: any) => !n.isRead).length;
-          setUnreadCount(unreadCount + newUnread);
+        const response: any[] = (await notificationService.getNotifications(uid ?? '', { pageSize: 10 })).map(normalizeNotification);
+
+        const existingIds = new Set(notificationsRef.current.map((n: any) => n.id));
+        const newItems = response.filter((n: any) => !existingIds.has(n.id));
+        if (newItems.length > 0) {
+          const merged = [...newItems, ...notificationsRef.current];
+          notificationsRef.current = merged;
+          setNotifications(merged as any);
+          const newUnread = newItems.filter((n: any) => !n.isRead).length;
+          setUnreadCount(useNotificationStore.getState().unreadCount + newUnread);
         }
       } catch (error) {
         console.error('[NotificationCenterScreen] polling error:', error);
       }
-    }, 60000); // 60 secondes
-  }, [notifications, setNotifications, setUnreadCount]);
+    }, 60000);
+  }, [uid, setNotifications, setUnreadCount]);
 
   const stopPolling = useCallback(() => {
     if (pollingInterval.current) {
@@ -155,15 +173,18 @@ export default function NotificationCenterScreen({ navigation }: any) {
     const filtered = filteredNotifications();
     const groups: Record<string, Notification[]> = {};
 
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    const groupOrder: string[] = [];
+
     filtered.forEach(notification => {
       const date = new Date(notification.createdAt);
-      const today = new Date();
-      const yesterday = new Date(today);
-      yesterday.setDate(yesterday.getDate() - 1);
 
       let groupTitle: string;
       if (date.toDateString() === today.toDateString()) {
-        groupTitle = 'Aujourd\'hui';
+        groupTitle = "Aujourd'hui";
       } else if (date.toDateString() === yesterday.toDateString()) {
         groupTitle = 'Hier';
       } else {
@@ -176,11 +197,12 @@ export default function NotificationCenterScreen({ navigation }: any) {
 
       if (!groups[groupTitle]) {
         groups[groupTitle] = [];
+        groupOrder.push(groupTitle);
       }
       groups[groupTitle].push(notification);
     });
 
-    return Object.entries(groups).map(([title, data]) => ({ title, data }));
+    return groupOrder.map(title => ({ title, data: groups[title] }));
   }, [filteredNotifications]);
 
   // ── Actions ──
@@ -230,7 +252,7 @@ export default function NotificationCenterScreen({ navigation }: any) {
 
     try {
       if (!silent) setIsMarkingAllRead(true);
-      await notificationService.markAllAsRead('ALL');
+      await notificationService.markAllAsRead(uid ?? '');
       markAllAsRead();
       await notificationService.setBadgeCount(0);
       

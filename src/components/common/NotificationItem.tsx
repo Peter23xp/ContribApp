@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { Colors, Fonts } from '../../constants/colors';
+import { relativeTime } from '../../utils/formatDate';
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -32,7 +33,7 @@ export type NotificationType =
 
 export interface Notification {
   id:                 string;
-  type:               NotificationType;
+  type:               NotificationType | string;
   title:              string;
   body:               string;
   isRead:             boolean;
@@ -49,44 +50,39 @@ interface Props {
 
 // ─── Configuration icônes par type ──────────────────────────
 
-const NOTIFICATION_CONFIG: Record<NotificationType, {
-  icon: keyof typeof Ionicons.glyphMap;
-  color: string;
-}> = {
+const DEFAULT_CONFIG = { icon: 'notifications-outline' as keyof typeof Ionicons.glyphMap, color: Colors.onSurfaceVariant };
+
+const NOTIFICATION_CONFIG: Record<string, { icon: keyof typeof Ionicons.glyphMap; color: string }> = {
+  // Uppercase legacy keys
   PAIEMENT_RECU:      { icon: 'cash-outline',           color: Colors.statusPaid },
   PAIEMENT_CONFIRME:  { icon: 'checkmark-circle',       color: Colors.statusPaid },
   RAPPEL_ECHEANCE:    { icon: 'notifications-outline',  color: Colors.warning },
   RETARD:             { icon: 'alert-circle-outline',   color: Colors.warning },
   NOUVEAU_MEMBRE:     { icon: 'person-add-outline',     color: Colors.tertiary },
-  RAPPORT_PRET:       { icon: 'document-text-outline',  color: '#6A1B9A' },  // violet
+  RAPPORT_PRET:       { icon: 'document-text-outline',  color: '#6A1B9A' },
   SYSTEME:            { icon: 'information-circle',     color: Colors.onSurfaceVariant },
+  // Lowercase Firestore keys
+  payment_confirmed:  { icon: 'checkmark-circle',       color: Colors.statusPaid },
+  payment_rejected:   { icon: 'close-circle-outline',   color: Colors.error },
+  new_submission:     { icon: 'cash-outline',           color: Colors.statusPaid },
+  reminder:           { icon: 'notifications-outline',  color: Colors.warning },
+  late_payment:       { icon: 'alert-circle-outline',   color: Colors.warning },
+  new_member:         { icon: 'person-add-outline',     color: Colors.tertiary },
+  report_ready:       { icon: 'document-text-outline',  color: '#6A1B9A' },
+  info_requested:     { icon: 'information-circle',     color: Colors.onSurfaceVariant },
+  join_request:       { icon: 'person-add-outline',     color: Colors.tertiary },
+  system:             { icon: 'information-circle',     color: Colors.onSurfaceVariant },
 };
 
 // ─── Timestamp relatif ───────────────────────────────────────
 
-function getRelativeTime(isoDate: string): string {
-  const now = new Date();
-  const date = new Date(isoDate);
-  const diffMs = now.getTime() - date.getTime();
-  const diffMin = Math.floor(diffMs / 60000);
-  const diffHour = Math.floor(diffMs / 3600000);
-  const diffDay = Math.floor(diffMs / 86400000);
-
-  if (diffMin < 1) return 'À l\'instant';
-  if (diffMin < 60) return `il y a ${diffMin} min`;
-  if (diffHour < 24) return `il y a ${diffHour}h`;
-  if (diffDay === 1) return 'hier';
-  if (diffDay < 7) return `il y a ${diffDay}j`;
-
-  // Format date courte
-  return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
-}
+// Replaced by relativeTime() from formatDate.ts
 
 // ─── Composant principal ─────────────────────────────────────
 
 export function NotificationItem({ notification, onPress, onSwipeDelete }: Props) {
   const swipeRef = useRef<Swipeable>(null);
-  const config = NOTIFICATION_CONFIG[notification.type];
+  const config = NOTIFICATION_CONFIG[notification.type] ?? DEFAULT_CONFIG;
 
   const closeSwipe = useCallback(() => swipeRef.current?.close(), []);
 
@@ -122,7 +118,7 @@ export function NotificationItem({ notification, onPress, onSwipeDelete }: Props
     [handleDelete],
   );
 
-  const relativeTime = getRelativeTime(notification.createdAt);
+  const relativeTimeLabel = relativeTime(notification.createdAt);
 
   return (
     <Swipeable
@@ -155,7 +151,7 @@ export function NotificationItem({ notification, onPress, onSwipeDelete }: Props
           <Text style={s.body} numberOfLines={2}>
             {notification.body}
           </Text>
-          <Text style={s.timestamp}>{relativeTime}</Text>
+          <Text style={s.timestamp}>{relativeTimeLabel}</Text>
         </View>
 
         {/* Point bleu si non lu */}

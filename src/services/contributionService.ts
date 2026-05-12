@@ -484,9 +484,109 @@ export interface MonthlyReportResponse {
   unpaidMembers: any[];
 }
 
-export async function fetchMonthlyReport(groupId: string, period: string): Promise<MonthlyReportResponse> { return null as any; }
-export async function fetchYearMonthlyStats(groupId: string, year: number): Promise<MonthlyStatPoint[]> { return []; }
-export async function exportReportExcel(groupId: string, type: string, period: string): Promise<{ downloadUrl: string }> { return { downloadUrl: ''}; }
+export async function fetchMonthlyReport(groupId: string, period: string): Promise<MonthlyReportResponse> {
+  const { getDocs, getDoc, doc, collection, query, where } = await import('firebase/firestore');
+  const { db } = await import('../config/firebase');
+
+  // Fetch group, members and contributions in parallel
+  const membersSnap = await getDocs(collection(db, 'groups', groupId, 'members'));
+  const members = membersSnap.docs.map(d => ({ uid: d.id, ...d.data() } as any));
+
+  const [snap1, snap2] = await Promise.all([
+    getDocs(query(collection(db, 'contributions'), where('group_id', '==', groupId), where('period_month', '==', period))),
+    getDocs(query(collection(db, 'contributions'), where('group_id', '==', groupId), where('month', '==', period))),
+  ]);
+  const seen = new Set<string>();
+  const rawContribs: any[] = [];
+  for (const d of [...snap1.docs, ...snap2.docs]) {
+    if (!seen.has(d.id)) { seen.add(d.id); rawContribs.push({ id: d.id, ...d.data() }); }
+  }
+
+  // Resolve member names
+  const uidSet = new Set([...members.map((m: any) => m.uid), ...rawContribs.map(c => c.member_uid ?? c.user_id)].filter(Boolean));
+  const userMap: Record<string, any> = {};
+  await Promise.all([...uidSet].map(async uid => {
+    const d = await getDoc(doc(db, 'users', uid));
+    if (d.exists()) userMap[uid] = d.data();
+  }));
+
+  const groupSnap = await getDoc(doc(db, 'groups', groupId));
+  const group = groupSnap.exists() ? groupSnap.data() : {} as any;
+  const baseAmount = group?.contribution_amount ?? 0;
+  const penaltyRate = (group?.late_penalty_percent ?? 0) / 100;
+  const currency = group?.currency ?? 'CDF';
+
+  const contributions = rawContribs.map(c => {
+    const uid = c.member_uid ?? c.user_id ?? '';
+    const user = userMap[uid] ?? {};
+    return {
+      txId: c.id,
+      memberId: uid,
+      memberName: user.full_name ?? c.full_name ?? c.member_name ?? '—',
+      phone: user.phone ?? c.phone ?? '',
+      operator: c.operator ?? user.operator ?? '',
+      amount: Number(c.amount_paid ?? c.amount ?? 0),
+      penaltyAmount: Number(c.penalty_amount ?? 0),
+      status: c.status === 'paid' || c.status === 'approved' ? 'PAYE' : c.status,
+      paidAt: c.paid_at ?? c.approved_at ?? null,
+      txReference: c.tx_reference ?? c.reference ?? '',
+    };
+  });
+
+  const paid = contributions.filter(c => c.status === 'PAYE');
+  const late = contributions.filter(c => ['EN_RETARD', 'LATE', 'late'].includes(c.status ?? ''));
+  const paidUids = new Set(paid.map(c => c.memberId));
+
+  const unpaidMembers = members
+    .filter((m: any) => !paidUids.has(m.uid))
+    .map((m: any) => {
+      const user = userMap[m.uid] ?? m;
+      return {
+        memberId: m.uid,
+        memberName: user.full_name ?? m.full_name ?? '—',
+        amountDue: baseAmount,
+        penaltyAmount: Math.round(baseAmount * penaltyRate),
+        currency,
+      };
+    });
+
+  const totalExpected = members.length * baseAmount;
+  const collectedAmount = paid.reduce((s, c) => s + c.amount, 0);
+
+  return {
+    period,
+    summary: {
+      expectedAmount: totalExpected,
+      collectedAmount,
+      missingAmount: Math.max(0, totalExpected - collectedAmount),
+      participationRate: members.length > 0 ? Math.round((paid.length / members.length) * 100) : 0,
+      paidCount: paid.length,
+      totalMembers: members.length,
+      lateCount: late.length,
+    },
+    contributions,
+    unpaidMembers,
+  };
+}
+
+export async function fetchYearMonthlyStats(groupId: string, year: number): Promise<MonthlyStatPoint[]> {
+  const months = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`);
+  const results = await Promise.all(months.map(m => fetchMonthlyReport(groupId, m).catch(() => null)));
+  return results
+    .map((r, i) => r ? {
+      month: months[i],
+      collectedAmount: r.summary.collectedAmount,
+      expectedAmount: r.summary.expectedAmount,
+      paidCount: r.summary.paidCount,
+      totalMembers: r.summary.totalMembers,
+    } : null)
+    .filter(Boolean) as MonthlyStatPoint[];
+}
+export async function exportReportExcel(groupId: string, type: string, period: string): Promise<{ downloadUrl: string }> {
+  const { generateGroupExcelReport } = await import('./excelReportService');
+  await generateGroupExcelReport({ groupId, period, reportType: type as any });
+  return { downloadUrl: '' };
+}
 export async function exportReportPdf(groupId: string, type: string, period: string): Promise<{ downloadUrl: string }> { return { downloadUrl: ''}; }
 export async function sendGroupRemindAll(groupId: string): Promise<void> {}
 

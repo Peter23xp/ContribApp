@@ -333,45 +333,55 @@ export function SubmitContributionScreen({ route, navigation }: any) {
     return <LoadingOverlay />;
   }
 
+  // ── STATUS: PAID ─────────────────────────────────────────────────────
   if (normalizedStatus === 'paid') {
     return (
       <View style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#0D6B4E" />
-        <View style={styles.statusHeroPaid}>
-          <View style={styles.statusHeroIconWrap}>
-            <Ionicons name="checkmark-circle" size={64} color="#FFF" />
+        <StatusBar barStyle="light-content" backgroundColor={Colors.primary} />
+        <View style={[styles.statusBanner, { paddingTop: Math.max(insets.top + 16, 48) }]}>
+          <View style={styles.statusIconRing}>
+            <Ionicons name="checkmark-circle" size={44} color={Colors.primary} />
           </View>
-          <Text style={styles.statusHeroTitle}>Contribution validée</Text>
-          <Text style={styles.statusHeroSub}>
-            Votre paiement du mois de{'\n'}<Text style={{ fontWeight: '700' }}>{periodMonth}</Text> a été approuvé.
-          </Text>
+          <View style={styles.statusBannerText}>
+            <Text style={styles.statusBannerLabel}>STATUT</Text>
+            <Text style={styles.statusBannerTitle}>Contribution validée</Text>
+          </View>
         </View>
 
-        <View style={styles.statusBody}>
+        <ScrollView contentContainerStyle={styles.statusBody}>
           <View style={styles.statusDetailCard}>
-            <View style={styles.statusDetailRow}>
-              <View style={styles.statusDetailItem}>
-                <Text style={styles.statusDetailLabel}>Montant</Text>
-                <Text style={[styles.statusDetailValue, { color: Colors.statusPaid }]}>{amount.toLocaleString('fr-FR')} CDF</Text>
-              </View>
-              <View style={styles.statusDetailDivider} />
-              <View style={styles.statusDetailItem}>
-                <Text style={styles.statusDetailLabel}>Période</Text>
-                <Text style={styles.statusDetailValue}>{periodMonth}</Text>
-              </View>
-              <View style={styles.statusDetailDivider} />
-              <View style={styles.statusDetailItem}>
-                <Text style={styles.statusDetailLabel}>Statut</Text>
-                <Text style={[styles.statusDetailValue, { color: Colors.statusPaid }]}>Approuvé</Text>
+            <View style={styles.statusAccentBar} />
+            <View style={styles.statusDetailInner}>
+              <View style={styles.statusDetailRow}>
+                <View style={styles.statusDetailItem}>
+                  <Text style={styles.statusDetailLabel}>Montant</Text>
+                  <Text style={[styles.statusDetailValue, { color: Colors.statusPaid }]}>{amount.toLocaleString('fr-FR')}</Text>
+                  <Text style={styles.statusDetailUnit}>CDF</Text>
+                </View>
+                <View style={styles.statusDetailDivider} />
+                <View style={styles.statusDetailItem}>
+                  <Text style={styles.statusDetailLabel}>Période</Text>
+                  <Text style={styles.statusDetailValue}>{periodMonth}</Text>
+                </View>
+                <View style={styles.statusDetailDivider} />
+                <View style={styles.statusDetailItem}>
+                  <Text style={styles.statusDetailLabel}>Décision</Text>
+                  <Text style={[styles.statusDetailValue, { color: Colors.statusPaid }]}>Approuvé</Text>
+                </View>
               </View>
             </View>
           </View>
 
           <View style={styles.statusInfoBox}>
-            <Ionicons name="shield-checkmark-outline" size={18} color={Colors.statusPaid} />
-            <Text style={styles.statusInfoText}>
-              Aucune action requise. Votre trésorière a confirmé la réception de ce paiement.
-            </Text>
+            <View style={[styles.statusInfoIcon, { backgroundColor: Colors.statusPaid + '20' }]}>
+              <Ionicons name="shield-checkmark-outline" size={22} color={Colors.statusPaid} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.statusInfoTitle, { color: Colors.statusPaid }]}>Paiement confirmé</Text>
+              <Text style={styles.statusInfoText}>
+                Votre trésorière a confirmé la réception de ce paiement. Aucune action requise.
+              </Text>
+            </View>
           </View>
 
           <AppButton
@@ -380,67 +390,79 @@ export function SubmitContributionScreen({ route, navigation }: any) {
             variant="solid"
             style={{ marginTop: 8 }}
           />
-        </View>
+        </ScrollView>
       </View>
     );
   }
 
+  // ── STATUS: PENDING ───────────────────────────────────────────────────
   if (normalizedStatus === 'pending_approval') {
     return (
       <View style={styles.container}>
         <StatusBar barStyle="light-content" backgroundColor="#7B5300" />
-        <View style={styles.statusHeroPending}>
-          <View style={styles.statusHeroIconWrap}>
-            <Ionicons name="hourglass-outline" size={56} color="#FFF" />
+        <View style={[styles.statusBannerPending, { paddingTop: Math.max(insets.top + 16, 48) }]}>
+          <View style={[styles.statusIconRing, { backgroundColor: 'rgba(255,255,255,0.95)' }]}>
+            <Ionicons name="hourglass-outline" size={38} color="#7B5300" />
           </View>
-          <Text style={styles.statusHeroTitle}>En cours de vérification</Text>
-          <Text style={styles.statusHeroSub}>
-            Votre capture a été transmise à{'\n'}la trésorière pour validation.
-          </Text>
+          <View style={styles.statusBannerText}>
+            <Text style={[styles.statusBannerLabel, { color: 'rgba(255,255,255,0.7)' }]}>STATUT</Text>
+            <Text style={styles.statusBannerTitle}>En cours de vérification</Text>
+          </View>
         </View>
 
-        <View style={styles.statusBody}>
+        <ScrollView contentContainerStyle={styles.statusBody}>
           <View style={styles.statusDetailCard}>
-            <View style={styles.statusDetailRow}>
-              <View style={styles.statusDetailItem}>
-                <Text style={styles.statusDetailLabel}>Montant</Text>
-                <Text style={[styles.statusDetailValue, { color: Colors.statusPending }]}>{amount.toLocaleString('fr-FR')} CDF</Text>
-              </View>
-              <View style={styles.statusDetailDivider} />
-              <View style={styles.statusDetailItem}>
-                <Text style={styles.statusDetailLabel}>Période</Text>
-                <Text style={styles.statusDetailValue}>{periodMonth}</Text>
-              </View>
-              <View style={styles.statusDetailDivider} />
-              <View style={styles.statusDetailItem}>
-                <Text style={styles.statusDetailLabel}>Statut</Text>
-                <Text style={[styles.statusDetailValue, { color: Colors.statusPending }]}>En attente</Text>
+            <View style={[styles.statusAccentBar, { backgroundColor: Colors.statusPending }]} />
+            <View style={styles.statusDetailInner}>
+              <View style={styles.statusDetailRow}>
+                <View style={styles.statusDetailItem}>
+                  <Text style={styles.statusDetailLabel}>Montant</Text>
+                  <Text style={[styles.statusDetailValue, { color: Colors.statusPending }]}>{amount.toLocaleString('fr-FR')}</Text>
+                  <Text style={styles.statusDetailUnit}>CDF</Text>
+                </View>
+                <View style={styles.statusDetailDivider} />
+                <View style={styles.statusDetailItem}>
+                  <Text style={styles.statusDetailLabel}>Période</Text>
+                  <Text style={styles.statusDetailValue}>{periodMonth}</Text>
+                </View>
+                <View style={styles.statusDetailDivider} />
+                <View style={styles.statusDetailItem}>
+                  <Text style={styles.statusDetailLabel}>Statut</Text>
+                  <Text style={[styles.statusDetailValue, { color: Colors.statusPending }]}>En attente</Text>
+                </View>
               </View>
             </View>
           </View>
 
-          <View style={styles.statusStepsCard}>
-            <View style={styles.statusStep}>
-              <View style={[styles.statusStepDot, styles.statusStepDotDone]}><Ionicons name="checkmark" size={12} color="#FFF" /></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.statusStepTitle}>Capture soumise</Text>
-                <Text style={styles.statusStepDesc}>Votre preuve de paiement a été reçue.</Text>
+          <View style={styles.timelineCard}>
+            <Text style={styles.timelineTitle}>Suivi de la validation</Text>
+            <View style={styles.timelineStep}>
+              <View style={[styles.timelineDot, { backgroundColor: Colors.statusPaid }]}>
+                <Ionicons name="checkmark" size={12} color="#FFF" />
+              </View>
+              <View style={styles.timelineConnector} />
+              <View style={styles.timelineContent}>
+                <Text style={styles.timelineStepTitle}>Capture soumise</Text>
+                <Text style={styles.timelineStepDesc}>Votre preuve de paiement a été reçue.</Text>
               </View>
             </View>
-            <View style={styles.statusStepLine} />
-            <View style={styles.statusStep}>
-              <View style={[styles.statusStepDot, styles.statusStepDotActive]}><Ionicons name="time-outline" size={12} color="#FFF" /></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.statusStepTitle}>Vérification en cours</Text>
-                <Text style={styles.statusStepDesc}>La trésorière examine votre capture.</Text>
+            <View style={styles.timelineStep}>
+              <View style={[styles.timelineDot, { backgroundColor: Colors.statusPending }]}>
+                <Ionicons name="time-outline" size={12} color="#FFF" />
+              </View>
+              <View style={styles.timelineConnectorDashed} />
+              <View style={styles.timelineContent}>
+                <Text style={styles.timelineStepTitle}>Vérification en cours</Text>
+                <Text style={styles.timelineStepDesc}>La trésorière examine votre capture.</Text>
               </View>
             </View>
-            <View style={styles.statusStepLine} />
-            <View style={styles.statusStep}>
-              <View style={styles.statusStepDot}><Ionicons name="ellipsis-horizontal" size={12} color={Colors.textMuted} /></View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.statusStepTitle, { color: Colors.textMuted }]}>Validation finale</Text>
-                <Text style={styles.statusStepDesc}>Vous recevrez une notification.</Text>
+            <View style={[styles.timelineStep, { opacity: 0.45 }]}>
+              <View style={[styles.timelineDot, { backgroundColor: Colors.surfaceContainerHigh, borderWidth: 1.5, borderColor: Colors.outlineVariant }]}>
+                <Ionicons name="ellipsis-horizontal" size={10} color={Colors.textMuted} />
+              </View>
+              <View style={styles.timelineContent}>
+                <Text style={[styles.timelineStepTitle, { color: Colors.textMuted }]}>Validation finale</Text>
+                <Text style={styles.timelineStepDesc}>Vous recevrez une notification dès l'approbation.</Text>
               </View>
             </View>
           </View>
@@ -451,86 +473,110 @@ export function SubmitContributionScreen({ route, navigation }: any) {
             variant="outline"
             style={{ marginTop: 8 }}
           />
-        </View>
+        </ScrollView>
       </View>
     );
   }
 
+  // ── MAIN FLOW ─────────────────────────────────────────────────────────
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={Colors.surface} />
-      <OfflineBanner />
+      <StatusBar barStyle="light-content" backgroundColor={Colors.primary} />
       {isSubmitting ? <LoadingOverlay /> : null}
 
-      {/* ── Top App Bar (référence AdminDashboard) ── */}
-      <View style={styles.topBar}>
-        <View style={styles.topBarLeft}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.topBarBtn} activeOpacity={0.7}>
-            <Ionicons name="arrow-back" size={22} color={Colors.onSurface} />
-          </TouchableOpacity>
-          <Text style={styles.topBarTitle}>Soumettre ma contribution</Text>
+      {/* Top Banner Header */}
+      <View style={[styles.topBanner, { paddingTop: Math.max(insets.top + 8, 44) }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.topBannerBack} activeOpacity={0.7}>
+          <Ionicons name="arrow-back" size={22} color="rgba(255,255,255,0.9)" />
+        </TouchableOpacity>
+        <View style={styles.topBannerCenter}>
+          <Text style={styles.topBannerEyebrow}>Cotisation mensuelle</Text>
+          <Text style={styles.topBannerTitle}>Soumettre ma contribution</Text>
+        </View>
+        <View style={styles.topBannerLogo}>
+          <Text style={styles.topBannerLogoText}>C</Text>
         </View>
       </View>
 
-      <PaymentStepIndicator currentStep={currentStep as 1 | 2 | 3} steps={['Instructions', 'Capture', 'Envoi']} />
+      <OfflineBanner />
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.heroCard}>
-          <View style={styles.heroMetric}>
-            <Text style={styles.heroMetricLabel}>Montant</Text>
-            <Text style={styles.heroMetricValue}>{amount.toLocaleString('fr-FR')} CDF</Text>
-          </View>
-          <View style={styles.heroMetric}>
-            <Text style={styles.heroMetricLabel}>Période</Text>
-            <Text style={styles.heroMetricValue}>{periodMonth}</Text>
-          </View>
-          <View style={styles.heroMetric}>
-            <Text style={styles.heroMetricLabel}>Opérateur</Text>
-            <Text style={styles.heroMetricValue}>{operatorTreasurer.toUpperCase()}</Text>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+
+        {/* ── Amount Hero Strip ── */}
+        <View style={styles.amountHeroStrip}>
+          <View style={styles.amountHeroAccent} />
+          <View style={styles.amountHeroInner}>
+            <View style={styles.amountHeroLeft}>
+              <Text style={styles.amountHeroLabel}>Montant à payer</Text>
+              <Text style={styles.amountHeroValue}>{amount.toLocaleString('fr-FR')} <Text style={styles.amountHeroCurrency}>CDF</Text></Text>
+            </View>
+            <View style={styles.amountHeroChips}>
+              <View style={styles.chip}>
+                <Text style={styles.chipText}>{periodMonth}</Text>
+              </View>
+              <View style={[styles.chip, { backgroundColor: Colors.primary + '18', borderColor: Colors.primary + '30' }]}>
+                <Text style={[styles.chipText, { color: Colors.primary }]}>{operatorTreasurer.toUpperCase()}</Text>
+              </View>
+            </View>
           </View>
         </View>
 
+        {/* ── Step Indicator ── */}
+        <PaymentStepIndicator currentStep={currentStep as 1 | 2 | 3} steps={['Instructions', 'Capture', 'Envoi']} />
+
+        {/* ═══════════════ STEP 1 ═══════════════ */}
         {currentStep === 1 ? (
-          <View>
-            <View style={styles.sectionIntro}>
-              <Text style={styles.sectionEyebrow}>Paiement manuel assiste</Text>
-              <Text style={styles.sectionTitle}>Suivez les etapes puis envoyez votre capture.</Text>
-            </View>
+          <View style={styles.stepContainer}>
+            <Text style={styles.stepEyebrow}>Étape 1 sur 3</Text>
+            <Text style={styles.stepHeading}>Effectuez le paiement</Text>
 
-            <View style={styles.amountCard}>
-              <Text style={styles.amountLabel}>Montant attendu</Text>
-              <Text style={styles.amountDueText}>{amount.toLocaleString('fr-FR')} CDF</Text>
-              <Text style={styles.amountDetailText}>Période : {periodMonth}</Text>
-            </View>
-
-            <View style={styles.treasurerCard}>
-              <View style={styles.treasurerRow}>
-                <Ionicons name="information-circle" size={24} color={Colors.info} />
-                <Text style={styles.treasurerCardTitle}>Envoyez le paiement à</Text>
+            {/* Treasurer Card */}
+            <View style={styles.treasurerHeroCard}>
+              <View style={styles.treasurerHeroTop}>
+                <View style={styles.treasurerAvatarCircle}>
+                  <Text style={styles.treasurerAvatarLetter}>{(treasurerName[0] ?? 'T').toUpperCase()}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.treasurerHeroLabel}>Envoyez le paiement à</Text>
+                  <Text style={styles.treasurerHeroName}>{treasurerName}</Text>
+                </View>
               </View>
-              <Text style={styles.treasurerName}>{treasurerName}</Text>
-              <Text style={styles.treasurerNumber}>{treasurerNumber || 'Numero indisponible'}</Text>
-              <AppButton
-                title="Copier le numéro"
-                onPress={() => copyToClipboard(treasurerNumber)}
-                variant="outline"
-                style={{ marginTop: 8 }}
-                disabled={!treasurerNumber}
-              />
-              <Text style={styles.treasurerOpCenter}>{operatorTreasurer.toUpperCase()}</Text>
+              <View style={styles.treasurerDivider} />
+              <Text style={styles.treasurerPhoneDisplay}>{treasurerNumber || 'Numéro indisponible'}</Text>
+              <View style={styles.treasurerFooter}>
+                <View style={styles.operatorPill}>
+                  <Ionicons name="phone-portrait-outline" size={13} color={Colors.primary} />
+                  <Text style={styles.operatorPillText}>{operatorTreasurer.toUpperCase()}</Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.copyBtn, !treasurerNumber && { opacity: 0.4 }]}
+                  onPress={() => copyToClipboard(treasurerNumber)}
+                  disabled={!treasurerNumber}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="copy-outline" size={15} color="#FFF" />
+                  <Text style={styles.copyBtnText}>Copier</Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
+            {/* Instructions */}
             <View style={styles.instructionsCard}>
-              <Text style={styles.instructionsTitle}>Instructions</Text>
-              <Text style={styles.instructionLine}>1. Ouvrez votre application Mobile Money ({operatorTreasurer}).</Text>
-              <Text style={styles.instructionLine}>
-                2. Envoyez {amount.toLocaleString('fr-FR')} CDF au numéro {treasurerNumber || 'du trésorier'}.
-              </Text>
-              <Text style={styles.instructionLine}>3. Attendez la confirmation de la transaction.</Text>
-              <Text style={styles.instructionLine}>
-                4. Faites une capture d&apos;écran de l&apos;alerte ou du SMS de confirmation.
-              </Text>
-              <Text style={styles.instructionLine}>5. Revenez ici et soumettez la capture.</Text>
+              <Text style={styles.instructionsHeading}>Comment procéder</Text>
+              {[
+                `Ouvrez votre application ${operatorTreasurer} (Mobile Money).`,
+                `Envoyez ${amount.toLocaleString('fr-FR')} CDF au numéro ${treasurerNumber || 'du trésorier'}.`,
+                `Attendez la confirmation SMS ou écran de la transaction.`,
+                `Faites une capture d'écran de la confirmation reçue.`,
+                `Revenez ici et soumettez la capture à l'étape suivante.`,
+              ].map((text, i) => (
+                <View key={i} style={styles.instructionRow}>
+                  <View style={styles.instructionBullet}>
+                    <Text style={styles.instructionBulletText}>{i + 1}</Text>
+                  </View>
+                  <Text style={styles.instructionText}>{text}</Text>
+                </View>
+              ))}
             </View>
 
             {!groupId || !memberUid || !amount ? (
@@ -543,7 +589,7 @@ export function SubmitContributionScreen({ route, navigation }: any) {
             ) : null}
 
             <AppButton
-              title="J'ai effectue le paiement"
+              title="J'ai effectué le paiement →"
               onPress={() => setCurrentStep(2)}
               variant="solid"
               disabled={!groupId || !memberUid || !amount}
@@ -551,15 +597,26 @@ export function SubmitContributionScreen({ route, navigation }: any) {
           </View>
         ) : null}
 
+        {/* ═══════════════ STEP 2 ═══════════════ */}
         {currentStep === 2 ? (
-          <View>
+          <View style={styles.stepContainer}>
+            <Text style={styles.stepEyebrow}>Étape 2 sur 3</Text>
+            <Text style={styles.stepHeading}>Ajoutez la capture</Text>
+
             {!captureImage ? (
-              <TouchableOpacity style={styles.imagePickerArea} onPress={handlePickImage}>
-                <Ionicons name="camera" size={48} color={Colors.textMuted} />
-                <Text style={styles.imagePickerText}>Appuyez pour ajouter la capture</Text>
+              <TouchableOpacity style={styles.uploadZone} onPress={handlePickImage} activeOpacity={0.85}>
+                <View style={styles.uploadIconWrap}>
+                  <Ionicons name="camera" size={32} color={Colors.primary} />
+                </View>
+                <Text style={styles.uploadTitle}>Ajouter la capture de paiement</Text>
+                <Text style={styles.uploadSub}>Appuyez pour prendre une photo ou choisir depuis la galerie</Text>
+                <View style={styles.uploadChip}>
+                  <Ionicons name="image-outline" size={13} color={Colors.primary} />
+                  <Text style={styles.uploadChipText}>Galerie / Appareil photo</Text>
+                </View>
               </TouchableOpacity>
             ) : (
-              <View>
+              <View style={styles.previewContainer}>
                 <CapturePreviewCard
                   imageUrl={captureImage.uri}
                   geminiResult={geminiResult}
@@ -567,11 +624,17 @@ export function SubmitContributionScreen({ route, navigation }: any) {
                   status="pending"
                 />
                 {!isAnalyzing ? (
-                  <TouchableOpacity onPress={handlePickImage}>
-                    <Text style={styles.changeImageText}>Changer la capture</Text>
+                  <TouchableOpacity style={styles.changeCapturePill} onPress={handlePickImage} activeOpacity={0.8}>
+                    <Ionicons name="refresh" size={14} color={Colors.primary} />
+                    <Text style={styles.changeCapturePillText}>Changer la capture</Text>
                   </TouchableOpacity>
                 ) : null}
-                {analysisError ? <Text style={styles.analysisError}>{analysisError}</Text> : null}
+                {analysisError ? (
+                  <View style={styles.analysisErrorCard}>
+                    <Ionicons name="information-circle-outline" size={16} color={Colors.statusPending} />
+                    <Text style={styles.analysisError}>{analysisError}</Text>
+                  </View>
+                ) : null}
               </View>
             )}
 
@@ -586,20 +649,25 @@ export function SubmitContributionScreen({ route, navigation }: any) {
 
             <View style={styles.actionsBlock}>
               <AppButton
-                title="Continuer"
+                title="Continuer vers l'envoi"
                 onPress={() => setCurrentStep(3)}
                 variant="solid"
                 disabled={!captureImage || isAnalyzing || !isAuthenticatedForSubmission}
               />
-              <TouchableOpacity onPress={() => setCurrentStep(1)} style={{ marginTop: 12 }}>
-                <Text style={styles.changeImageText}>Retour aux instructions</Text>
+              <TouchableOpacity onPress={() => setCurrentStep(1)} style={styles.backLink}>
+                <Ionicons name="arrow-back" size={14} color={Colors.primary} />
+                <Text style={styles.backLinkText}>Retour aux instructions</Text>
               </TouchableOpacity>
             </View>
           </View>
         ) : null}
 
+        {/* ═══════════════ STEP 3 ═══════════════ */}
         {currentStep === 3 ? (
-          <View>
+          <View style={styles.stepContainer}>
+            <Text style={styles.stepEyebrow}>Étape 3 sur 3</Text>
+            <Text style={styles.stepHeading}>Confirmer l'envoi</Text>
+
             <CapturePreviewCard
               imageUrl={captureImage?.uri || ''}
               geminiResult={geminiResult}
@@ -608,39 +676,40 @@ export function SubmitContributionScreen({ route, navigation }: any) {
             />
 
             {geminiResult ? (
-              <View
-                style={[
-                  styles.matchCard,
-                  { backgroundColor: geminiResult.amount === amount ? '#E8F5E9' : '#FFF3E0' },
-                ]}
-              >
-                {geminiResult.amount === amount ? (
-                  <Text style={styles.matchOkText}>
-                    Le montant detecte ({geminiResult.amount} CDF) correspond au montant attendu ({amount} CDF).
-                  </Text>
-                ) : (
-                  <Text style={styles.matchWarnText}>
-                    Montant détecté : {geminiResult.amount || 'N/A'} CDF. Montant attendu : {amount} CDF. La trésorière vérifiera la différence.
-                  </Text>
-                )}
+              <View style={[styles.matchCard, { borderLeftColor: geminiResult.amount === amount ? Colors.statusPaid : Colors.statusPending }]}>
+                <View style={styles.matchCardIcon}>
+                  <Ionicons
+                    name={geminiResult.amount === amount ? 'checkmark-circle' : 'alert-circle'}
+                    size={20}
+                    color={geminiResult.amount === amount ? Colors.statusPaid : Colors.statusPending}
+                  />
+                </View>
+                <Text style={[styles.matchCardText, { color: geminiResult.amount === amount ? Colors.statusPaid : Colors.statusPending }]}>
+                  {geminiResult.amount === amount
+                    ? `Montant confirmé : ${geminiResult.amount} CDF correspond au montant attendu.`
+                    : `Montant détecté : ${geminiResult.amount || 'N/A'} CDF — attendu : ${amount} CDF. La trésorière vérifiera.`}
+                </Text>
               </View>
             ) : null}
 
-            <View style={styles.infoNoteCard}>
-              <Ionicons name="information-circle" size={24} color={Colors.info} />
-              <Text style={styles.infoNoteText}>
+            <View style={styles.noteSection}>
+              <Text style={styles.noteSectionLabel}>MESSAGE POUR LA TRÉSORIÈRE</Text>
+              <AppInput
+                label=""
+                placeholder="Ex : J'ai payé en deux fois, voici la première partie…"
+                value={memberNote}
+                onChangeText={setMemberNote}
+                multiline
+                maxLength={200}
+              />
+            </View>
+
+            <View style={styles.reviewInfoBox}>
+              <Ionicons name="information-circle-outline" size={18} color={Colors.info} />
+              <Text style={styles.reviewInfoText}>
                 Votre capture sera examinée par la trésorière. Vous recevrez une notification après validation.
               </Text>
             </View>
-
-            <AppInput
-              label="Message pour la trésorière (optionnel)"
-              placeholder="Ex : J'ai payé en deux fois, voici la première partie…"
-              value={memberNote}
-              onChangeText={setMemberNote}
-              multiline
-              maxLength={200}
-            />
 
             {!isAuthenticatedForSubmission ? (
               <View style={styles.authWarningBanner}>
@@ -658,8 +727,9 @@ export function SubmitContributionScreen({ route, navigation }: any) {
                 variant="solid"
                 disabled={isSubmitting || !isAuthenticatedForSubmission || !captureImage}
               />
-              <TouchableOpacity onPress={() => setCurrentStep(2)} style={{ marginTop: 12 }}>
-                <Text style={styles.changeImageText}>Modifier la capture</Text>
+              <TouchableOpacity onPress={() => setCurrentStep(2)} style={styles.backLink}>
+                <Ionicons name="arrow-back" size={14} color={Colors.primary} />
+                <Text style={styles.backLinkText}>Modifier la capture</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -674,134 +744,544 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.surface,
   },
-  // ── Top App Bar (référence AdminDashboard) ──
-  topBar: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: Colors.surface, paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 52 : 36, paddingBottom: 12,
-    shadowColor: Colors.onSurface, shadowOpacity: 0.05, shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 }, elevation: 2,
+
+  // ── Top Banner ──
+  topBanner: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
-  topBarLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  topBarTitle: { fontFamily: Fonts.display, fontSize: 20, color: Colors.onSurface },
-  topBarBtn: { padding: 8, borderRadius: Radius.full },
-  
-  headerEyebrow: {
-    fontSize: 11,
+  topBannerBack: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  topBannerCenter: {
+    flex: 1,
+  },
+  topBannerEyebrow: {
     fontFamily: Fonts.label,
-    color: Colors.primary,
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.6)',
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: 1.2,
     marginBottom: 2,
   },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
+  topBannerTitle: {
+    fontFamily: Fonts.display,
+    fontSize: 18,
+    color: '#FFFFFF',
   },
-  heroCard: {
+  topBannerLogo: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: Colors.gold,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  topBannerLogoText: {
+    fontFamily: Fonts.display,
+    fontSize: 18,
+    color: Colors.primary,
+  },
+
+  scrollContent: {
+    paddingBottom: 48,
+  },
+
+  // ── Amount Hero Strip ──
+  amountHeroStrip: {
     flexDirection: 'row',
-    gap: 10,
-    marginBottom: 18,
-    padding: 14,
-    borderRadius: Radius.xxl,
     backgroundColor: Colors.surfaceContainerLowest,
+    borderRadius: Radius.xxl,
+    margin: 16,
+    marginBottom: 0,
+    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: Colors.outlineVariant + '45',
+    borderColor: Colors.outlineVariant + '40',
     ...Shadow.card,
   },
-  heroMetric: {
-    flex: 1,
-    backgroundColor: Colors.surfaceContainerLow,
-    borderRadius: Radius.lg,
-    padding: 12,
+  amountHeroAccent: {
+    width: 5,
+    backgroundColor: Colors.gold,
   },
-  heroMetricLabel: {
-    fontSize: 10,
+  amountHeroInner: {
+    flex: 1,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  amountHeroLeft: {
+    gap: 4,
+  },
+  amountHeroLabel: {
     fontFamily: Fonts.label,
+    fontSize: 10,
     color: Colors.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 1,
-    marginBottom: 6,
   },
-  heroMetricValue: {
-    fontSize: 13,
-    fontFamily: Fonts.headline,
-    color: Colors.onSurface,
+  amountHeroValue: {
+    fontFamily: Fonts.display,
+    fontSize: 26,
+    color: Colors.gold,
   },
-  sectionIntro: {
-    marginBottom: 16,
+  amountHeroCurrency: {
+    fontSize: 14,
+    color: Colors.textSecondary,
   },
-  sectionEyebrow: {
-    fontSize: 12,
+  amountHeroChips: {
+    gap: 6,
+    alignItems: 'flex-end',
+  },
+  chip: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.goldMuted,
+    borderWidth: 1,
+    borderColor: Colors.gold + '30',
+  },
+  chipText: {
     fontFamily: Fonts.label,
+    fontSize: 11,
+    color: Colors.onSurface,
+    fontWeight: '600',
+  },
+
+  // ── Step Container ──
+  stepContainer: {
+    padding: 16,
+    paddingTop: 20,
+    gap: 16,
+  },
+  stepEyebrow: {
+    fontFamily: Fonts.label,
+    fontSize: 11,
     color: Colors.primary,
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: 1.2,
   },
-  sectionTitle: {
-    marginTop: 6,
-    fontSize: 22,
-    lineHeight: 30,
-    fontFamily: Fonts.headline,
-    color: Colors.onSurface,
-  },
-  // ── Status screens (paid / pending) ──────────────────────────────────────────
-  statusHeroPaid: {
-    backgroundColor: '#0D6B4E',
-    paddingTop: Platform.OS === 'ios' ? 72 : 56,
-    paddingBottom: 40,
-    paddingHorizontal: 24,
-    alignItems: 'center',
-    borderBottomLeftRadius: 36,
-    borderBottomRightRadius: 36,
-  },
-  statusHeroPending: {
-    backgroundColor: '#7B5300',
-    paddingTop: Platform.OS === 'ios' ? 72 : 56,
-    paddingBottom: 40,
-    paddingHorizontal: 24,
-    alignItems: 'center',
-    borderBottomLeftRadius: 36,
-    borderBottomRightRadius: 36,
-  },
-  statusHeroIconWrap: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.3)',
-  },
-  statusHeroTitle: {
+  stepHeading: {
     fontFamily: Fonts.display,
     fontSize: 24,
+    color: Colors.onSurface,
+    marginTop: -8,
+    lineHeight: 32,
+  },
+
+  // ── Treasurer Hero Card ──
+  treasurerHeroCard: {
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderRadius: Radius.xxl,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant + '40',
+    overflow: 'hidden',
+    ...Shadow.card,
+  },
+  treasurerHeroTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    padding: 18,
+    paddingBottom: 14,
+  },
+  treasurerAvatarCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Colors.goldMuted,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: Colors.gold + '50',
+  },
+  treasurerAvatarLetter: {
+    fontFamily: Fonts.display,
+    fontSize: 20,
+    color: Colors.primary,
+  },
+  treasurerHeroLabel: {
+    fontFamily: Fonts.label,
+    fontSize: 11,
+    color: Colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  treasurerHeroName: {
+    fontFamily: Fonts.headline,
+    fontSize: 16,
+    color: Colors.onSurface,
+    marginTop: 2,
+  },
+  treasurerDivider: {
+    height: 1,
+    backgroundColor: Colors.outlineVariant + '40',
+    marginHorizontal: 18,
+  },
+  treasurerPhoneDisplay: {
+    fontFamily: Fonts.display,
+    fontSize: 28,
+    color: Colors.primary,
+    textAlign: 'center',
+    paddingVertical: 16,
+    letterSpacing: 2,
+  },
+  treasurerFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    paddingBottom: 18,
+  },
+  operatorPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: Colors.primary + '10',
+    borderRadius: Radius.full,
+  },
+  operatorPillText: {
+    fontFamily: Fonts.label,
+    fontSize: 11,
+    color: Colors.primary,
+    fontWeight: '700',
+  },
+  copyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    backgroundColor: Colors.gold,
+    borderRadius: Radius.full,
+  },
+  copyBtnText: {
+    fontFamily: Fonts.title,
+    fontSize: 13,
+    color: Colors.primary,
+    fontWeight: '700',
+  },
+
+  // ── Instructions Card ──
+  instructionsCard: {
+    backgroundColor: Colors.surfaceContainerLow,
+    borderRadius: Radius.xl,
+    padding: 18,
+    gap: 12,
+  },
+  instructionsHeading: {
+    fontFamily: Fonts.headline,
+    fontSize: 14,
+    color: Colors.onSurface,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 4,
+  },
+  instructionRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  instructionBullet: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+    marginTop: 1,
+  },
+  instructionBulletText: {
+    fontFamily: Fonts.headline,
+    fontSize: 11,
     color: '#FFF',
-    marginBottom: 10,
+    fontWeight: '700',
+  },
+  instructionText: {
+    flex: 1,
+    fontFamily: Fonts.body,
+    fontSize: 14,
+    color: Colors.textPrimary,
+    lineHeight: 21,
+  },
+
+  // ── Warning Card ──
+  warningCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#FFF3CD',
+    borderColor: '#FFCC80',
+    borderWidth: 1,
+    borderRadius: Radius.lg,
+    padding: 14,
+  },
+  warningText: {
+    flex: 1,
+    color: '#7B3F00',
+    fontFamily: Fonts.body,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+
+  // ── Upload Zone ──
+  uploadZone: {
+    borderWidth: 2,
+    borderColor: Colors.gold + '60',
+    borderStyle: 'dashed',
+    borderRadius: Radius.xxl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 24,
+    backgroundColor: Colors.goldMuted + '40',
+    gap: 10,
+  },
+  uploadIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: Colors.primary + '10',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  uploadTitle: {
+    fontFamily: Fonts.headline,
+    fontSize: 16,
+    color: Colors.onSurface,
     textAlign: 'center',
   },
-  statusHeroSub: {
+  uploadSub: {
     fontFamily: Fonts.body,
-    fontSize: 15,
-    color: 'rgba(255,255,255,0.8)',
+    fontSize: 13,
+    color: Colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 19,
+  },
+  uploadChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    backgroundColor: Colors.primary + '10',
+    borderRadius: Radius.full,
+    marginTop: 4,
+  },
+  uploadChipText: {
+    fontFamily: Fonts.label,
+    fontSize: 12,
+    color: Colors.primary,
+    fontWeight: '600',
+  },
+
+  // ── Preview ──
+  previewContainer: {
+    gap: 10,
+  },
+  changeCapturePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    alignSelf: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: Radius.full,
+    borderWidth: 1.5,
+    borderColor: Colors.primary + '50',
+    backgroundColor: Colors.primary + '08',
+  },
+  changeCapturePillText: {
+    fontFamily: Fonts.title,
+    fontSize: 13,
+    color: Colors.primary,
+  },
+  analysisErrorCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: '#FFF3E0',
+    borderRadius: Radius.lg,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: Colors.statusPending + '30',
+  },
+  analysisError: {
+    flex: 1,
+    color: Colors.statusPending,
+    fontFamily: Fonts.body,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+
+  // ── Auth warning ──
+  authWarningBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF3CD',
+    borderWidth: 1,
+    borderColor: '#FFCC80',
+    borderRadius: Radius.lg,
+    padding: 12,
+    gap: 10,
+  },
+  authWarningText: {
+    flex: 1,
+    color: '#7B3F00',
+    fontSize: 13,
+    fontFamily: Fonts.headline,
+  },
+
+  // ── Match Card (Step 3) ──
+  matchCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderLeftWidth: 4,
+    borderRadius: Radius.lg,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant + '30',
+  },
+  matchCardIcon: {
+    marginTop: 1,
+  },
+  matchCardText: {
+    flex: 1,
+    fontFamily: Fonts.headline,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+
+  // ── Note Section ──
+  noteSection: {
+    gap: 6,
+  },
+  noteSectionLabel: {
+    fontFamily: Fonts.label,
+    fontSize: 10,
+    color: Colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginLeft: 2,
+  },
+
+  // ── Review Info ──
+  reviewInfoBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: Colors.info + '10',
+    borderRadius: Radius.lg,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: Colors.info + '20',
+  },
+  reviewInfoText: {
+    flex: 1,
+    fontFamily: Fonts.body,
+    fontSize: 13,
+    color: Colors.info,
+    lineHeight: 19,
+  },
+
+  // ── Actions Block ──
+  actionsBlock: {
+    gap: 4,
+  },
+  backLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingVertical: 12,
+  },
+  backLinkText: {
+    fontFamily: Fonts.title,
+    fontSize: 14,
+    color: Colors.primary,
+  },
+
+  // ── Status Screens ──
+  statusBanner: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 20,
+    paddingBottom: 28,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  statusBannerPending: {
+    backgroundColor: '#7B5300',
+    paddingHorizontal: 20,
+    paddingBottom: 28,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  statusIconRing: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  statusBannerText: {
+    flex: 1,
+  },
+  statusBannerLabel: {
+    fontFamily: Fonts.label,
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.65)',
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+    marginBottom: 3,
+  },
+  statusBannerTitle: {
+    fontFamily: Fonts.display,
+    fontSize: 20,
+    color: '#FFFFFF',
+    lineHeight: 26,
   },
   statusBody: {
-    flex: 1,
     padding: 20,
     paddingTop: 24,
+    paddingBottom: 40,
+    gap: 14,
   },
   statusDetailCard: {
     backgroundColor: Colors.surfaceContainerLowest,
     borderRadius: Radius.xxl,
     borderWidth: 1,
-    borderColor: Colors.outlineVariant + '50',
-    padding: 20,
-    marginBottom: 16,
+    borderColor: Colors.outlineVariant + '40',
+    overflow: 'hidden',
+    flexDirection: 'row',
     ...Shadow.card,
+  },
+  statusAccentBar: {
+    width: 5,
+    backgroundColor: Colors.statusPaid,
+  },
+  statusDetailInner: {
+    flex: 1,
+    padding: 20,
   },
   statusDetailRow: {
     flexDirection: 'row',
@@ -813,264 +1293,122 @@ const styles = StyleSheet.create({
   },
   statusDetailDivider: {
     width: 1,
-    height: 36,
-    backgroundColor: Colors.outlineVariant,
+    height: 44,
+    backgroundColor: Colors.outlineVariant + '60',
     marginHorizontal: 8,
   },
   statusDetailLabel: {
     fontFamily: Fonts.label,
-    fontSize: 11,
+    fontSize: 10,
     color: Colors.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
     marginBottom: 6,
   },
   statusDetailValue: {
-    fontFamily: Fonts.headline,
-    fontSize: 14,
+    fontFamily: Fonts.display,
+    fontSize: 16,
     color: Colors.onSurface,
+  },
+  statusDetailUnit: {
+    fontFamily: Fonts.label,
+    fontSize: 10,
+    color: Colors.textMuted,
+    marginTop: 2,
   },
   statusInfoBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 10,
-    backgroundColor: '#E8F5E9',
-    borderRadius: Radius.lg,
-    padding: 14,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: Colors.statusPaid + '30',
-  },
-  statusInfoText: {
-    flex: 1,
-    fontFamily: Fonts.body,
-    fontSize: 13,
-    color: Colors.statusPaid,
-    lineHeight: 19,
-  },
-  statusStepsCard: {
+    gap: 12,
     backgroundColor: Colors.surfaceContainerLowest,
-    borderRadius: Radius.xxl,
+    borderRadius: Radius.xl,
+    padding: 16,
     borderWidth: 1,
-    borderColor: Colors.outlineVariant + '50',
-    padding: 20,
-    marginBottom: 16,
+    borderColor: Colors.outlineVariant + '30',
     ...Shadow.card,
   },
-  statusStep: {
+  statusInfoIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  statusInfoTitle: {
+    fontFamily: Fonts.headline,
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  statusInfoText: {
+    fontFamily: Fonts.body,
+    fontSize: 13,
+    color: Colors.textSecondary,
+    lineHeight: 19,
+  },
+
+  // ── Timeline Card (Pending) ──
+  timelineCard: {
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderRadius: Radius.xxl,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant + '40',
+    ...Shadow.card,
+    gap: 0,
+  },
+  timelineTitle: {
+    fontFamily: Fonts.headline,
+    fontSize: 14,
+    color: Colors.onSurface,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 16,
+  },
+  timelineStep: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 14,
+    position: 'relative',
   },
-  statusStepLine: {
-    width: 2,
-    height: 20,
-    backgroundColor: Colors.outlineVariant,
-    marginLeft: 14,
-    marginVertical: 3,
-  },
-  statusStepDot: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: Colors.surfaceContainerHigh,
+  timelineDot: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: Colors.outlineVariant,
+    flexShrink: 0,
   },
-  statusStepDotDone: {
-    backgroundColor: Colors.statusPaid,
-    borderColor: Colors.statusPaid,
+  timelineConnector: {
+    position: 'absolute',
+    left: 13,
+    top: 28,
+    width: 2,
+    height: 28,
+    backgroundColor: Colors.statusPaid + '40',
   },
-  statusStepDotActive: {
-    backgroundColor: Colors.statusPending,
-    borderColor: Colors.statusPending,
+  timelineConnectorDashed: {
+    position: 'absolute',
+    left: 13,
+    top: 28,
+    width: 2,
+    height: 28,
+    backgroundColor: Colors.outlineVariant,
   },
-  statusStepTitle: {
+  timelineContent: {
+    flex: 1,
+    paddingBottom: 20,
+  },
+  timelineStepTitle: {
     fontFamily: Fonts.headline,
     fontSize: 14,
     color: Colors.onSurface,
     marginBottom: 2,
   },
-  statusStepDesc: {
+  timelineStepDesc: {
     fontFamily: Fonts.body,
     fontSize: 12,
     color: Colors.textSecondary,
     lineHeight: 17,
-  },
-  amountCard: {
-    backgroundColor: Colors.primary,
-    padding: 24,
-    borderRadius: Radius.xl,
-    marginBottom: 16,
-    ...Shadow.card,
-  },
-  amountLabel: {
-    fontSize: 12,
-    fontFamily: Fonts.label,
-    color: '#BFE8E0',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  amountDueText: {
-    fontSize: 32,
-    fontFamily: Fonts.display,
-    color: Colors.onPrimary,
-    marginTop: 10,
-  },
-  amountDetailText: {
-    color: '#BFE8E0',
-    marginTop: 8,
-    fontFamily: Fonts.body,
-    fontSize: 14,
-  },
-  treasurerCard: {
-    backgroundColor: Colors.surfaceContainerLowest,
-    padding: 16,
-    borderRadius: Radius.xl,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    ...Shadow.card,
-  },
-  treasurerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  treasurerCardTitle: {
-    marginLeft: 8,
-    color: Colors.info,
-    fontFamily: Fonts.headline,
-  },
-  treasurerName: {
-    fontFamily: Fonts.title,
-    fontSize: 16,
-    marginTop: 12,
-    textAlign: 'center',
-    color: Colors.onSurface,
-  },
-  treasurerNumber: {
-    fontSize: 24,
-    fontFamily: Fonts.display,
-    textAlign: 'center',
-    marginTop: 8,
-    color: Colors.primary,
-  },
-  treasurerOpCenter: {
-    textAlign: 'center',
-    marginTop: 12,
-    color: Colors.textSecondary,
-    fontFamily: Fonts.headline,
-  },
-  instructionsCard: {
-    backgroundColor: Colors.surfaceContainerLow,
-    padding: 16,
-    borderRadius: Radius.xl,
-    marginBottom: 24,
-  },
-  instructionsTitle: {
-    fontSize: 16,
-    fontFamily: Fonts.headline,
-    color: Colors.onSurface,
-    marginBottom: 10,
-  },
-  instructionLine: {
-    paddingVertical: 4,
-    color: Colors.textPrimary,
-    lineHeight: 21,
-    fontFamily: Fonts.body,
-  },
-  warningCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#FFF3CD',
-    borderColor: '#FFCC80',
-    borderWidth: 1,
-    borderRadius: Radius.lg,
-    padding: 12,
-    marginBottom: 16,
-  },
-  warningText: {
-    flex: 1,
-    color: '#7B3F00',
-    fontFamily: Fonts.body,
-    lineHeight: 19,
-  },
-  imagePickerArea: {
-    width: '100%',
-    height: 220,
-    borderWidth: 2,
-    borderColor: Colors.border,
-    borderStyle: 'dashed',
-    borderRadius: Radius.xl,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.surfaceContainerLowest,
-  },
-  imagePickerText: {
-    color: Colors.textMuted,
-    marginTop: 12,
-    fontFamily: Fonts.headline,
-  },
-  changeImageText: {
-    textAlign: 'center',
-    color: Colors.primary,
-    marginTop: 12,
-    fontFamily: Fonts.headline,
-  },
-  analysisError: {
-    color: Colors.error,
-    marginTop: 8,
-    fontFamily: Fonts.body,
-  },
-  matchCard: {
-    padding: 12,
-    borderRadius: Radius.lg,
-    marginVertical: 12,
-  },
-  matchOkText: {
-    color: Colors.statusPaid,
-    fontFamily: Fonts.headline,
-  },
-  matchWarnText: {
-    color: Colors.statusPending,
-    fontFamily: Fonts.headline,
-  },
-  infoNoteCard: {
-    flexDirection: 'row',
-    backgroundColor: '#DCEEFF',
-    padding: 12,
-    borderRadius: Radius.lg,
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  infoNoteText: {
-    color: Colors.info,
-    flex: 1,
-    marginLeft: 8,
-    fontFamily: Fonts.body,
-    lineHeight: 20,
-  },
-  authWarningBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF3CD',
-    borderWidth: 1,
-    borderColor: '#FFCC80',
-    borderRadius: Radius.lg,
-    padding: 10,
-    marginTop: 12,
-    gap: 8,
-  },
-  authWarningText: {
-    flex: 1,
-    color: '#7B3F00',
-    fontSize: 13,
-    fontFamily: Fonts.headline,
-  },
-  actionsBlock: {
-    marginTop: 12,
   },
 });

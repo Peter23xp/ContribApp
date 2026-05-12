@@ -208,16 +208,14 @@ export default function ReportsScreen({ route, navigation }: any) {
   };
 
   const onExportExcel = async () => {
-    if (!groupId || isOffline) return;
+    if (!groupId) return;
     setLoadingExcel(true);
+    Toast.show({ type: 'info', text1: 'Génération du rapport…', text2: 'Veuillez patienter.' });
     try {
-      const { downloadUrl } = await exportReportExcel(groupId, reportType, periodKey);
-      const destination = `${(FileSystem as any).documentDirectory ?? ''}rapport_${reportType}_${periodKey}.xlsx`;
-      await FileSystem.downloadAsync(downloadUrl, destination);
-      Toast.show({ type: 'success', text1: 'Fichier Excel sauvegarde' });
-      await Sharing.shareAsync(destination);
-    } catch {
-      Toast.show({ type: 'error', text1: 'Export Excel impossible' });
+      await exportReportExcel(groupId, reportType, periodKey);
+      Toast.show({ type: 'success', text1: 'Rapport Excel généré', text2: 'Prêt à partager ✓' });
+    } catch (e: any) {
+      Toast.show({ type: 'error', text1: 'Export Excel impossible', text2: e?.message ?? '' });
     } finally {
       setLoadingExcel(false);
     }
@@ -432,7 +430,7 @@ export default function ReportsScreen({ route, navigation }: any) {
           title="Generer PDF"
           onPress={onGeneratePdf}
           loading={loadingPdf}
-          disabled={isOffline || isLoading}
+          disabled
           style={{ flex: 1 }}
         />
         <AppButton
@@ -448,7 +446,7 @@ export default function ReportsScreen({ route, navigation }: any) {
           onPress={onShareDirect}
           variant="outline"
           loading={loadingShare}
-          disabled={isOffline || isLoading}
+          disabled
           style={styles.shareBtn}
         />
       </View>

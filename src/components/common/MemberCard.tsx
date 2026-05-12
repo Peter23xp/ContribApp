@@ -4,6 +4,7 @@ import { Swipeable } from 'react-native-gesture-handler';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors, Fonts, Radius } from '../../constants/colors';
 import { StatusBadge, type PaymentStatus } from './StatusBadge';
+import { fmtDate } from '../../utils/formatDate';
 
 export type MemberRole = 'admin' | 'treasurer' | 'auditor' | 'member';
 export type MemberStatus = 'active' | 'suspended' | 'removed';
@@ -50,11 +51,7 @@ function Avatar({ name }: { name: string }) {
 export function MemberCard({ member, onActionPress, showSwipeActions }: Props) {
   const swipeRef = useRef<Swipeable>(null);
   
-  const formatDate = (isoStr: string) => {
-    return new Date(isoStr).toLocaleDateString('fr-FR', {
-      day: '2-digit', month: 'short', year: 'numeric'
-    });
-  };
+  const formatDate = (value: any) => fmtDate(value, { day: '2-digit', month: 'short', year: 'numeric' });
 
   const closeAndAction = (action: 'remind' | 'edit_role' | 'suspend') => {
     swipeRef.current?.close();
@@ -122,7 +119,9 @@ export function MemberCard({ member, onActionPress, showSwipeActions }: Props) {
           </View>
         </View>
         
-        <Text style={s.joinedDate}>Membre depuis le {formatDate(member.joinedAt)}</Text>
+        {member.joinedAt ? (
+          <Text style={s.joinedDate}>Membre depuis le {formatDate(member.joinedAt)}</Text>
+        ) : null}
       </View>
     </View>
   );
@@ -150,21 +149,23 @@ const s = StyleSheet.create({
     padding: 16,
     backgroundColor: Colors.surfaceContainerLowest,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.outlineVariant + '50',
-    gap: 12,
+    borderBottomColor: Colors.outlineVariant + '40',
+    gap: 14,
   },
   avatar: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: Colors.surfaceContainerHigh,
+    backgroundColor: Colors.goldMuted,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: 'rgba(201,168,76,0.25)',
   },
   avatarText: {
     fontFamily: Fonts.headline,
     color: Colors.primary,
-    fontSize: 18,
+    fontSize: 17,
   },
   infoColumn: {
     flex: 1,

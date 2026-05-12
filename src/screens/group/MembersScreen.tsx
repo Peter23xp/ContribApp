@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TextInput, 
-  TouchableOpacity, ActivityIndicator, RefreshControl, SafeAreaView
+  View, Text, StyleSheet, FlatList, TextInput,
+  TouchableOpacity, ActivityIndicator, RefreshControl, Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { Colors, Fonts, Radius, Shadow } from '../../constants/colors';
 import { useAuthStore } from '../../stores/authStore';
@@ -12,6 +13,7 @@ import { ConfirmModal } from '../../components/common/ConfirmModal';
 import { ToastNotification } from '../../components/common/ToastNotification';
 
 export default function MembersScreen({ navigation }: any) {
+  const insets = useSafeAreaInsets();
   const { user, groupId, uid } = useAuthStore();
   const isAdmin = useAuthStore(s => s.role === 'admin');
 
@@ -19,7 +21,7 @@ export default function MembersScreen({ navigation }: any) {
   const [refreshing, setRefreshing] = useState(false);
   const [members, setMembers] = useState<any[]>([]);
   const [search, setSearch] = useState('');
-  
+
   const [selectedMember, setSelectedMember] = useState<MemberCardData | null>(null);
   const [pendingAction, setPendingAction] = useState<'remind' | 'edit_role' | 'suspend' | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -76,7 +78,7 @@ export default function MembersScreen({ navigation }: any) {
   };
 
   const filteredMembers = useMemo(() => {
-    return members.filter(m => 
+    return members.filter(m =>
       (m.full_name || '').toLowerCase().includes(search.toLowerCase()) ||
       (m.phone || '').includes(search)
     ).map(m => ({
@@ -86,54 +88,96 @@ export default function MembersScreen({ navigation }: any) {
       phone: m.phone || '',
       role: m.member_role || 'member',
       status: m.status || 'active',
-      paymentStatus: null, // Would be fetched from contributions if needed
-      joinedAt: m.joined_at?.toDate?.()?.toISOString() || new Date().toISOString()
+      paymentStatus: null,
+      joinedAt: m.joined_at
+        ? (typeof m.joined_at?.toDate === 'function'
+            ? m.joined_at.toDate().toISOString()
+            : String(m.joined_at))
+        : null
     } as MemberCardData));
   }, [members, search]);
 
+  const activeCount = filteredMembers.filter(m => m.status === 'active').length;
+  const pendingCount = filteredMembers.filter(m => m.status === 'suspended').length;
+
   const renderHeader = () => (
-    <View style={styles.headerContainer}>
-      <View style={styles.searchBar}>
-        <Ionicons name="search" size={20} color={Colors.textMuted} />
-        <TextInput
-          placeholder="Rechercher un membre..."
-          style={styles.searchInput}
-          value={search}
-          onChangeText={setSearch}
-          placeholderTextColor={Colors.textMuted}
-        />
-        {search.length > 0 && (
-          <TouchableOpacity onPress={() => setSearch('')}>
-            <Ionicons name="close-circle" size={18} color={Colors.textMuted} />
-          </TouchableOpacity>
-        )}
-      </View>
-      <View style={styles.statsRow}>
-        <Text style={styles.countText}>{filteredMembers.length} membre{filteredMembers.length > 1 ? 's' : ''}</Text>
-        <TouchableOpacity 
-          style={styles.inviteButton}
+    <View style={styles.listHeader}>
+      {/* Search Bar */}
+      <View style={styles.searchRow}>
+        <View style={styles.searchBar}>
+          <Ionicons name="search" size={18} color={Colors.textMuted} />
+          <TextInput
+            placeholder="Rechercher un membre..."
+            style={styles.searchInput}
+            value={search}
+            onChangeText={setSearch}
+            placeholderTextColor={Colors.textMuted}
+          />
+          {search.length > 0 && (
+            <TouchableOpacity onPress={() => setSearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="close-circle" size={16} color={Colors.textMuted} />
+            </TouchableOpacity>
+          )}
+        </View>
+        <TouchableOpacity
+          style={styles.inviteChip}
           onPress={() => navigation.navigate('InviteHub')}
+          activeOpacity={0.8}
         >
-          <Ionicons name="person-add" size={16} color={Colors.primary} />
-          <Text style={styles.inviteText}>Inviter</Text>
+          <Ionicons name="person-add-outline" size={15} color={Colors.primary} />
+          <Text style={styles.inviteChipText}>Inviter</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Stats Chips */}
+      <View style={styles.statsRow}>
+        <View style={styles.statChip}>
+          <View style={[styles.statDot, { backgroundColor: Colors.statusPaid }]} />
+          <Text style={styles.statChipText}>{activeCount} actif{activeCount > 1 ? 's' : ''}</Text>
+        </View>
+        {pendingCount > 0 && (
+          <View style={styles.statChip}>
+            <View style={[styles.statDot, { backgroundColor: Colors.statusPending }]} />
+            <Text style={styles.statChipText}>{pendingCount} suspendu{pendingCount > 1 ? 's' : ''}</Text>
+          </View>
+        )}
+        {search.length > 0 && (
+          <View style={[styles.statChip, { backgroundColor: Colors.primary + '12' }]}>
+            <Text style={[styles.statChipText, { color: Colors.primary }]}>{filteredMembers.length} résultat{filteredMembers.length > 1 ? 's' : ''}</Text>
+          </View>
+        )}
+      </View>
+
+      {isAdmin && (
+        <View style={styles.swipeHint}>
+          <Ionicons name="swap-horizontal" size={12} color={Colors.textMuted} />
+          <Text style={styles.swipeHintText}>Glissez une fiche pour rappeler, changer le rôle ou suspendre</Text>
+        </View>
+      )}
     </View>
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.customHeader}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={Colors.onSurface} />
+    <View style={styles.container}>
+      {/* ── Top Banner Header ── */}
+      <View style={[styles.topBanner, { paddingTop: Math.max(insets.top + 8, 44) }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
+          <Ionicons name="arrow-back" size={22} color="rgba(255,255,255,0.9)" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Gestion des Membres</Text>
-        <View style={{ width: 40 }} />
+        <View style={styles.topBannerCenter}>
+          <Text style={styles.topBannerEyebrow}>Groupe · Gestion</Text>
+          <Text style={styles.topBannerTitle}>Membres</Text>
+        </View>
+        <View style={styles.totalBadge}>
+          <Text style={styles.totalBadgeCount}>{members.length}</Text>
+          <Text style={styles.totalBadgeLabel}>total</Text>
+        </View>
       </View>
 
       {isLoading ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>Chargement des membres…</Text>
         </View>
       ) : (
         <FlatList
@@ -141,32 +185,47 @@ export default function MembersScreen({ navigation }: any) {
           keyExtractor={item => item.id}
           ListHeaderComponent={renderHeader}
           renderItem={({ item }) => (
-            <MemberCard 
-              member={item} 
-              onActionPress={handleAction} 
-              showSwipeActions={isAdmin && item.id !== uid} 
+            <MemberCard
+              member={item}
+              onActionPress={handleAction}
+              showSwipeActions={isAdmin && item.id !== uid}
             />
           )}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} tintColor={Colors.primary} />
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <MaterialCommunityIcons name="account-search-outline" size={64} color={Colors.outlineVariant} />
-              <Text style={styles.emptyTitle}>Aucun membre trouvé</Text>
-              <Text style={styles.emptySub}>Essayez de modifier votre recherche ou invitez de nouveaux membres.</Text>
+              <View style={styles.emptyIconWrap}>
+                <MaterialCommunityIcons name="account-search-outline" size={40} color={Colors.primary} />
+              </View>
+              <Text style={styles.emptyTitle}>
+                {search.length > 0 ? 'Aucun résultat' : 'Aucun membre'}
+              </Text>
+              <Text style={styles.emptySub}>
+                {search.length > 0
+                  ? `Aucun membre ne correspond à "${search}".`
+                  : 'Invitez des membres pour qu\'ils rejoignent le groupe.'}
+              </Text>
+              {search.length > 0 && (
+                <TouchableOpacity onPress={() => setSearch('')} style={styles.clearSearchBtn}>
+                  <Text style={styles.clearSearchText}>Effacer la recherche</Text>
+                </TouchableOpacity>
+              )}
             </View>
           }
-          contentContainerStyle={members.length === 0 ? { flex: 1 } : { paddingBottom: 100 }}
+          contentContainerStyle={members.length === 0 ? { flex: 1 } : { paddingBottom: 120 }}
         />
       )}
 
+      {/* FAB */}
       {isAdmin && (
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.fab}
           onPress={() => navigation.navigate('InviteHub')}
+          activeOpacity={0.85}
         >
-          <Ionicons name="add" size={32} color="#FFF" />
+          <Ionicons name="add" size={28} color="#FFF" />
         </TouchableOpacity>
       )}
 
@@ -183,7 +242,7 @@ export default function MembersScreen({ navigation }: any) {
           pendingAction === 'remind' ? 'Envoyer un rappel ?' : 'Changer le rôle ?'
         }
         message={`Voulez-vous vraiment ${
-          pendingAction === 'suspend' ? 'suspendre' : 
+          pendingAction === 'suspend' ? 'suspendre' :
           pendingAction === 'remind' ? 'envoyer un rappel à' : 'modifier le rôle de'
         } ${selectedMember?.fullName} ?`}
         onConfirm={confirmAction}
@@ -192,7 +251,7 @@ export default function MembersScreen({ navigation }: any) {
         cancelText="Annuler"
         isDestructive={pendingAction === 'suspend'}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -201,111 +260,223 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.surface,
   },
-  customHeader: {
+
+  // ── Top Banner ──
+  topBanner: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 16,
+    paddingBottom: 18,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#FFF',
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.outlineVariant + '33',
+    gap: 12,
   },
   backBtn: {
-    padding: 8,
-  },
-  headerTitle: {
-    fontFamily: Fonts.headline,
-    fontSize: 18,
-    color: Colors.onSurface,
-  },
-  headerContainer: {
-    padding: 16,
-    backgroundColor: '#FFF',
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.outlineVariant + '22',
-  },
-  searchBar: {
-    flexDirection: 'row',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.surfaceContainerLow,
-    borderRadius: Radius.md,
-    paddingHorizontal: 12,
-    height: 46,
-    marginBottom: 16,
+    flexShrink: 0,
   },
-  searchInput: {
+  topBannerCenter: {
     flex: 1,
-    marginLeft: 8,
-    fontFamily: Fonts.body,
-    fontSize: 15,
-    color: Colors.onSurface,
   },
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  countText: {
+  topBannerEyebrow: {
     fontFamily: Fonts.label,
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.textMuted,
+    fontSize: 9,
+    color: 'rgba(255,255,255,0.6)',
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+    marginBottom: 2,
+  },
+  topBannerTitle: {
+    fontFamily: Fonts.display,
+    fontSize: 22,
+    color: '#FFFFFF',
+  },
+  totalBadge: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: Radius.lg,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  totalBadgeCount: {
+    fontFamily: Fonts.display,
+    fontSize: 18,
+    color: Colors.gold,
+    lineHeight: 22,
+  },
+  totalBadgeLabel: {
+    fontFamily: Fonts.label,
+    fontSize: 9,
+    color: 'rgba(255,255,255,0.6)',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  inviteButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.primary + '10',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: Radius.full,
-    gap: 6,
-  },
-  inviteText: {
-    fontFamily: Fonts.title,
-    fontSize: 13,
-    color: Colors.primary,
-  },
+
+  // ── Loading ──
   center: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    gap: 12,
   },
+  loadingText: {
+    fontFamily: Fonts.body,
+    fontSize: 14,
+    color: Colors.textMuted,
+  },
+
+  // ── List Header ──
+  listHeader: {
+    padding: 16,
+    paddingBottom: 4,
+    gap: 12,
+  },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  searchBar: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surfaceContainerLow,
+    borderRadius: Radius.xl,
+    paddingHorizontal: 14,
+    height: 48,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant + '40',
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontFamily: Fonts.body,
+    fontSize: 15,
+    color: Colors.onSurface,
+  },
+  inviteChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: Colors.primary + '12',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.primary + '30',
+    flexShrink: 0,
+  },
+  inviteChipText: {
+    fontFamily: Fonts.title,
+    fontSize: 13,
+    color: Colors.primary,
+    fontWeight: '700',
+  },
+  statsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  statChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: Colors.surfaceContainerLow,
+    borderRadius: Radius.full,
+  },
+  statDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+  },
+  statChipText: {
+    fontFamily: Fonts.label,
+    fontSize: 11,
+    color: Colors.textSecondary,
+    fontWeight: '600',
+  },
+  swipeHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: Colors.surfaceContainerLow,
+    borderRadius: Radius.lg,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  swipeHintText: {
+    fontFamily: Fonts.body,
+    fontSize: 11,
+    color: Colors.textMuted,
+    flex: 1,
+    lineHeight: 15,
+  },
+
+  // ── Empty State ──
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 40,
+    gap: 10,
+  },
+  emptyIconWrap: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: Colors.primary + '10',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 4,
   },
   emptyTitle: {
     fontFamily: Fonts.headline,
-    fontSize: 20,
+    fontSize: 19,
     color: Colors.onSurface,
-    marginTop: 16,
     textAlign: 'center',
   },
   emptySub: {
     fontFamily: Fonts.body,
     fontSize: 14,
     color: Colors.textMuted,
-    marginTop: 8,
     textAlign: 'center',
     lineHeight: 20,
   },
+  clearSearchBtn: {
+    marginTop: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: Radius.full,
+    borderWidth: 1.5,
+    borderColor: Colors.primary + '50',
+  },
+  clearSearchText: {
+    fontFamily: Fonts.title,
+    fontSize: 13,
+    color: Colors.primary,
+  },
+
+  // ── FAB ──
   fab: {
     position: 'absolute',
-    bottom: 24,
-    right: 24,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    bottom: 28,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     ...Shadow.fab,
   },
+
   toastHost: {
     position: 'absolute',
     top: 60,

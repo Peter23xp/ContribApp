@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, StatusBar } from 'react-native';
-import { Colors } from '../../constants/colors';
+import { Colors, Fonts } from '../../constants/colors';
 import { useAuthStore } from '../../stores/authStore';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -15,49 +15,52 @@ type Props = {
 
 export default function SplashScreen({ navigation }: Props) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(20)).current;
+  const slideAnim = useRef(new Animated.Value(28)).current;
+  const scaleAnim = useRef(new Animated.Value(0.72)).current;
   const progressAnim = useRef(new Animated.Value(0)).current;
+  const glowAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // 1. Démarrer les animations visuelles
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
+    Animated.sequence([
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 700,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          friction: 5,
+          tension: 100,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.timing(glowAnim, {
         toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 600,
+        duration: 800,
         useNativeDriver: true,
       }),
     ]).start();
 
-    // La barre de progression
     Animated.timing(progressAnim, {
       toValue: 100,
-      duration: 1500,
+      duration: 1600,
       useNativeDriver: false,
     }).start();
 
     const bootSequence = async () => {
       try {
-        // 2. Attendre 500ms
         await new Promise(resolve => setTimeout(resolve, 500));
-
-        // 3. (Supprimé: loadFromStorage est géré par le listener app)
-
-        // 4. Attendre que la barre soit à 100% (soit encore ~1000ms)
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        // 5. Si l'utilisateur n'est pas authentifié, aller au Login.
-        // Si authentifié, AppNavigator bascule automatiquement vers les Tabs.
+        await new Promise(resolve => setTimeout(resolve, 1100));
         const authState = useAuthStore.getState();
         if (!authState.isAuthenticated) {
           navigation.replace('Login');
         }
-        // Si authentifié, ne rien faire — AppNavigator affichera
-        // automatiquement AppTabNavigator via le flag isAuthenticated.
       } catch (error) {
         navigation.replace('Login');
       }
@@ -68,26 +71,62 @@ export default function SplashScreen({ navigation }: Props) {
 
   const progressWidth = progressAnim.interpolate({
     inputRange: [0, 100],
-    outputRange: ['0%', '100%']
+    outputRange: ['0%', '100%'],
+  });
+
+  const glowOpacity = glowAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 0.18],
   });
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.primary} />
-      
-      <Animated.View style={[styles.content, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
-        <View style={styles.logoContainer}>
-          <Text style={styles.logoText}>💰</Text>
+
+      {/* Background decorative rings */}
+      <View style={styles.bgRing1} />
+      <View style={styles.bgRing2} />
+      <View style={styles.bgRing3} />
+
+      {/* Gold glow behind logo */}
+      <Animated.View style={[styles.goldGlow, { opacity: glowOpacity }]} />
+
+      <Animated.View
+        style={[
+          styles.content,
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
+          },
+        ]}
+      >
+        {/* Logo mark */}
+        <Animated.View style={[styles.logoWrap, { transform: [{ scale: scaleAnim }] }]}>
+          {/* Outer decorative hexagonal ring */}
+          <View style={styles.hexRingOuter} />
+          <View style={styles.hexRingInner} />
+          {/* Gold circle */}
+          <View style={styles.goldCircle}>
+            <Text style={styles.logoLetter}>C</Text>
+          </View>
+        </Animated.View>
+
+        <View style={styles.textWrap}>
+          <Text style={styles.wordMark}>CONTRIB</Text>
+          <View style={styles.rdcBadge}>
+            <Text style={styles.rdcText}>RDC</Text>
+          </View>
         </View>
-        
-        <Text style={styles.title}>ContribApp RDC</Text>
-        <Text style={styles.subtitle}>Vos contributions, en toute transparence</Text>
+
+        <Text style={styles.tagline}>Vos contributions, en toute transparence</Text>
       </Animated.View>
 
+      {/* Progress */}
       <View style={styles.progressContainer}>
-        <View style={styles.progressBarBackground}>
-          <Animated.View style={[styles.progressBarFill, { width: progressWidth }]} />
+        <View style={styles.progressTrack}>
+          <Animated.View style={[styles.progressFill, { width: progressWidth }]} />
         </View>
+        <Text style={styles.loadingText}>Chargement...</Text>
       </View>
     </View>
   );
@@ -97,52 +136,170 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.primary,
-  },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  logoContainer: {
+
+  // Decorative background rings
+  bgRing1: {
+    position: 'absolute',
+    width: 420,
+    height: 420,
+    borderRadius: 210,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.04)',
+    top: '50%',
+    left: '50%',
+    marginTop: -210,
+    marginLeft: -210,
+  },
+  bgRing2: {
+    position: 'absolute',
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    top: '50%',
+    left: '50%',
+    marginTop: -150,
+    marginLeft: -150,
+  },
+  bgRing3: {
+    position: 'absolute',
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    borderWidth: 1,
+    borderColor: 'rgba(201,168,76,0.12)',
+    top: '50%',
+    left: '50%',
+    marginTop: -90,
+    marginLeft: -90,
+  },
+
+  goldGlow: {
+    position: 'absolute',
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    backgroundColor: Colors.gold,
+    top: '50%',
+    left: '50%',
+    marginTop: -120 - 40,
+    marginLeft: -120,
+  },
+
+  content: {
+    alignItems: 'center',
+    marginBottom: 80,
+  },
+
+  // Logo
+  logoWrap: {
     width: 100,
     height: 100,
-    borderRadius: 50,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 28,
   },
-  logoText: {
-    fontSize: 50,
+  hexRingOuter: {
+    position: 'absolute',
+    width: 100,
+    height: 100,
+    borderRadius: 22,
+    borderWidth: 1.5,
+    borderColor: 'rgba(201,168,76,0.35)',
+    transform: [{ rotate: '15deg' }],
   },
-  title: {
+  hexRingInner: {
+    position: 'absolute',
+    width: 80,
+    height: 80,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    transform: [{ rotate: '45deg' }],
+  },
+  goldCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: Colors.gold,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: Colors.gold,
+    shadowOpacity: 0.5,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+  },
+  logoLetter: {
+    fontFamily: Fonts.display,
+    fontSize: 36,
+    color: Colors.primary,
+    lineHeight: 42,
+  },
+
+  textWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 10,
+  },
+  wordMark: {
+    fontFamily: Fonts.display,
+    fontSize: 30,
     color: '#FFFFFF',
-    fontSize: 32,
-    fontWeight: 'bold',
-    marginTop: 24,
+    letterSpacing: 6,
   },
-  subtitle: {
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: 16,
+  rdcBadge: {
+    backgroundColor: Colors.gold,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 5,
+  },
+  rdcText: {
+    fontFamily: Fonts.title,
+    fontSize: 10,
+    color: Colors.primary,
+    letterSpacing: 1,
+  },
+
+  tagline: {
+    fontFamily: Fonts.body,
+    color: 'rgba(255,255,255,0.55)',
+    fontSize: 13,
     textAlign: 'center',
-    marginTop: 8,
-    paddingHorizontal: 40,
+    letterSpacing: 0.3,
   },
+
+  // Progress
   progressContainer: {
     position: 'absolute',
-    bottom: 80,
+    bottom: 72,
     left: 0,
     right: 0,
     alignItems: 'center',
+    gap: 10,
   },
-  progressBarBackground: {
-    width: 200,
-    height: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  progressTrack: {
+    width: 160,
+    height: 3,
+    backgroundColor: 'rgba(255,255,255,0.15)',
     borderRadius: 2,
     overflow: 'hidden',
   },
-  progressBarFill: {
+  progressFill: {
     height: '100%',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.gold,
+    borderRadius: 2,
+  },
+  loadingText: {
+    fontFamily: Fonts.label,
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.35)',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
   },
 });

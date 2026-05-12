@@ -89,6 +89,12 @@ function mapContributionDoc(docId: string, raw: any): ContributionRecord {
   };
 }
 
+const TAB_CONFIG: { key: ApprovalTab; label: string; icon: any; activeColor: string }[] = [
+  { key: 'pending',  label: 'En attente',  icon: 'time-outline',         activeColor: Colors.statusPending },
+  { key: 'approved', label: 'Approuvées',  icon: 'checkmark-circle-outline', activeColor: Colors.statusPaid },
+  { key: 'rejected', label: 'Rejetées',    icon: 'close-circle-outline', activeColor: Colors.error },
+];
+
 export function ApprovalQueueScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
   const groupId = useAuthStore((s) => s.groupId);
@@ -163,6 +169,7 @@ export function ApprovalQueueScreen({ navigation }: any) {
     const isPending = activeTab === 'pending';
     const isMatch = item.detectedAmount != null && item.detectedAmount === item.amountDue;
     const confidenceColor = item.confidence >= 85 ? Colors.statusPaid : item.confidence >= 60 ? Colors.statusPending : Colors.error;
+    const initials = item.memberName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
 
     return (
       <TouchableOpacity
@@ -170,112 +177,185 @@ export function ApprovalQueueScreen({ navigation }: any) {
         activeOpacity={0.85}
         onPress={() => navigation.navigate('ReviewCapture', { contributionId: item.id, readOnly: !isPending })}
       >
-        <View style={styles.cardContent}>
-          <View style={styles.cardText}>
-            <Text style={styles.memberName}>{item.memberName}</Text>
-            <Text style={styles.periodText}>Contribution {item.periodMonth}</Text>
+        {/* Left accent bar by status */}
+        <View style={[styles.cardAccent, {
+          backgroundColor: activeTab === 'approved' ? Colors.statusPaid : activeTab === 'rejected' ? Colors.error : Colors.statusPending,
+        }]} />
 
-            {isPending ? (
-              <>
-                <View style={styles.amountsRow}>
-                  <Text style={styles.amountDueText}>Attendu: {item.amountDue.toLocaleString('fr-FR')} CDF</Text>
-                  <Text style={[styles.amountDetectedText, { color: isMatch ? Colors.statusPaid : Colors.statusPending }]}>
-                    Detecte: {item.detectedAmount != null ? item.detectedAmount.toLocaleString('fr-FR') : '?'} CDF
-                  </Text>
-                </View>
-                <View style={[styles.confidenceBadge, { backgroundColor: `${confidenceColor}20` }]}>
-                  <Text style={[styles.confidenceText, { color: confidenceColor }]}>IA: {Math.round(item.confidence)}%</Text>
-                </View>
-              </>
-            ) : activeTab === 'approved' ? (
-              <Text style={styles.approvedText}>Approuve: {item.amountPaid.toLocaleString('fr-FR')} CDF</Text>
+        <View style={styles.cardBody}>
+          {/* Member Avatar + Info Row */}
+          <View style={styles.cardTopRow}>
+            <View style={styles.memberAvatar}>
+              <Text style={styles.memberAvatarText}>{initials}</Text>
+            </View>
+            <View style={styles.memberInfo}>
+              <Text style={styles.memberName}>{item.memberName}</Text>
+              <Text style={styles.periodText}>Contribution {item.periodMonth}</Text>
+            </View>
+            {item.captureImageUrl ? (
+              <Image source={{ uri: item.captureImageUrl }} style={styles.thumbnail} />
             ) : (
-              <Text style={styles.rejectedText}>Raison: {item.rejectionReason || 'Non precisee'}</Text>
+              <View style={styles.thumbnailPlaceholder}>
+                <Ionicons name="image-outline" size={20} color={Colors.textMuted} />
+              </View>
             )}
           </View>
 
-          {item.captureImageUrl ? <Image source={{ uri: item.captureImageUrl }} style={styles.thumbnail} /> : null}
+          {/* Amount / Status Row */}
+          <View style={styles.cardDivider} />
+
+          {isPending ? (
+            <View style={styles.pendingDetails}>
+              <View style={styles.amountComparison}>
+                <View style={styles.amountBlock}>
+                  <Text style={styles.amountBlockLabel}>Attendu</Text>
+                  <Text style={styles.amountBlockValue}>{item.amountDue.toLocaleString('fr-FR')} <Text style={styles.amountBlockUnit}>CDF</Text></Text>
+                </View>
+                <View style={[styles.matchIndicator, { backgroundColor: isMatch ? Colors.statusPaid + '18' : Colors.statusPending + '18' }]}>
+                  <Ionicons name={isMatch ? 'checkmark' : 'arrow-forward'} size={14} color={isMatch ? Colors.statusPaid : Colors.statusPending} />
+                </View>
+                <View style={styles.amountBlock}>
+                  <Text style={styles.amountBlockLabel}>Détecté IA</Text>
+                  <Text style={[styles.amountBlockValue, { color: isMatch ? Colors.statusPaid : Colors.statusPending }]}>
+                    {item.detectedAmount != null ? item.detectedAmount.toLocaleString('fr-FR') : '?'} <Text style={styles.amountBlockUnit}>CDF</Text>
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.confidenceRow}>
+                <View style={styles.confidenceTrack}>
+                  <View style={[styles.confidenceFill, { width: `${Math.min(item.confidence, 100)}%` as any, backgroundColor: confidenceColor }]} />
+                </View>
+                <View style={[styles.confidenceBadge, { backgroundColor: confidenceColor + '18' }]}>
+                  <Text style={[styles.confidenceText, { color: confidenceColor }]}>IA {Math.round(item.confidence)}%</Text>
+                </View>
+              </View>
+            </View>
+          ) : activeTab === 'approved' ? (
+            <View style={styles.resolvedRow}>
+              <Ionicons name="checkmark-circle" size={16} color={Colors.statusPaid} />
+              <Text style={[styles.resolvedText, { color: Colors.statusPaid }]}>
+                Approuvé · {item.amountPaid.toLocaleString('fr-FR')} CDF
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.resolvedRow}>
+              <Ionicons name="close-circle" size={16} color={Colors.error} />
+              <Text style={[styles.resolvedText, { color: Colors.error }]}>
+                Rejeté · {item.rejectionReason || 'Raison non précisée'}
+              </Text>
+            </View>
+          )}
+
+          {/* Tap hint */}
+          <View style={styles.cardFooter}>
+            <Text style={styles.cardFooterHint}>Appuyer pour {isPending ? 'examiner' : 'voir les détails'}</Text>
+            <Ionicons name="chevron-forward" size={14} color={Colors.textMuted} />
+          </View>
         </View>
       </TouchableOpacity>
     );
   };
 
   const renderEmpty = () => {
-    if (loading) {
-      return null;
-    }
+    if (loading) return null;
 
     if (!groupId && role === 'treasurer') {
       return (
         <View style={styles.emptyContainer}>
-          <Ionicons name="alert-circle-outline" size={46} color={Colors.warning} />
+          <View style={styles.emptyIconWrap}>
+            <Ionicons name="alert-circle-outline" size={36} color={Colors.warning} />
+          </View>
           <Text style={styles.emptyTitle}>Aucun groupe actif</Text>
-          <Text style={styles.emptyText}>Associez d'abord ce compte tresorier a un groupe pour voir les contributions.</Text>
+          <Text style={styles.emptyText}>Associez d'abord ce compte trésorier à un groupe pour voir les contributions.</Text>
         </View>
       );
     }
 
+    const emptyConfig = {
+      pending:  { icon: 'checkmark-done-circle-outline', color: Colors.statusPaid,    title: 'Aucune capture en attente',       sub: 'Les nouvelles soumissions apparaîtront ici automatiquement.' },
+      approved: { icon: 'checkmark-circle-outline',      color: Colors.statusPaid,    title: 'Aucune contribution approuvée',    sub: 'Les contributions validées apparaîtront ici.' },
+      rejected: { icon: 'close-circle-outline',          color: Colors.error,         title: 'Aucune contribution rejetée',      sub: 'Les contributions rejetées apparaîtront ici.' },
+    }[activeTab];
+
     return (
       <View style={styles.emptyContainer}>
-        <Ionicons name="checkmark-circle-outline" size={48} color={Colors.statusPaid} />
-        <Text style={styles.emptyTitle}>
-          {activeTab === 'pending' ? 'Aucune capture en attente' : activeTab === 'approved' ? 'Aucune contribution approuvee' : 'Aucune contribution rejetee'}
-        </Text>
-        <Text style={styles.emptyText}>Les nouvelles soumissions apparaitront ici automatiquement.</Text>
+        <View style={[styles.emptyIconWrap, { backgroundColor: emptyConfig.color + '12' }]}>
+          <Ionicons name={emptyConfig.icon as any} size={36} color={emptyConfig.color} />
+        </View>
+        <Text style={styles.emptyTitle}>{emptyConfig.title}</Text>
+        <Text style={styles.emptyText}>{emptyConfig.sub}</Text>
       </View>
     );
   };
 
   return (
     <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 14) }]}>
-        <View style={styles.headerTextBlock}>
-          <Text style={styles.headerEyebrow}>Validation des paiements</Text>
-          <Text style={styles.headerTitle}>Contributions a valider</Text>
-          <Text style={styles.headerSubtitle}>
-            Suivez les captures, priorisez les verifications et gardez une vue nette du pipeline.
-          </Text>
-        </View>
 
-        <View style={styles.badgeCount}>
-          <Text style={styles.badgeLabel}>En attente</Text>
-          <Text style={styles.badgeText}>{pendingCount}</Text>
+      {/* ── Header Banner ── */}
+      <View style={[styles.header, { paddingTop: Math.max(insets.top + 8, 44) }]}>
+        <View style={styles.headerLeft}>
+          <Text style={styles.headerEyebrow}>Trésorière · Validation</Text>
+          <Text style={styles.headerTitle}>File d'approbation</Text>
         </View>
+        {pendingCount > 0 && (
+          <View style={styles.urgentBadge}>
+            <Text style={styles.urgentBadgeCount}>{pendingCount}</Text>
+            <Text style={styles.urgentBadgeLabel}>urgent{pendingCount > 1 ? 's' : ''}</Text>
+          </View>
+        )}
       </View>
 
       <OfflineBanner />
 
-      <View style={styles.summaryRow}>
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryLabel}>Flux a traiter</Text>
-          <Text style={styles.summaryValue}>{pendingCount}</Text>
-          <Text style={styles.summaryHint}>{totalDetected.toLocaleString('fr-FR')} CDF detectes</Text>
+      {/* ── Summary Stats Strip ── */}
+      <View style={styles.statsStrip}>
+        <View style={[styles.statCell, { borderRightWidth: 1, borderRightColor: Colors.outlineVariant + '40' }]}>
+          <Text style={styles.statValue}>{pendingCount}</Text>
+          <Text style={styles.statLabel}>En attente</Text>
+          <Text style={styles.statHint}>{totalDetected.toLocaleString('fr-FR')} CDF détectés</Text>
         </View>
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryLabel}>Approuve ce mois</Text>
-          <Text style={styles.summaryValue}>{approvedCount}</Text>
-          <Text style={styles.summaryHint}>{totalApproved.toLocaleString('fr-FR')} CDF valides</Text>
+        <View style={styles.statCell}>
+          <Text style={[styles.statValue, { color: Colors.statusPaid }]}>{approvedCount}</Text>
+          <Text style={styles.statLabel}>Approuvées</Text>
+          <Text style={styles.statHint}>{totalApproved.toLocaleString('fr-FR')} CDF validés</Text>
+        </View>
+        <View style={[styles.statCell, { borderLeftWidth: 1, borderLeftColor: Colors.outlineVariant + '40' }]}>
+          <Text style={[styles.statValue, { color: Colors.error }]}>{rejectedCount}</Text>
+          <Text style={styles.statLabel}>Rejetées</Text>
+          <Text style={styles.statHint}>ce mois</Text>
         </View>
       </View>
 
-      <View style={styles.tabsRow}>
-        <TouchableOpacity style={[styles.tab, activeTab === 'pending' && styles.tabActive]} onPress={() => setActiveTab('pending')}>
-          <Text style={[styles.tabText, activeTab === 'pending' && styles.tabTextActive]}>En attente</Text>
-          <Text style={[styles.tabCount, activeTab === 'pending' && styles.tabCountActive]}>{pendingCount}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.tab, activeTab === 'approved' && styles.tabActive]} onPress={() => setActiveTab('approved')}>
-          <Text style={[styles.tabText, activeTab === 'approved' && styles.tabTextActive]}>Approuvees</Text>
-          <Text style={[styles.tabCount, activeTab === 'approved' && styles.tabCountActive]}>{approvedCount}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.tab, activeTab === 'rejected' && styles.tabActive]} onPress={() => setActiveTab('rejected')}>
-          <Text style={[styles.tabText, activeTab === 'rejected' && styles.tabTextActive]}>Rejetees</Text>
-          <Text style={[styles.tabCount, activeTab === 'rejected' && styles.tabCountActive]}>{rejectedCount}</Text>
-        </TouchableOpacity>
+      {/* ── Tab Bar ── */}
+      <View style={styles.tabBar}>
+        {TAB_CONFIG.map(tab => {
+          const isActive = activeTab === tab.key;
+          const count = tab.key === 'pending' ? pendingCount : tab.key === 'approved' ? approvedCount : rejectedCount;
+          return (
+            <TouchableOpacity
+              key={tab.key}
+              style={[styles.tabItem, isActive && { borderBottomWidth: 2.5, borderBottomColor: tab.activeColor }]}
+              onPress={() => setActiveTab(tab.key)}
+              activeOpacity={0.75}
+            >
+              <View style={styles.tabItemInner}>
+                <Ionicons name={tab.icon} size={15} color={isActive ? tab.activeColor : Colors.textMuted} />
+                <Text style={[styles.tabLabel, isActive && { color: tab.activeColor }]}>{tab.label}</Text>
+                {count > 0 && (
+                  <View style={[styles.tabCountPill, { backgroundColor: isActive ? tab.activeColor + '18' : Colors.surfaceContainerLow }]}>
+                    <Text style={[styles.tabCountText, { color: isActive ? tab.activeColor : Colors.textMuted }]}>{count}</Text>
+                  </View>
+                )}
+              </View>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       {loading ? (
         <View style={styles.loaderWrap}>
           <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loaderText}>Chargement des contributions…</Text>
         </View>
       ) : (
         <FlatList
@@ -304,142 +384,320 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.surface,
   },
+
+  // ── Header ──
   header: {
-    paddingHorizontal: 18,
-    paddingBottom: 18,
-    backgroundColor: Colors.surfaceContainerLowest,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 20,
+    paddingBottom: 24,
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
   },
-  headerTextBlock: {
+  headerLeft: {
     flex: 1,
   },
   headerEyebrow: {
-    fontSize: 11,
     fontFamily: Fonts.label,
-    color: Colors.primary,
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.6)',
     textTransform: 'uppercase',
-    letterSpacing: 1.1,
+    letterSpacing: 1.2,
     marginBottom: 4,
   },
   headerTitle: {
-    fontSize: 24,
     fontFamily: Fonts.display,
-    color: Colors.onSurface,
+    fontSize: 24,
+    color: '#FFFFFF',
     lineHeight: 30,
   },
-  headerSubtitle: {
-    marginTop: 6,
-    color: Colors.textSecondary,
-    fontFamily: Fonts.body,
-    lineHeight: 20,
-  },
-  badgeCount: {
-    minWidth: 88,
+  urgentBadge: {
+    backgroundColor: Colors.error,
     borderRadius: Radius.xl,
-    backgroundColor: '#FFEBEE',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 10,
+    minWidth: 64,
   },
-  badgeLabel: {
-    color: Colors.error,
+  urgentBadgeCount: {
+    fontFamily: Fonts.display,
+    fontSize: 22,
+    color: '#FFF',
+    lineHeight: 26,
+  },
+  urgentBadgeLabel: {
+    fontFamily: Fonts.label,
+    fontSize: 9,
+    color: 'rgba(255,255,255,0.8)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+
+  // ── Stats Strip ──
+  statsStrip: {
+    flexDirection: 'row',
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.outlineVariant + '40',
+  },
+  statCell: {
+    flex: 1,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  statValue: {
+    fontFamily: Fonts.display,
+    fontSize: 22,
+    color: Colors.onSurface,
+    lineHeight: 26,
+  },
+  statLabel: {
     fontFamily: Fonts.label,
     fontSize: 10,
+    color: Colors.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
-    marginBottom: 2,
+    marginTop: 2,
   },
-  badgeText: {
-    color: Colors.error,
-    fontFamily: Fonts.display,
-    fontSize: 20,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 16,
-    marginTop: 14,
-    marginBottom: 12,
-  },
-  summaryCard: {
-    flex: 1,
-    backgroundColor: Colors.surfaceContainerLowest,
-    borderRadius: Radius.xl,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    ...Shadow.card,
-  },
-  summaryLabel: {
-    color: Colors.textMuted,
-    fontFamily: Fonts.label,
-    fontSize: 11,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 6,
-  },
-  summaryValue: {
-    color: Colors.onSurface,
-    fontFamily: Fonts.display,
-    fontSize: 24,
-    marginBottom: 4,
-  },
-  summaryHint: {
-    color: Colors.textSecondary,
+  statHint: {
     fontFamily: Fonts.body,
-    fontSize: 12,
+    fontSize: 10,
+    color: Colors.textMuted,
+    marginTop: 1,
   },
-  tabsRow: {
+
+  // ── Tab Bar ──
+  tabBar: {
     flexDirection: 'row',
-    backgroundColor: Colors.surfaceContainerLow,
-    borderRadius: Radius.full,
-    marginHorizontal: 16,
-    marginBottom: 10,
-    padding: 4,
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.outlineVariant + '40',
   },
-  tab: {
+  tabItem: {
     flex: 1,
     paddingVertical: 12,
     alignItems: 'center',
+    borderBottomWidth: 2.5,
+    borderBottomColor: 'transparent',
+  },
+  tabItemInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  tabLabel: {
+    fontFamily: Fonts.headline,
+    fontSize: 12,
+    color: Colors.textMuted,
+  },
+  tabCountPill: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
     borderRadius: Radius.full,
   },
-  tabActive: {
-    backgroundColor: Colors.surfaceContainerLowest,
-    ...Shadow.card,
+  tabCountText: {
+    fontFamily: Fonts.label,
+    fontSize: 10,
+    fontWeight: '700',
   },
-  tabText: {
-    color: Colors.textSecondary,
-    fontFamily: Fonts.headline,
-    fontSize: 13,
-  },
-  tabTextActive: {
-    color: Colors.primary,
-  },
-  tabCount: {
-    marginTop: 3,
-    color: Colors.textMuted,
-    fontFamily: Fonts.title,
-    fontSize: 12,
-  },
-  tabCountActive: {
-    color: Colors.primary,
-  },
+
+  // ── Loader ──
   loaderWrap: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 12,
   },
+  loaderText: {
+    fontFamily: Fonts.body,
+    fontSize: 14,
+    color: Colors.textMuted,
+  },
+
   listContent: {
     padding: 16,
     paddingBottom: 120,
     flexGrow: 1,
+    gap: 12,
   },
+
+  // ── Contribution Card ──
+  card: {
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderRadius: Radius.xxl,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant + '40',
+    overflow: 'hidden',
+    flexDirection: 'row',
+    ...Shadow.card,
+  },
+  cardAccent: {
+    width: 5,
+  },
+  cardBody: {
+    flex: 1,
+    padding: 14,
+  },
+  cardTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  memberAvatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: Colors.goldMuted,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: Colors.gold + '40',
+    flexShrink: 0,
+  },
+  memberAvatarText: {
+    fontFamily: Fonts.headline,
+    fontSize: 15,
+    color: Colors.primary,
+  },
+  memberInfo: {
+    flex: 1,
+  },
+  memberName: {
+    fontFamily: Fonts.headline,
+    fontSize: 15,
+    color: Colors.onSurface,
+    marginBottom: 2,
+  },
+  periodText: {
+    fontFamily: Fonts.body,
+    fontSize: 12,
+    color: Colors.textSecondary,
+  },
+  thumbnail: {
+    width: 56,
+    height: 56,
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.surfaceContainerHigh,
+    flexShrink: 0,
+  },
+  thumbnailPlaceholder: {
+    width: 56,
+    height: 56,
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.surfaceContainerLow,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant + '40',
+    borderStyle: 'dashed',
+  },
+
+  cardDivider: {
+    height: 1,
+    backgroundColor: Colors.outlineVariant + '40',
+    marginBottom: 12,
+  },
+
+  // ── Pending Details ──
+  pendingDetails: {
+    gap: 10,
+  },
+  amountComparison: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  amountBlock: {
+    flex: 1,
+  },
+  amountBlockLabel: {
+    fontFamily: Fonts.label,
+    fontSize: 9,
+    color: Colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 3,
+  },
+  amountBlockValue: {
+    fontFamily: Fonts.display,
+    fontSize: 15,
+    color: Colors.onSurface,
+  },
+  amountBlockUnit: {
+    fontSize: 10,
+    fontFamily: Fonts.body,
+    color: Colors.textMuted,
+  },
+  matchIndicator: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+
+  confidenceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  confidenceTrack: {
+    flex: 1,
+    height: 4,
+    backgroundColor: Colors.surfaceContainerHigh,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  confidenceFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  confidenceBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radius.full,
+    flexShrink: 0,
+  },
+  confidenceText: {
+    fontFamily: Fonts.label,
+    fontSize: 10,
+    fontWeight: '700',
+  },
+
+  // ── Resolved Rows ──
+  resolvedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingVertical: 4,
+  },
+  resolvedText: {
+    fontFamily: Fonts.headline,
+    fontSize: 13,
+  },
+
+  cardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 4,
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: Colors.outlineVariant + '30',
+  },
+  cardFooterHint: {
+    fontFamily: Fonts.label,
+    fontSize: 10,
+    color: Colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+
+  // ── Error Banner ──
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -455,95 +713,36 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.body,
     lineHeight: 18,
   },
-  card: {
-    backgroundColor: Colors.surfaceContainerLowest,
-    borderRadius: Radius.xxl,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    ...Shadow.card,
-  },
-  cardContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  cardText: {
-    flex: 1,
-  },
-  memberName: {
-    fontFamily: Fonts.headline,
-    fontSize: 17,
-    color: Colors.onSurface,
-  },
-  periodText: {
-    color: Colors.textSecondary,
-    fontSize: 12,
-    marginTop: 2,
-    fontFamily: Fonts.body,
-  },
-  amountsRow: {
-    marginTop: 8,
-    gap: 4,
-  },
-  amountDueText: {
-    color: Colors.textSecondary,
-    fontSize: 12,
-    fontFamily: Fonts.body,
-  },
-  amountDetectedText: {
-    fontSize: 12,
-    fontFamily: Fonts.headline,
-  },
-  confidenceBadge: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: Radius.full,
-    marginTop: 8,
-  },
-  confidenceText: {
-    fontSize: 11,
-    fontFamily: Fonts.headline,
-  },
-  approvedText: {
-    color: Colors.statusPaid,
-    fontFamily: Fonts.headline,
-    marginTop: 8,
-  },
-  rejectedText: {
-    color: Colors.error,
-    fontStyle: 'italic',
-    marginTop: 8,
-    fontSize: 12,
-    fontFamily: Fonts.body,
-  },
-  thumbnail: {
-    width: 72,
-    height: 72,
-    borderRadius: Radius.xl,
-    marginLeft: 12,
-    backgroundColor: Colors.surfaceContainerHigh,
-  },
+
+  // ── Empty State ──
   emptyContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 60,
-    paddingHorizontal: 24,
+    paddingHorizontal: 32,
+    gap: 12,
+  },
+  emptyIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: Colors.surfaceContainerLow,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 4,
   },
   emptyTitle: {
-    marginTop: 14,
     fontFamily: Fonts.headline,
-    fontSize: 18,
+    fontSize: 17,
     color: Colors.onSurface,
     textAlign: 'center',
   },
   emptyText: {
-    marginTop: 8,
+    fontFamily: Fonts.body,
+    fontSize: 13,
     color: Colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 20,
-    fontFamily: Fonts.body,
+    lineHeight: 19,
   },
 });

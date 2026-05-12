@@ -27,27 +27,40 @@ export function SummaryBanner({
 
   return (
     <View style={styles.card}>
+      {/* Gold left accent bar */}
+      <View style={styles.accentBar} />
+
       <View style={styles.left}>
         <Text style={styles.amountMain}>
-          {formatAmount(collectedAmount)} {currency}
+          {formatAmount(collectedAmount)}{' '}
+          <Text style={styles.currency}>{currency}</Text>
         </Text>
         <Text style={styles.amountSub}>
           sur {formatAmount(expectedAmount)} {currency}
         </Text>
       </View>
 
+      {/* Vertical divider */}
+      <View style={styles.divider} />
+
       <View style={styles.center}>
+        <View style={styles.rateCircle}>
+          <Text style={styles.rateValue}>{Math.round(safeRate)}</Text>
+          <Text style={styles.ratePct}>%</Text>
+        </View>
         <View style={styles.track}>
           <View style={[styles.fill, { height: `${safeRate}%` }]} />
         </View>
-        <Text style={styles.rateLabel}>{Math.round(safeRate)}%</Text>
       </View>
+
+      {/* Vertical divider */}
+      <View style={styles.divider} />
 
       <View style={styles.right}>
         <Text style={styles.memberMain}>
-          {paidCount}/{totalMembers}
+          {paidCount}<Text style={styles.memberTotal}>/{totalMembers}</Text>
         </Text>
-        <Text style={styles.memberSub}>membres</Text>
+        <Text style={styles.memberSub}>membres payés</Text>
       </View>
     </View>
   );
@@ -55,41 +68,73 @@ export function SummaryBanner({
 
 const styles = StyleSheet.create({
   card: {
-    height: 80,
-    borderRadius: 12,
-    backgroundColor: '#E8F8EF',
+    borderRadius: Radius.xl,
+    backgroundColor: Colors.surfaceContainerLowest,
     ...Shadow.card,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 0,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant + '40',
+  },
+  accentBar: {
+    width: 4,
+    alignSelf: 'stretch',
+    backgroundColor: Colors.gold,
+    marginRight: 14,
   },
   left: {
     flex: 1,
+    paddingRight: 8,
+  },
+  currency: {
+    fontFamily: Fonts.body,
+    fontSize: 13,
+    color: Colors.textMuted,
   },
   amountMain: {
-    fontSize: 18,
-    color: Colors.secondary,
-    fontFamily: Fonts.headline,
-    fontWeight: '800',
+    fontSize: 20,
+    color: Colors.primary,
+    fontFamily: Fonts.display,
+    letterSpacing: -0.5,
   },
   amountSub: {
-    marginTop: 2,
-    fontSize: 12,
+    marginTop: 3,
+    fontSize: 11,
     color: Colors.textMuted,
     fontFamily: Fonts.body,
   },
+  divider: {
+    width: 1,
+    height: 44,
+    backgroundColor: Colors.outlineVariant,
+    marginHorizontal: 12,
+  },
   center: {
-    width: 34,
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
+    gap: 6,
+  },
+  rateCircle: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  rateValue: {
+    fontFamily: Fonts.headline,
+    fontSize: 18,
+    color: Colors.secondary,
+  },
+  ratePct: {
+    fontFamily: Fonts.label,
+    fontSize: 11,
+    color: Colors.secondary,
   },
   track: {
-    height: 48,
-    width: 8,
+    height: 32,
+    width: 6,
     borderRadius: Radius.full,
-    backgroundColor: '#CFE7D7',
+    backgroundColor: Colors.surfaceContainerHigh,
     justifyContent: 'flex-end',
     overflow: 'hidden',
   },
@@ -99,24 +144,24 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full,
     minHeight: 2,
   },
-  rateLabel: {
-    fontSize: 10,
-    fontFamily: Fonts.label,
-    color: Colors.onSurfaceVariant,
-  },
   right: {
-    minWidth: 68,
+    minWidth: 72,
     alignItems: 'flex-end',
+    paddingRight: 16,
   },
   memberMain: {
-    fontSize: 16,
+    fontSize: 20,
     color: Colors.onSurface,
-    fontFamily: Fonts.headline,
-    fontWeight: '700',
+    fontFamily: Fonts.display,
+  },
+  memberTotal: {
+    fontFamily: Fonts.body,
+    fontSize: 14,
+    color: Colors.textMuted,
   },
   memberSub: {
-    marginTop: 2,
-    fontSize: 12,
+    marginTop: 3,
+    fontSize: 11,
     color: Colors.textMuted,
     fontFamily: Fonts.body,
   },
