@@ -7,8 +7,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated, Easing, View, Text, StyleSheet, KeyboardAvoidingView, Platform,
   TouchableOpacity, Keyboard, TouchableWithoutFeedback,
-  ScrollView, StatusBar, Modal, ActivityIndicator,
+  ScrollView, StatusBar, Modal, ActivityIndicator, Image,
 } from 'react-native';
+
+const LOGO = require('../../../assets/images/logo.png');
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Toast from 'react-native-toast-message';
 import { AppButton } from '../../components/common/AppButton';
@@ -24,51 +26,13 @@ type Props = {
   navigation: NativeStackNavigationProp<AuthStackParamList, 'Login'>;
 };
 
-// ── BrandMark — gold coin motif ────────────────────────────────────────────────
 function BrandMark({ size = 64 }: { size?: number }) {
   return (
-    <View style={{ width: size, height: size, justifyContent: 'center', alignItems: 'center' }}>
-      {/* Outer decorative ring */}
-      <View style={{
-        position: 'absolute',
-        width: size * 0.96, height: size * 0.96,
-        borderRadius: size * 0.22,
-        borderWidth: 1.5,
-        borderColor: 'rgba(201,168,76,0.4)',
-        transform: [{ rotate: '12deg' }],
-      }} />
-      {/* Secondary ring */}
-      <View style={{
-        position: 'absolute',
-        width: size * 0.78, height: size * 0.78,
-        borderRadius: size * 0.16,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.12)',
-        transform: [{ rotate: '57deg' }],
-      }} />
-      {/* Gold coin */}
-      <View style={{
-        width: size * 0.62,
-        height: size * 0.62,
-        borderRadius: size * 0.31,
-        backgroundColor: Colors.gold,
-        alignItems: 'center',
-        justifyContent: 'center',
-        shadowColor: Colors.gold,
-        shadowOpacity: 0.4,
-        shadowRadius: 12,
-        shadowOffset: { width: 0, height: 4 },
-        elevation: 6,
-      }}>
-        <Text style={{
-          fontFamily: Fonts.display,
-          fontSize: size * 0.32,
-          color: Colors.primary,
-          lineHeight: size * 0.38,
-          marginTop: 2,
-        }}>C</Text>
-      </View>
-    </View>
+    <Image
+      source={LOGO}
+      style={{ width: size, height: size, borderRadius: size * 0.22 }}
+      resizeMode="contain"
+    />
   );
 }
 

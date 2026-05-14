@@ -24,9 +24,12 @@ export default function WelcomeScreen({ navigation }: any) {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        {/* Placeholder for Logo */}
         <View style={styles.logoContainer}>
-          <Ionicons name="people-circle" size={140} color={Colors.primary} />
+          <Image
+            source={require('../../../assets/images/logo.png')}
+            style={{ width: 120, height: 120, borderRadius: 26 }}
+            resizeMode="contain"
+          />
         </View>
 
         <Text style={styles.title}>Bienvenue, {firstName} ! 👋</Text>

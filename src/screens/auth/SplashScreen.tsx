@@ -1,5 +1,7 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, StatusBar } from 'react-native';
+import { View, Text, StyleSheet, Animated, StatusBar, Image } from 'react-native';
+
+const LOGO = require('../../../assets/images/logo.png');
 import { Colors, Fonts } from '../../constants/colors';
 import { useAuthStore } from '../../stores/authStore';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -102,13 +104,7 @@ export default function SplashScreen({ navigation }: Props) {
       >
         {/* Logo mark */}
         <Animated.View style={[styles.logoWrap, { transform: [{ scale: scaleAnim }] }]}>
-          {/* Outer decorative hexagonal ring */}
-          <View style={styles.hexRingOuter} />
-          <View style={styles.hexRingInner} />
-          {/* Gold circle */}
-          <View style={styles.goldCircle}>
-            <Text style={styles.logoLetter}>C</Text>
-          </View>
+          <Image source={LOGO} style={styles.logoImage} resizeMode="contain" />
         </Animated.View>
 
         <View style={styles.textWrap}>
@@ -197,48 +193,20 @@ const styles = StyleSheet.create({
 
   // Logo
   logoWrap: {
-    width: 100,
-    height: 100,
+    width: 120,
+    height: 120,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 28,
   },
-  hexRingOuter: {
-    position: 'absolute',
-    width: 100,
-    height: 100,
-    borderRadius: 22,
-    borderWidth: 1.5,
-    borderColor: 'rgba(201,168,76,0.35)',
-    transform: [{ rotate: '15deg' }],
-  },
-  hexRingInner: {
-    position: 'absolute',
-    width: 80,
-    height: 80,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    transform: [{ rotate: '45deg' }],
-  },
-  goldCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: Colors.gold,
-    alignItems: 'center',
-    justifyContent: 'center',
+  logoImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 26,
     shadowColor: Colors.gold,
-    shadowOpacity: 0.5,
-    shadowRadius: 24,
+    shadowOpacity: 0.35,
+    shadowRadius: 20,
     shadowOffset: { width: 0, height: 8 },
-    elevation: 8,
-  },
-  logoLetter: {
-    fontFamily: Fonts.display,
-    fontSize: 36,
-    color: Colors.primary,
-    lineHeight: 42,
   },
 
   textWrap: {
