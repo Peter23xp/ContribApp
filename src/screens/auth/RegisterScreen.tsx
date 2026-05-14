@@ -173,11 +173,13 @@ export default function RegisterScreen({ navigation }: Props) {
         transitionTo(1); setErrors({ email: 'Cet email est déjà utilisé.' });
       } else if (msg.startsWith('RATE_LIMIT:')) {
         Toast.show({ type: 'error', text1: 'Trop rapide', text2: `Réessayez dans ${msg.split(':')[1]} secondes` });
-      } else if (msg === 'EMAIL_SEND_FAILED' || msg === 'INVALID_EMAIL') {
+      } else if (msg.startsWith('EMAIL_SEND_FAILED') || msg === 'INVALID_EMAIL') {
         transitionTo(1);
-        Toast.show({ type: 'error', text1: "Échec d'envoi", text2: "Impossible d'envoyer le code à cet email." });
+        Toast.show({ type: 'error', text1: "Échec d'envoi email", text2: msg.length > 20 ? msg.slice(0, 80) : "Vérifiez votre email ou réessayez." });
       } else if (msg === 'EMAILJS_QUOTA_EXCEEDED') {
         Toast.show({ type: 'error', text1: 'Service indisponible', text2: 'Quota email atteint. Réessayez plus tard.' });
+      } else if (msg === 'EMAILJS_NOT_CONFIGURED') {
+        Toast.show({ type: 'error', text1: 'Config manquante', text2: 'EmailJS non configuré. Vérifiez les variables .env.' });
       } else {
         Toast.show({ type: 'error', text1: 'Erreur', text2: msg || 'Erreur réseau. Réessayez.' });
       }

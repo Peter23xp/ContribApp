@@ -130,11 +130,12 @@ export async function sendOTP(
 
     if (!res.ok) {
       const text = await res.text().catch(() => '');
-      console.error('[otpService] EmailJS REST error:', { status: res.status, text });
+      console.error('[otpService] EmailJS REST error:', { status: res.status, body: text, serviceId: EMAILJS_CONFIG.serviceId, templateId: EMAILJS_CONFIG.templateId });
       await deleteDoc(doc(db, 'otp_codes', docKey));
       if (res.status === 422) throw new Error('INVALID_EMAIL');
       if (res.status === 429) throw new Error('EMAILJS_QUOTA_EXCEEDED');
-      throw new Error('EMAIL_SEND_FAILED');
+      if (res.status === 400) throw new Error(`EMAIL_SEND_FAILED:400:${text.slice(0, 120)}`);
+      throw new Error(`EMAIL_SEND_FAILED:${res.status}`);
     }
   } catch (emailError: any) {
     const known = ['EMAILJS_NOT_CONFIGURED','INVALID_EMAIL','EMAILJS_QUOTA_EXCEEDED','EMAIL_SEND_FAILED'];
