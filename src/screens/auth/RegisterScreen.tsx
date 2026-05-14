@@ -106,7 +106,7 @@ export default function RegisterScreen({ navigation }: Props) {
   });
 
   // ── Transition entre étapes ─────────────────────────────────────────────
-  const transitionTo = (nextStep: number) => {
+  const transitionTo = (nextStep: number, nextErrors: Record<string, string> = {}) => {
     const dir = nextStep > step ? 1 : -1;
     Animated.parallel([
       Animated.timing(slideAnim, { toValue: -28 * dir, duration: 160, useNativeDriver: true }),
@@ -114,7 +114,7 @@ export default function RegisterScreen({ navigation }: Props) {
     ]).start(() => {
       slideAnim.setValue(28 * dir);
       setStep(nextStep);
-      setErrors({});
+      setErrors(nextErrors);
       Animated.parallel([
         Animated.timing(slideAnim, { toValue: 0, duration: 220, useNativeDriver: true }),
         Animated.timing(fadeAnim,  { toValue: 1, duration: 220, useNativeDriver: true }),
@@ -169,16 +169,16 @@ export default function RegisterScreen({ navigation }: Props) {
       const msg = err?.message ?? '';
       console.error('[RegisterScreen] register error:', msg, err);
       if (msg === 'PHONE_ALREADY_EXISTS') {
-        transitionTo(0); setErrors({ phone: 'Ce numéro est déjà inscrit.' });
+        transitionTo(0, { phone: 'Ce numéro est déjà inscrit.' });
       } else if (msg === 'EMAIL_ALREADY_EXISTS') {
-        transitionTo(1); setErrors({ email: 'Cet email est déjà utilisé.' });
+        transitionTo(1, { email: 'Cet email est déjà utilisé.' });
       } else if (msg.startsWith('RATE_LIMIT:')) {
         Alert.alert('Trop rapide', `Réessayez dans ${msg.split(':')[1]} secondes.`);
       } else if (msg.startsWith('EMAIL_SEND_FAILED') || msg === 'INVALID_EMAIL') {
         Alert.alert(
           "Échec d'envoi email",
           `Détail : ${msg}\n\nVérifiez votre adresse email et réessayez.`,
-          [{ text: 'OK', onPress: () => transitionTo(1) }]
+          [{ text: 'OK', onPress: () => transitionTo(1, { email: "Impossible d'envoyer le code à cet email." }) }]
         );
       } else if (msg === 'EMAILJS_QUOTA_EXCEEDED') {
         Alert.alert('Quota email dépassé', 'Réessayez plus tard (limite mensuelle EmailJS atteinte).');
