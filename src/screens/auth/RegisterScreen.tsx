@@ -4,7 +4,7 @@
  */
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Animated, Keyboard, KeyboardAvoidingView, Platform,
+  Alert, Animated, Keyboard, KeyboardAvoidingView, Platform,
   ScrollView, StatusBar, StyleSheet,
   Text, TouchableOpacity, View,
 } from 'react-native';
@@ -167,21 +167,25 @@ export default function RegisterScreen({ navigation }: Props) {
       });
     } catch (err: any) {
       const msg = err?.message ?? '';
+      console.error('[RegisterScreen] register error:', msg, err);
       if (msg === 'PHONE_ALREADY_EXISTS') {
         transitionTo(0); setErrors({ phone: 'Ce numéro est déjà inscrit.' });
       } else if (msg === 'EMAIL_ALREADY_EXISTS') {
         transitionTo(1); setErrors({ email: 'Cet email est déjà utilisé.' });
       } else if (msg.startsWith('RATE_LIMIT:')) {
-        Toast.show({ type: 'error', text1: 'Trop rapide', text2: `Réessayez dans ${msg.split(':')[1]} secondes` });
+        Alert.alert('Trop rapide', `Réessayez dans ${msg.split(':')[1]} secondes.`);
       } else if (msg.startsWith('EMAIL_SEND_FAILED') || msg === 'INVALID_EMAIL') {
-        transitionTo(1);
-        Toast.show({ type: 'error', text1: "Échec d'envoi email", text2: msg.length > 20 ? msg.slice(0, 80) : "Vérifiez votre email ou réessayez." });
+        Alert.alert(
+          "Échec d'envoi email",
+          `Détail : ${msg}\n\nVérifiez votre adresse email et réessayez.`,
+          [{ text: 'OK', onPress: () => transitionTo(1) }]
+        );
       } else if (msg === 'EMAILJS_QUOTA_EXCEEDED') {
-        Toast.show({ type: 'error', text1: 'Service indisponible', text2: 'Quota email atteint. Réessayez plus tard.' });
+        Alert.alert('Quota email dépassé', 'Réessayez plus tard (limite mensuelle EmailJS atteinte).');
       } else if (msg === 'EMAILJS_NOT_CONFIGURED') {
-        Toast.show({ type: 'error', text1: 'Config manquante', text2: 'EmailJS non configuré. Vérifiez les variables .env.' });
+        Alert.alert('Configuration manquante', 'EmailJS non configuré. Vérifiez les variables EXPO_PUBLIC_EMAILJS_* dans .env.development');
       } else {
-        Toast.show({ type: 'error', text1: 'Erreur', text2: msg || 'Erreur réseau. Réessayez.' });
+        Alert.alert('Erreur', msg || 'Erreur réseau. Réessayez.');
       }
     } finally {
       setIsLoading(false);
