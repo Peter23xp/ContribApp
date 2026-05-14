@@ -14,3 +14,15 @@ bucket_name = "contrib-bucket"
 # [vars]
 # R2_ACCESS_KEY_ID = "..."
 # R2_SECRET_ACCESS_KEY = "..."
+
+# Payment config OTA — set via:
+#   npx wrangler secret put APP_TOKEN
+#   npx wrangler secret put PAYMENT_ACTIVE_STRATEGY
+#
+# PAYMENT_ACTIVE_STRATEGY controls which payment strategy the mobile app uses.
+# Valid values: manual_capture | airtel_money | m_pesa | orange_money | mtn_momo
+# Default (when unset): manual_capture
+#
+# To switch to Airtel Money in production without recompiling the app:
+#   npx wrangler secret put PAYMENT_ACTIVE_STRATEGY   → enter: airtel_money
+#   npx wrangler deploy
