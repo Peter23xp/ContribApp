@@ -30,4 +30,10 @@ const appJson = require('./app.json');
 
 module.exports = {
   ...appJson.expo,
+  extra: {
+    ...appJson.expo.extra,
+    eas: {
+      projectId: '60e46d56-c68e-4a44-a6b8-5a72fac2ec83',
+    },
+  },
 };
