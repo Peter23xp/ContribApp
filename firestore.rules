@@ -26,6 +26,11 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // ── OTP CODES ─────────────────────────────────────────────────────────────
+    match /otp_codes/{docKey} {
+      allow read, write: if true;
+    }
+
     // ── MAIL (Firebase Trigger Email) ─────────────────────────────────────────
     match /mail/{mailId} {
       allow create: if true;
