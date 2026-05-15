@@ -13,7 +13,23 @@
       "Bash(cd /d \"D:\\\\PETER\\\\ContribApp\")",
       "Bash(grep -r \"import.*getAuth\" src/)",
       "Bash(grep -r \"request\\\\.auth\" . --include=\"*.rules\")",
-      "Bash(where firebase *)"
+      "Bash(where firebase *)",
+      "WebFetch(domain:www.npmjs.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(gh search *)",
+      "Bash(gh repo *)",
+      "Bash(gh api *)",
+      "Bash(xargs ls -lh)",
+      "Bash(awk '{print $9}')",
+      "Bash(gh pr *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(git commit *)",
+      "Bash(npx wrangler *)",
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(d.get\\('expo',{}\\).get\\('extra',{}\\)\\)\")",
+      "Bash(npx eas *)",
+      "Bash(npx firebase-tools *)"
     ]
   }
 }
