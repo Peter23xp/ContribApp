@@ -29,7 +29,20 @@
       "Bash(npx wrangler *)",
       "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(d.get\\('expo',{}\\).get\\('extra',{}\\)\\)\")",
       "Bash(npx eas *)",
-      "Bash(npx firebase-tools *)"
+      "Bash(npx firebase-tools *)",
+      "Bash(eas whoami *)",
+      "Bash(eas credentials *)",
+      "Bash(JAVA_HOME='/c/Program Files/Android/Android Studio/jbr' ANDROID_HOME='/c/Users/Peter Akilimali/AppData/Local/Android/Sdk' PATH='__TRACKED_VAR__:/c/Program Files/Android/Android Studio/jbr/bin:/c/Users/Peter Akilimali/AppData/Local/Android/Sdk/platform-tools' eas build --platform android --profile production --local --non-interactive)",
+      "Bash(npx expo *)",
+      "Bash(/c/Program Files/Android/Android Studio/jbr/bin/keytool *)",
+      "Bash(JAVA_HOME='/c/Program Files/Android/Android Studio/jbr' ANDROID_HOME='/c/Users/Peter Akilimali/AppData/Local/Android/Sdk' PATH='__TRACKED_VAR__:/c/Program Files/Android/Android Studio/jbr/bin' ./gradlew bundleRelease --no-daemon)",
+      "Bash(tasklist)",
+      "Bash(taskkill /PID 16704 /F)",
+      "Bash(taskkill /PID 12704 /F)",
+      "Bash(cmd.exe *)",
+      "Bash(eas build *)",
+      "Bash(node -e ' *)",
+      "Bash(\"/c/Program Files/Android/Android Studio/jbr/bin/java.exe\" -version)"
     ]
   }
 }
