@@ -2,7 +2,7 @@
   "expo": {
     "name": "ContribApp",
     "slug": "ContribApp",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "contribapp",
@@ -10,10 +10,10 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.peter23xp.contribapp"
+      "bundleIdentifier": "com.contribapp.app "
     },
     "android": {
-      "package": "com.peter23xp.contribapp",
+      "package": "com.contribapp.app",
       "adaptiveIcon": {
         "backgroundColor": "#00342D",
         "foregroundImage": "./assets/images/android-icon-foreground.png"
@@ -24,6 +24,11 @@
     "web": {
       "output": "static",
       "favicon": "./assets/images/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "60e46d56-c68e-4a44-a6b8-5a72fac2ec83"
+      }
     },
     "plugins": [
       "expo-router",

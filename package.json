@@ -1,7 +1,7 @@
 {
   "name": "contribapp",
   "main": "expo/AppEntry.js",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "scripts": {
     "start": "expo start --port 8082 --clear",
     "reset-project": "node ./scripts/reset-project.js",
